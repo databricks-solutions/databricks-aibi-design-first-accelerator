@@ -1,5 +1,25 @@
-*conf*.json
-.DS_Store
-__pycache__
+# Databricks Asset Bundles
+.databricks/
+build/
+databricks.yml.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# IDE / OS
 .idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Secrets
 .env
+*.pem
+*.key
+
+# Genie runtime outputs (local copies only — not committed)
+**/output/
+**/erd_parsed.yaml

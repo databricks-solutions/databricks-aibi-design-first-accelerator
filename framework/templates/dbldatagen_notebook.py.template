@@ -1,0 +1,12 @@
+# Databricks notebook source
+# DBTITLE 1,Synthetic Data — {{DOMAIN_NAME}}
+# Uses dbldatagen when data_source.greenfield.synthetic_data is true.
+# MAGIC %pip install dbldatagen --quiet
+
+# COMMAND ----------
+
+# import dbldatagen as dg
+# Target: {{SOURCE_CATALOG}}.{{SOURCE_SCHEMA}}
+# Row counts from accelerator.yaml → data_source.greenfield.volume
+
+print("Replace with dbldatagen specs from ERD volume settings")

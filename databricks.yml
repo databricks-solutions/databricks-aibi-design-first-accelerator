@@ -1,0 +1,59 @@
+# AIBI Design-First Accelerator — Databricks Asset Bundle
+#
+# Source of truth for workspace / Databricks settings (host, user, paths, warehouse).
+# Domain config (catalogs, KPIs, assets, ERD) lives in examples/<domain>/accelerator.yaml.
+#
+# Deploy:  databricks bundle deploy -t dev
+# Genie:   run framework/prompts/00_master_prompt.md (reads both YAML files)
+
+bundle:
+  name: aibi_design_first_accelerator
+
+variables:
+  bundle_name_path:
+    description: Folder name under /Workspace/Users/<current_user>/ for this bundle.
+    default: aibi-design-first-accelerator
+  deploy_root:
+    description: Bundle sync root; uses the Databricks user deploying the bundle.
+    default: /Workspace/Users/${workspace.current_user.userName}/${var.bundle_name_path}
+  sql_warehouse_id:
+    description: SQL warehouse for Genie SQL and future bundle jobs.
+    default: "CHANGE_ME"
+  example_domain:
+    description: Active example module (must match domain.name in accelerator.yaml).
+    default: member_claims
+
+sync:
+  paths:
+    - databricks.yml
+    - framework
+    - examples/member_claims
+  exclude:
+    - "**/.DS_Store"
+    - "**/__pycache__/**"
+
+targets:
+  dev:
+    default: true
+    mode: development
+    workspace:
+      host: https://your-workspace.cloud.databricks.com/
+      root_path: ${var.deploy_root}
+    variables:
+      example_domain: member_claims
+
+  staging:
+    mode: development
+    workspace:
+      host: https://your-workspace.cloud.databricks.com/
+      root_path: ${var.deploy_root}
+    variables:
+      example_domain: member_claims
+
+  prod:
+    mode: production
+    workspace:
+      host: https://your-workspace.cloud.databricks.com/
+      root_path: ${var.deploy_root}
+    variables:
+      example_domain: member_claims

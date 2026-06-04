@@ -1,0 +1,7 @@
+# Copy to databricks.yml.local (gitignored) for machine-specific overrides.
+# Example: set your workspace host without editing committed databricks.yml.
+#
+# targets:
+#   dev:
+#     workspace:
+#       host: https://adb-xxxxxxxx.xx.azuredatabricks.net/

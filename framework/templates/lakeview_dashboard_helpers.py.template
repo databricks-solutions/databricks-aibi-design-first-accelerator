@@ -1,0 +1,97 @@
+# Databricks notebook source
+# Lakeview Dashboard API helpers — use in notebooks or Genie-generated cells.
+# Copy/adapt into a setup cell; do NOT use subprocess + databricks CLI (not installed in notebooks).
+
+# COMMAND ----------
+
+import json
+from typing import Any
+
+# Preferred: Databricks SDK (preinstalled on Databricks runtimes)
+from databricks.sdk import WorkspaceClient
+
+w = WorkspaceClient()
+
+
+def lakeview_request(method: str, path: str, *, body: dict | None = None, query: dict | None = None) -> dict:
+    """Call Lakeview REST API; raises on HTTP/API errors with response body."""
+    resp = w.api_client.do(method, path, body=body, query=query)
+    if resp is None:
+        return {}
+    if isinstance(resp, dict):
+        return resp
+    return json.loads(resp) if isinstance(resp, str) and resp.strip() else {}
+
+
+def list_dashboards(page_size: int = 100, max_pages: int = 50) -> list[dict]:
+    """Paginate GET /api/2.0/lakeview/dashboards."""
+    out: list[dict] = []
+    page_token = None
+    for _ in range(max_pages):
+        query: dict[str, Any] = {"page_size": page_size}
+        if page_token:
+            query["page_token"] = page_token
+        data = lakeview_request("GET", "/api/2.0/lakeview/dashboards", query=query)
+        out.extend(data.get("dashboards", []))
+        page_token = data.get("next_page_token")
+        if not page_token:
+            break
+    return out
+
+
+def find_dashboards_by_names(names: set[str]) -> list[dict]:
+    """Match display_name (case-insensitive) against any of the given strings."""
+    needles = {n.lower() for n in names}
+    return [
+        d for d in list_dashboards()
+        if any(n in (d.get("display_name") or "").lower() for n in needles)
+    ]
+
+
+def delete_dashboard(dashboard_id: str) -> None:
+    lakeview_request("DELETE", f"/api/2.0/lakeview/dashboards/{dashboard_id}")
+
+
+def create_dashboard(
+    display_name: str,
+    warehouse_id: str,
+    parent_path: str,
+    serialized_dashboard: dict,
+) -> dict:
+    body = {
+        "display_name": display_name,
+        "warehouse_id": warehouse_id,
+        "parent_path": parent_path,
+        "serialized_dashboard": json.dumps(serialized_dashboard),
+    }
+    return lakeview_request("POST", "/api/2.0/lakeview/dashboards", body=body)
+
+
+def publish_dashboard(dashboard_id: str) -> dict:
+    return lakeview_request("POST", f"/api/2.0/lakeview/dashboards/{dashboard_id}/published")
+
+
+def patch_dashboard(dashboard_id: str, serialized_dashboard: dict, display_name: str | None = None) -> dict:
+    body: dict[str, Any] = {"serialized_dashboard": json.dumps(serialized_dashboard)}
+    if display_name:
+        body["display_name"] = display_name
+    return lakeview_request("PATCH", f"/api/2.0/lakeview/dashboards/{dashboard_id}", body=body)
+
+# COMMAND ----------
+
+# Example: idempotent delete before recreate
+TARGET_NAMES = {
+    "Member Claims KPIs Dashboard",
+    "Member Claims Utilization Dashboard",
+    "member_claims_kpis_dashboard",
+    "member_claims_utilization_dashboard",
+}
+
+found = find_dashboards_by_names(TARGET_NAMES)
+print(f"Found {len(found)} matching dashboards.")
+for d in found:
+    print(f"  → {d.get('display_name')} ({d.get('dashboard_id')})")
+
+for d in found:
+    delete_dashboard(d["dashboard_id"])
+    print(f"DELETED {d.get('display_name')}")

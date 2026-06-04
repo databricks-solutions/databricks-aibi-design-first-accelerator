@@ -1,0 +1,96 @@
+version: "1.0"
+
+domain:
+  name: member_claims
+  display_name: Member Claims
+
+# Workspace / warehouse: databricks.yml at paths.databricks_yml (bundle root — fixed layout after DAB deploy).
+
+paths:
+  bundle_root: ../..
+  databricks_yml: ../../databricks.yml
+  framework_root: ../../framework
+  framework_prompts: ../../framework/prompts
+  master_prompt: ../../framework/prompts/00_master_prompt.md
+
+workspace:
+  short_name: null
+  output_subpath: output
+
+catalog:
+  source:
+    catalog: aira_test
+    schema: member_claims_source
+  target:
+    catalog: aira_test
+    schema: member_claims_semantic
+
+data_source:
+  type: erd
+  erd:
+    image: inputs/erd.png
+  live_schema:
+    catalog: aira_test
+    schema: member_claims_source
+  greenfield:
+    enabled: true
+    synthetic_data: true
+    volume:
+      members: 20000
+      providers: 1000
+      claim_headers: 100000
+      claim_details: 300000
+      enrollments: 60000
+
+inputs:
+  kpi_spec: inputs/kpi_spec.md
+  best_practices: ../../framework/inputs/best_practices.md
+
+assets:
+  metric_views:
+    - name: member_claims_metric_view
+      primary: true
+  dashboards:
+    - id: kpis
+      name: member_claims_kpis_dashboard
+    - id: utilization
+      name: member_claims_utilization_dashboard
+  genie:
+    space_name: member_claims_analytics_genie
+    notebook_name: genie_space_configuration_member_claims
+  sample_queries_file: sample_queries_member_claims.sql
+
+templates:
+  genie_notebook: ../../framework/templates/genie_space_notebook.py.template
+  ddl_notebook: ../../framework/templates/ddl_notebook.py.template
+  dbldatagen_notebook: ../../framework/templates/dbldatagen_notebook.py.template
+
+pipeline:
+  steps:
+    create_data_layer: auto
+    create_metric_views: true
+    create_dashboards: true
+    create_genie_space: true
+    create_secured_dashboards: false
+    generate_documentation: true
+  clean_start: true
+
+validation:
+  require_all_kpis: true
+  min_benchmark_questions: 15
+
+# --- Brownfield example (uncomment and adjust; no ERD or synthetic data) ---
+# data_source:
+#   type: live_schema
+#   live_schemas:
+#     - catalog: prod_clinical
+#       schema: claims_core
+#       label: claims
+#     - catalog: prod_reference
+#       schema: member_master
+#       label: members
+#   greenfield:
+#     enabled: false
+#     synthetic_data: false
+# pipeline:
+#   clean_start: false
