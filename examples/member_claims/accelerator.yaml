@@ -36,11 +36,7 @@ data_source:
     enabled: true
     synthetic_data: true
     volume:
-      members: 20000
-      providers: 1000
-      claim_headers: 100000
-      claim_details: 300000
-      enrollments: 60000
+      scale: standard   # demo | standard | large — row counts assigned per ERD table in erd_parsed.yaml
 
 inputs:
   kpi_spec: inputs/kpi_spec.md

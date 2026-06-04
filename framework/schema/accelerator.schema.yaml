@@ -83,7 +83,18 @@ data_source:
   greenfield:
     enabled: { type: boolean, default: false }
     synthetic_data: { type: boolean, default: false }
-    volume: { type: object, required: false }
+    volume:
+      type: object
+      required: false
+      description: "Optional scale preset; per-table rows are computed in erd_parsed.yaml from ERD"
+      properties:
+        scale:
+          enum: [demo, standard, large]
+          default: standard
+        overrides:
+          type: object
+          required: false
+          description: "Optional {table_name: row_count} overrides only"
 
 inputs:
   kpi_spec: { type: string, required: true }

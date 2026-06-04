@@ -96,7 +96,8 @@ aibi-design-first-accelerator/
 │       └── 06_create_secured_dashboards.md
 ├── examples/
 │   └── member_claims/             # inputs + accelerator.yaml only; assets generated at runtime
-└── utils/notebooks/
+└── scripts/
+    └── validate_dab_config.py
 ```
 
 **Design principle:** `framework/` is immutable. Each domain folder under `examples/` contains only `accelerator.yaml` and `inputs/` (ERD image + KPI spec). All deliverables go to `workspace.output_folder`.
@@ -140,7 +141,9 @@ data_source:
   greenfield:
     enabled: true
     synthetic_data: true
-    volume: {}                        # domain-specific; defined in erd or kpi spec
+    volume:
+      scale: standard                # demo | standard | large; per-table rows in erd_parsed.yaml
+      overrides: {}                 # optional {table_name: row_count}
 
 inputs:
   kpi_spec: inputs/kpi_spec.md

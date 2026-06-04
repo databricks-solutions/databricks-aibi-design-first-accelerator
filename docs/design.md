@@ -89,7 +89,7 @@ When `workspace.short_name` is set (e.g. `jane_doe`), append `_{short_name}` to 
 
 | Mode | `data_source.type` | Key settings | Step 01 |
 |------|-------------------|--------------|---------|
-| **Greenfield** | `erd` | `erd.image`, `greenfield.enabled: true`, `greenfield.synthetic_data: true`, `greenfield.volume` | ERD → DDL + synthetic |
+| **Greenfield** | `erd` | `erd.image`, `greenfield.enabled: true`, `greenfield.synthetic_data: true`, optional `greenfield.volume.scale` | ERD → DDL + synthetic |
 | **Brownfield** | `live_schema` | `live_schema` or `live_schemas[]`, `greenfield.enabled: false`, `clean_start: false` recommended | Skipped |
 | **Brownfield (multi-schema)** | `live_schema` | `live_schemas[]` with `{catalog, schema, tables?, label?}` | Skipped |
 | **Hybrid** | `erd_and_live_schema` | ERD + live pointers; `greenfield.enabled` controls synthetic | Optional |
@@ -115,11 +115,10 @@ data_source:
     enabled: true
     synthetic_data: true
     volume:
-      members: 20000
-      claim_headers: 100000
+      scale: standard    # demo | standard | large — optional; per-table rows in erd_parsed.yaml
 ```
 
-Genie writes `{output_folder}/erd_parsed.yaml`, then DDL + synthetic notebooks into `catalog.source`.
+Genie writes `{output_folder}/erd_parsed.yaml` (tables, roles, **`synthetic_rows`** from ERD + [`synthetic_data_sizing.md`](../framework/inputs/synthetic_data_sizing.md)), then DDL + synthetic notebooks into `catalog.source`.
 
 #### Brownfield (`type: live_schema`)
 
@@ -275,6 +274,7 @@ Runtime assets Genie loads from the deployed bundle. Paths below are under `{dep
 | File | Purpose |
 |------|---------|
 | [`inputs/best_practices.md`](../framework/inputs/best_practices.md) | Metric view design rules, aggregation pitfalls |
+| [`inputs/synthetic_data_sizing.md`](../framework/inputs/synthetic_data_sizing.md) | Greenfield synthetic row counts from ERD + scale preset |
 | [`inputs/metric_view_yaml.md`](../framework/inputs/metric_view_yaml.md) | Platform YAML syntax; joins, formats, lint before CREATE |
 | [`inputs/kpi_spec.template.md`](../framework/inputs/kpi_spec.template.md) | Template for domain `inputs/kpi_spec.md` |
 | [`inputs/live_schema_discovery.md`](../framework/inputs/live_schema_discovery.md) | Brownfield profiling, multi-schema joins |

@@ -7,7 +7,7 @@
 
 # COMMAND ----------
 
-# Populate DDL from parsed ERD (written to output_folder/erd_parsed.yaml via Workspace API — see framework/inputs/workspace_file_io.md).
+# Populate DDL from erd_parsed.yaml (tables, columns, PKs/FKs — see synthetic_data_sizing.md for synthetic_rows).
 # Do not use dbutils.fs for /Workspace paths (fails on serverless).
 
 print("Replace with generated DDL from ERD entities")

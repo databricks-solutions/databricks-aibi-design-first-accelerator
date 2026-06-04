@@ -1,12 +1,32 @@
 # Databricks notebook source
 # DBTITLE 1,Synthetic Data — {{DOMAIN_NAME}}
 # Uses dbldatagen when data_source.greenfield.synthetic_data is true.
-# MAGIC %pip install dbldatagen --quiet
+# Row counts: read erd_parsed.yaml (synthetic_rows per table) — NOT accelerator.yaml volume keys.
+# Sizing rules: framework/inputs/synthetic_data_sizing.md
+# MAGIC %pip install dbldatagen pyyaml --quiet
 
 # COMMAND ----------
 
-# import dbldatagen as dg
-# Target: {{SOURCE_CATALOG}}.{{SOURCE_SCHEMA}}
-# Row counts from accelerator.yaml → data_source.greenfield.volume
+# DBTITLE 1,Configuration
+ERD_PARSED_PATH = "<<< REPLACE: workspace path to erd_parsed.yaml >>>"
+TARGET_CATALOG = "<<< REPLACE: catalog.source.catalog >>>"
+TARGET_SCHEMA = "<<< REPLACE: catalog.source.schema >>>"
 
-print("Replace with dbldatagen specs from ERD volume settings")
+# COMMAND ----------
+
+# DBTITLE 1,Load erd_parsed.yaml
+# import yaml
+# with open(ERD_PARSED_PATH) as f:
+#     erd = yaml.safe_load(f)
+# tables = erd["tables"]  # each entry: name, role, synthetic_rows, columns, foreign_keys
+# volume_scale = erd.get("volume_scale", "standard")
+#
+# GENERATION_ORDER = ["reference", "dimension", "bridge", "scd2", "fact"]
+# for role in GENERATION_ORDER:
+#     for table in sorted(tables, key=lambda t: t["name"]):
+#         if table.get("role") != role:
+#             continue
+#         row_count = table["synthetic_rows"]
+#         # Build dbldatagen spec for table["name"] with row_count rows; respect foreign_keys
+
+print("Populate from erd_parsed.yaml — see synthetic_data_sizing.md")

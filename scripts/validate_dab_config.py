@@ -108,6 +108,12 @@ def main() -> int:
     ds_type = data_source.get("type", "erd")
     erd = data_source.get("erd") or {}
     greenfield = data_source.get("greenfield") or {}
+    volume = greenfield.get("volume") or {}
+    if volume.get("scale") and volume["scale"] not in ("demo", "standard", "large"):
+        errors.append(
+            f"accelerator.yaml: greenfield.volume.scale must be demo, standard, or large "
+            f"(got {volume['scale']!r})"
+        )
     live_schema = data_source.get("live_schema") or {}
     live_schemas = data_source.get("live_schemas") or []
     catalog = accel.get("catalog") or {}
