@@ -1,5 +1,7 @@
 # AIBI Design-First Accelerator
 
+![AIBI Design-First Accelerator architecture](docs/images/architecture-diagram.png)
+
 ## Design-first AI/BI on Databricks — greenfield or brownfield
 
 **Why we built this:** Teams already start AI/BI work with the right design—KPI catalogs, data models, governance rules—but each engagement still hand-builds tables, Metric View YAML, Lakeview dashboards, and Genie spaces from scratch. Metrics drift across SQL and BI; POCs burn weeks before anyone can ask real questions.
@@ -255,17 +257,6 @@ Detailed reference lives in **[docs/design.md](docs/design.md)** — one design 
 | **Validation** | [Validation](docs/design.md#validation) — definition of done, KPI checks |
 | **Framework reference** | [Framework reference](docs/design.md#framework-reference) — inputs, prompts, templates, examples |
 | **Troubleshooting** | [Troubleshooting](docs/design.md#troubleshooting) |
-
-**Config files to edit:**
-
-| File | Purpose |
-|------|---------|
-| [`databricks.yml`](databricks.yml) | Workspace, warehouse, deploy root, sync paths |
-| [`examples/<domain>/accelerator.yaml`](examples/member_claims/accelerator.yaml) | Domain, catalogs, `data_source`, assets, pipeline |
-
-```bash
-python3 scripts/validate_dab_config.py examples/<domain>
-```
 
 ---
 
