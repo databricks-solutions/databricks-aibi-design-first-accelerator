@@ -18,7 +18,7 @@ variables:
     default: /Workspace/Users/${workspace.current_user.userName}/${var.bundle_name_path}
   sql_warehouse_id:
     description: SQL warehouse for Genie SQL and future bundle jobs.
-    default: "148ccb90800933a1"
+    default: "CHANGE_ME"
   example_domain:
     description: Active example module (must match domain.name in accelerator.yaml).
     default: member_claims
@@ -37,7 +37,7 @@ targets:
     default: true
     mode: development
     workspace:
-      host: https://adb-984752964297111.11.azuredatabricks.net/
+      host: https://your-workspace.cloud.databricks.com/
       root_path: ${var.deploy_root}
     variables:
       example_domain: member_claims
