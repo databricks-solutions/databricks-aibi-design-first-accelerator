@@ -240,7 +240,7 @@ Execute the master prompt at /Workspace/Users/<you>/aibi-design-first-accelerato
 - [ ] KPI spec: every KPI implemented or skipped with documented reason
 - [ ] Metric view(s) queryable with `MEASURE()`
 - [ ] Dashboards published in AI/BI with widgets rendering (not datasets-only)
-- [ ] Genie space: ≥ `validation.min_benchmark_questions` benchmarks pass
+- [ ] Genie space: configuration notebook executed; Cell 10 shows ≥ `validation.min_benchmark_questions` benchmarks, ≥ 15 sample questions, ≥ 15 example SQLs, instructions > 500 chars (not a blank `createAsset` space)
 - [ ] `readme.md` in output folder lists all assets
 
 ### KPI checks
@@ -278,6 +278,7 @@ Runtime assets Genie loads from the deployed bundle. Paths below are under `{dep
 | [`inputs/kpi_spec.template.md`](../framework/inputs/kpi_spec.template.md) | Template for domain `inputs/kpi_spec.md` |
 | [`inputs/live_schema_discovery.md`](../framework/inputs/live_schema_discovery.md) | Brownfield profiling, multi-schema joins |
 | [`inputs/lakeview_dashboard_api.md`](../framework/inputs/lakeview_dashboard_api.md) | Live dashboard API, widgets, SDK (not CLI in notebooks) |
+| [`inputs/genie_space_configuration.md`](../framework/inputs/genie_space_configuration.md) | Genie space template workflow; no blank `createAsset` shortcuts |
 | [`inputs/workspace_file_io.md`](../framework/inputs/workspace_file_io.md) | Workspace file I/O; never `dbutils.fs` on `/Workspace/` |
 
 ### Genie pipeline prompts
@@ -290,7 +291,7 @@ Orchestrated by [`prompts/00_master_prompt.md`](../framework/prompts/00_master_p
 | 1 | [`01_create_data_layer.md`](../framework/prompts/01_create_data_layer.md) | Greenfield DDL + synthetic (`erd` only) |
 | 2 | [`02_create_metric_views.md`](../framework/prompts/02_create_metric_views.md) | Metric view YAML + UC views |
 | 3 | [`03_create_dashboards.md`](../framework/prompts/03_create_dashboards.md) | Live Lakeview dashboards + manifests |
-| 4 | [`04_create_genie_space.md`](../framework/prompts/04_create_genie_space.md) | Genie space notebook |
+| 4 | [`04_create_genie_space.md`](../framework/prompts/04_create_genie_space.md) | Genie config notebook + fully configured space |
 | 5 | [`05_generate_documentation.md`](../framework/prompts/05_generate_documentation.md) | Run summary in `output/readme.md` |
 | 6 | [`06_create_secured_dashboards.md`](../framework/prompts/06_create_secured_dashboards.md) | RLS dashboards (optional, v2 stub) |
 
@@ -320,4 +321,5 @@ Orchestrated by [`prompts/00_master_prompt.md`](../framework/prompts/00_master_p
 | `databricks.yml` not found | Set **EXAMPLE_DIR** to `examples/<domain>/` |
 | `dbutils.fs` on serverless | Use Workspace API — [`workspace_file_io.md`](../framework/inputs/workspace_file_io.md) |
 | Empty dashboard widgets | Follow [`lakeview_dashboard_api.md`](../framework/inputs/lakeview_dashboard_api.md); use SDK not CLI |
+| Blank Genie space (no benchmarks/instructions) | Follow [`genie_space_configuration.md`](../framework/inputs/genie_space_configuration.md); run template notebook cells 8–10 |
 | Host mismatch | `targets.dev.workspace.host` must match CLI profile |

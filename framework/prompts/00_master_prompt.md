@@ -1,5 +1,7 @@
 # AIBI Design-First Accelerator — Master Prompt
 
+<!-- Template-first: steps with templates.* in accelerator.yaml must use populated templates + validation, not UI shortcuts (e.g. createAsset for Genie). -->
+
 You are a Databricks Platform Engineer. Execute the pipeline below in sequence for the domain defined in `accelerator.yaml`.
 
 Run this prompt from an **example folder** (e.g. `examples/<domain>/`) that contains `accelerator.yaml` and `inputs/`.
@@ -32,6 +34,8 @@ Run this prompt from an **example folder** (e.g. `examples/<domain>/`) that cont
 8. If `data_source.erd.image` is set, note its path for Step 2 (data layer) and metric view join design.
 9. Load step prompts from **`{EXAMPLE_DIR}/{paths.framework_prompts}/`** (default `../../framework/prompts/`).
 10. `EXAMPLE_DIR` on workspace after DAB deploy: `{deploy_root}/examples/{domain.name}`. Input paths in `accelerator.yaml` are relative to `EXAMPLE_DIR`.
+
+**Template-first policy:** When `accelerator.yaml` defines a `templates.*` path for a step, the deliverable is a **populated artifact from that template** (notebook or YAML header), executed and validated — not a hand-built shortcut or empty UI asset. Steps with templates: DDL/dbldatagen (01), metric view YAML header (02), Genie notebook (04). Do not use `createAsset` or equivalent one-click creation when a template workflow exists.
 
 ---
 
@@ -79,6 +83,8 @@ If `pipeline.steps.create_genie_space` is `true`:
 
 Execute `04_create_genie_space.md`.
 
+**Acceptance (required before Step 6):** Configuration notebook exists; cells 8–10 executed; Cell 10 validation report shows ≥ `validation.min_benchmark_questions` benchmarks, ≥ 15 sample questions, ≥ 15 example SQLs, and general instructions > 500 chars. A blank Genie space (title only, no `serialized_space` content) is **incomplete** — halt with `❌ EXECUTION HALTED`.
+
 ---
 
 ## Step 6: Generate Documentation
@@ -104,4 +110,5 @@ Execute `06_create_secured_dashboards.md`.
 * **No silent failures**: Never catch and ignore errors (except DROP IF EXISTS / delete non-existent folder).
 * **Workspace files**: Follow `workspace_file_io.md` — Workspace API / SDK / agent tools only for `/Workspace/` paths; **never `dbutils.fs`** (serverless-safe).
 * **Sequential**: Complete each step fully before moving to the next.
+* **Template-first**: Use `templates.*` from `accelerator.yaml` for notebooks and Genie configuration — never substitute UI shortcuts (`createAsset`, blank space creation) or empty API calls when a template exists.
 * **No hardcoding**: Catalogs, schemas, and asset names from `accelerator.yaml`; host, deploy_root, warehouse from `{EXAMPLE_DIR}/{paths.databricks_yml}`; resolve paths from `EXAMPLE_DIR`, not from the prompt file path.

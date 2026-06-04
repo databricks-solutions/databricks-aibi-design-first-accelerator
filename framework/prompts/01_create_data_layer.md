@@ -33,7 +33,7 @@ Generate governed Unity Catalog Delta tables from the **ERD image** when greenfi
 ## Step 3: Generate DDL Notebook
 
 1. Create `{workspace.output_folder}/notebooks/ddl_{domain.name}.ipynb` via **Workspace `import`** (`format: JUPYTER`) or agent notebook tool — not `dbutils.fs`.
-2. Populate from `ddl_notebook.py.template` using parsed ERD.
+2. **Populate from `templates.ddl_notebook`** using parsed ERD — do not hand-write an equivalent notebook from scratch.
 3. Target: `{catalog.source.catalog}.{catalog.source.schema}`.
 4. Execute the notebook.
 
@@ -44,9 +44,10 @@ Generate governed Unity Catalog Delta tables from the **ERD image** when greenfi
 If `data_source.greenfield.synthetic_data` is `true`:
 
 1. Create `{workspace.output_folder}/notebooks/synthetic_data_{domain.name}.ipynb` via Workspace API / agent tools (same as DDL notebook).
-2. Use **dbldatagen** — dimensions before facts; respect FKs from parsed ERD.
-3. Map `data_source.greenfield.volume` keys to tables (e.g. `members` → `dim_member`, `claim_headers` → `fact_claim_header`); infer defaults for other dimensions from ERD.
-4. Execute the notebook.
+2. **Populate from `templates.dbldatagen_notebook`** — do not hand-write from scratch.
+3. Use **dbldatagen** — dimensions before facts; respect FKs from parsed ERD.
+4. Map `data_source.greenfield.volume` keys to tables (e.g. `members` → `dim_member`, `claim_headers` → `fact_claim_header`); infer defaults for other dimensions from ERD.
+5. Execute the notebook.
 
 ---
 
