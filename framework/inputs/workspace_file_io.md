@@ -92,7 +92,7 @@ Resolve paths from `accelerator.yaml` `paths.*` relative to **EXAMPLE_DIR** only
 | Step | File ops | Method |
 |------|----------|--------|
 | clean_start | Delete `workspace.output_folder` | Workspace API `delete` recursive — **not** `dbutils.fs.rm` |
-| 01 data layer | Write `erd_parsed.yaml` (incl. `synthetic_rows`), create notebooks | Workspace `import`; sizing per `synthetic_data_sizing.md` |
+| 01 data layer | Write `erd_parsed.yaml` (columns+types), notebooks | `synthetic_data_sizing.md` + `synthetic_data_generation.md` |
 | 01 execute DDL | Run notebook | Jobs/run or notebook execution API — notebook already at workspace path |
 | 02 metric views | Write `schema_profile.yaml`, draft `.yaml`, CREATE view | Workspace `import`; lint per `metric_view_yaml.md` |
 | 03 dashboards | Create/publish via Lakeview API; write `*_manifest.json` only | REST `POST /api/2.0/lakeview/dashboards` |

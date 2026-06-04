@@ -59,6 +59,8 @@ Execute `01_create_data_layer.md`.
 
 Otherwise log `ℹ️ Skipping data layer (live_schema or greenfield disabled)` and proceed.
 
+**Acceptance (required before Step 3 metric views):** When synthetic data ran, fact tables have row counts > 0 and FK spot-checks pass. Halt if dbldatagen failed (`DataGenError`, date format `ValueError`).
+
 ---
 
 ## Step 3: Create Metric Views

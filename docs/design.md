@@ -275,6 +275,7 @@ Runtime assets Genie loads from the deployed bundle. Paths below are under `{dep
 |------|---------|
 | [`inputs/best_practices.md`](../framework/inputs/best_practices.md) | Metric view design rules, aggregation pitfalls |
 | [`inputs/synthetic_data_sizing.md`](../framework/inputs/synthetic_data_sizing.md) | Greenfield synthetic row counts from ERD + scale preset |
+| [`inputs/synthetic_data_generation.md`](../framework/inputs/synthetic_data_generation.md) | dbldatagen columns, FKs, DATE/TIMESTAMP formats |
 | [`inputs/metric_view_yaml.md`](../framework/inputs/metric_view_yaml.md) | Platform YAML syntax; joins, formats, lint before CREATE |
 | [`inputs/kpi_spec.template.md`](../framework/inputs/kpi_spec.template.md) | Template for domain `inputs/kpi_spec.md` |
 | [`inputs/live_schema_discovery.md`](../framework/inputs/live_schema_discovery.md) | Brownfield profiling, multi-schema joins |
@@ -326,4 +327,6 @@ Orchestrated by [`prompts/00_master_prompt.md`](../framework/prompts/00_master_p
 | Metric view `Unrecognized field "type"` on joins | Remove `type: LEFT` — see [`metric_view_yaml.md`](../framework/inputs/metric_view_yaml.md) |
 | Metric view `Could not resolve type id 'percent'` | Use `format.type: percentage` |
 | Metric view `UNRESOLVED_COLUMN` | Fix join alias / column from DESCRIBE + `schema_profile.yaml` |
+| dbldatagen `column 'X' must refer to defined column` | [`synthetic_data_generation.md`](../framework/inputs/synthetic_data_generation.md) — define FK column before FK |
+| dbldatagen date format `does not match '%Y-%m-%d %H:%M:%S'` | Use `%Y-%m-%d` for DATE columns only |
 | Host mismatch | `targets.dev.workspace.host` must match CLI profile |

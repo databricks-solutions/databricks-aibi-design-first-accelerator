@@ -71,18 +71,33 @@ volume_scale: standard
 tables:
   - name: dim_customer
     role: dimension
-    columns: [...]
+    columns:
+      - name: customer_id
+        type: BIGINT
+        generator: id
+      - name: order_date
+        type: DATE
+        generator: date
     primary_key: customer_id
     synthetic_rows: 10000
   - name: fact_orders
     role: fact
-    columns: [...]
+    columns:
+      - name: order_id
+        type: BIGINT
+        generator: id
+      - name: customer_id
+        type: BIGINT
+        generator: fk
     foreign_keys:
       - column: customer_id
         references: dim_customer.customer_id
+        parent_table: dim_customer
     synthetic_rows: 100000
 joins: [...]
 ```
+
+Every table must include **full `columns` with SQL types** (for dbldatagen) — see [`synthetic_data_generation.md`](synthetic_data_generation.md).
 
 Every table from the ERD must appear with `role` and `synthetic_rows` before generating the dbldatagen notebook.
 
@@ -94,7 +109,7 @@ The synthetic data notebook reads **`{workspace.output_folder}/erd_parsed.yaml`*
 
 1. Load `tables` ordered: reference → dimension → bridge → scd2 → fact (headers before details when ERD implies 1:N).
 2. For each table, use `synthetic_rows` from `erd_parsed.yaml`.
-3. Respect FK relationships from `foreign_keys` / join map when generating keys.
+3. Follow **[`synthetic_data_generation.md`](synthetic_data_generation.md)** — column/FK/date rules; DESCRIBE must match generator.
 
 ---
 
