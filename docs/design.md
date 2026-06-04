@@ -238,7 +238,7 @@ Execute the master prompt at /Workspace/Users/<you>/aibi-design-first-accelerato
 - [ ] `python3 scripts/validate_dab_config.py examples/<domain>` passes
 - [ ] All asset names match `^[a-z0-9_]+$`
 - [ ] KPI spec: every KPI implemented or skipped with documented reason
-- [ ] Metric view(s) queryable with `MEASURE()`
+- [ ] Metric view(s) queryable with `MEASURE()`; draft YAML in `output/metric_views/`; `schema_profile.yaml` present
 - [ ] Dashboards published in AI/BI with widgets rendering (not datasets-only)
 - [ ] Genie space: configuration notebook executed; Cell 10 shows ≥ `validation.min_benchmark_questions` benchmarks, ≥ 15 sample questions, ≥ 15 example SQLs, instructions > 500 chars (not a blank `createAsset` space)
 - [ ] `readme.md` in output folder lists all assets
@@ -275,6 +275,7 @@ Runtime assets Genie loads from the deployed bundle. Paths below are under `{dep
 | File | Purpose |
 |------|---------|
 | [`inputs/best_practices.md`](../framework/inputs/best_practices.md) | Metric view design rules, aggregation pitfalls |
+| [`inputs/metric_view_yaml.md`](../framework/inputs/metric_view_yaml.md) | Platform YAML syntax; joins, formats, lint before CREATE |
 | [`inputs/kpi_spec.template.md`](../framework/inputs/kpi_spec.template.md) | Template for domain `inputs/kpi_spec.md` |
 | [`inputs/live_schema_discovery.md`](../framework/inputs/live_schema_discovery.md) | Brownfield profiling, multi-schema joins |
 | [`inputs/lakeview_dashboard_api.md`](../framework/inputs/lakeview_dashboard_api.md) | Live dashboard API, widgets, SDK (not CLI in notebooks) |
@@ -322,4 +323,7 @@ Orchestrated by [`prompts/00_master_prompt.md`](../framework/prompts/00_master_p
 | `dbutils.fs` on serverless | Use Workspace API — [`workspace_file_io.md`](../framework/inputs/workspace_file_io.md) |
 | Empty dashboard widgets | Follow [`lakeview_dashboard_api.md`](../framework/inputs/lakeview_dashboard_api.md); use SDK not CLI |
 | Blank Genie space (no benchmarks/instructions) | Follow [`genie_space_configuration.md`](../framework/inputs/genie_space_configuration.md); run template notebook cells 8–10 |
+| Metric view `Unrecognized field "type"` on joins | Remove `type: LEFT` — see [`metric_view_yaml.md`](../framework/inputs/metric_view_yaml.md) |
+| Metric view `Could not resolve type id 'percent'` | Use `format.type: percentage` |
+| Metric view `UNRESOLVED_COLUMN` | Fix join alias / column from DESCRIBE + `schema_profile.yaml` |
 | Host mismatch | `targets.dev.workspace.host` must match CLI profile |

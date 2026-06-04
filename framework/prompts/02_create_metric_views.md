@@ -1,17 +1,20 @@
 # Create Metric Views
 
+<!-- Generic for all domains: profile → schema_profile.yaml → lint YAML → CREATE. See metric_view_yaml.md. -->
+
 ## Role
 
-Discover the source schema(s), then design and create Metric Views implementing every KPI in the KPI spec, following best practices.
+Discover the source schema(s), then design and create Metric Views implementing every KPI in the KPI spec, following best practices and the platform YAML contract.
 
 ---
 
 ## Step 1: Load Inputs
 
 1. Read `accelerator.yaml`. Apply name suffix resolution (Step 0 of master prompt).
-2. Read **best practices** and **KPI spec** from `inputs`.
-3. If `data_source.type` is `live_schema` or `erd_and_live_schema`, read **`{EXAMPLE_DIR}/{paths.framework_root}/inputs/live_schema_discovery.md`** — mandatory for resolving and profiling source locations.
-4. Primary metric view FQN: `{catalog.target.catalog}.{catalog.target.schema}.{assets.metric_views[primary].name}`.
+2. Read **best practices** (design principles) and **KPI spec** (business logic) from `inputs`.
+3. Read **`{EXAMPLE_DIR}/{paths.framework_root}/inputs/metric_view_yaml.md`** — mandatory platform syntax, forbidden patterns, and pre-CREATE lint rules.
+4. If `data_source.type` is `live_schema` or `erd_and_live_schema`, read **`{EXAMPLE_DIR}/{paths.framework_root}/inputs/live_schema_discovery.md`**.
+5. Primary metric view FQN: `{catalog.target.catalog}.{catalog.target.schema}.{assets.metric_views[primary].name}`.
 
 ---
 
@@ -19,54 +22,57 @@ Discover the source schema(s), then design and create Metric Views implementing 
 
 ### Resolve locations (all modes)
 
-Follow **`live_schema_discovery.md`** to build the list of `{catalog, schema, tables?}`:
+Follow **`live_schema_discovery.md`** (or `catalog.source` for greenfield `erd`) to build the list of `{catalog, schema, tables?}`.
 
-| Priority | Source |
-|----------|--------|
-| 1 | `data_source.live_schemas[]` (multi catalog/schema) |
-| 2 | `data_source.live_schema` (single catalog/schema) |
-| 3 | `catalog.source` (default) |
+**For every table** that will be `source` or appear in `joins`:
 
-**If `data_source.type` is `live_schema` or `erd_and_live_schema`:**
+1. `DESCRIBE TABLE {fqn}` — record **exact** column names (never guess from ERD/KPI spec alone).
+2. Row count + sample rows where useful for FK inference.
 
-1. Profile **every** resolved location (not just the first).
-2. For each table: `DESCRIBE TABLE EXTENDED`, row count, sample 5 rows.
-3. Classify as fact, dimension, SCD2/history, bridge, or reference.
-4. Build a **cross-location join map** using fully qualified names (`catalog.schema.table`).
-5. Write `{workspace.output_folder}/schema_profile.yaml` (locations, tables, roles, joins, gaps).
+### Mode-specific notes
 
-**If `data_source.type` is `erd` (after greenfield load):**
+| `data_source.type` | Profiling |
+|--------------------|-----------|
+| `live_schema` | All resolved live locations; cross-catalog join map |
+| `erd` | Tables in `catalog.source` after Step 01; ERD/`erd_parsed.yaml` for join design, **DESCRIBE for column names** |
+| `erd_and_live_schema` | Greenfield + live; prefer live when populated; log drift |
 
-1. Re-read `data_source.erd.image` or `{workspace.output_folder}/erd_parsed.yaml` for join design.
-2. Profile tables in `catalog.source`; map entities to physical tables.
-3. Map KPI spec entities to discovered tables. Flag missing entities — corresponding KPIs will be skipped.
+### Write `schema_profile.yaml`
 
-**If `data_source.type` is `erd_and_live_schema`:**
+Path: `{workspace.output_folder}/schema_profile.yaml`
 
-1. Profile greenfield tables in `catalog.source` (if Step 01 ran).
-2. Also profile all live locations per `live_schema_discovery.md`.
-3. Compare ERD vs live; log drift in `schema_profile.yaml`.
-4. Prefer live tables for metric views when populated; fall back to greenfield otherwise.
+Include: `locations`, `tables` (fqn, role, columns from DESCRIBE), `joins` (name, source, `'on'` expression with verified columns). See shape in **`metric_view_yaml.md`**.
+
+Map KPI spec entities → physical FQNs. Flag gaps — dependent KPIs are skipped with reason.
 
 ---
 
-## Step 3: Create Metric Views
+## Step 3: Design and Lint YAML (before CREATE)
 
 1. `CREATE SCHEMA IF NOT EXISTS {catalog.target.catalog}.{catalog.target.schema}`.
-2. Design YAML (`version: 1.1`): source, joins (FQNs when multi-schema), dimensions, measures from KPI spec.
-3. `CREATE OR REPLACE VIEW ... WITH METRICS LANGUAGE YAML AS $$ ... $$`.
-4. Save YAML to `{workspace.output_folder}/metric_views/{name}.yaml` via Workspace API / agent tools (`workspace_file_io.md`).
-5. Retry up to 3 times on failure after validating column names.
+2. Draft YAML (`version: 1.1`): `source`, `joins`, `dimensions`, `measures` from KPI spec + **`schema_profile.yaml`** join map.
+3. **Lint against `metric_view_yaml.md`** — halt and fix before CREATE:
+
+| Check | Rule |
+|-------|------|
+| Joins | Only `name`, `source`, `'on'` or `using` — **no `type:` / join keywords** |
+| Formats | `format.type` ∈ {`byte`, `currency`, `date`, `date_time`, `number`, `percentage`} — map KPI Format column per `metric_view_yaml.md` |
+| Columns | Every `{alias}.{col}` exists in DESCRIBE / `schema_profile.yaml` |
+| Aliases | Use `joins[].name`, not physical table name when they differ |
+| `'on'` | Quote as `'on':` |
+
+4. Save draft to `{workspace.output_folder}/metric_views/{name}.yaml` via Workspace API / agent tools (`workspace_file_io.md`).
+5. `CREATE OR REPLACE VIEW ... WITH METRICS LANGUAGE YAML AS $$ ... $$`.
+6. On `METRIC_VIEW_INVALID_VIEW_DEFINITION` or `UNRESOLVED_COLUMN`: fix YAML using error + DESCRIBE, update saved draft, retry up to 3 times.
 
 ---
 
 ## Step 4: Validate
 
-* Each KPI returns non-null results where data exists.
-* Ratios in expected ranges (e.g. 0–1 for rates).
-* Window measures show multi-period trends.
-* Document skipped KPIs with reasons.
-* For multi-schema: confirm cross-catalog joins return rows.
+* `SELECT MEASURE(<measure>) ... GROUP BY ALL` for each KPI measure (or documented skip).
+* Ratios in expected ranges (e.g. 0–1 for rates where applicable).
+* Window measures show multi-period trends when defined.
+* Multi-schema: cross-catalog joins return rows.
 
 ---
 
@@ -76,11 +82,20 @@ Create `{workspace.output_folder}/genie_space/{assets.sample_queries_file}` with
 
 ---
 
+## Forbidden
+
+* ❌ `type: LEFT` / `type: INNER` on join entries
+* ❌ `format.type: percent` or other values outside the allowed enum
+* ❌ Column references not confirmed by DESCRIBE
+* ❌ CREATE before saving draft YAML and passing lint checks in `metric_view_yaml.md`
+
+---
+
 ## Rules
 
-* Names from YAML only; columns confirmed via DESCRIBE.
+* Names from `accelerator.yaml`; columns from DESCRIBE / `schema_profile.yaml` only.
 * Brownfield: **never** drop or mutate source schemas in `live_schemas` / `live_schema` / `catalog.source`.
-* Use FQNs in metric view YAML when sources span multiple catalogs/schemas.
+* FQNs in YAML when sources span multiple catalogs/schemas.
 * Workspace file writes: `workspace_file_io.md` (not `dbutils.fs`).
 * Every KPI implemented or explicitly skipped.
 * On error: `❌ EXECUTION HALTED`.

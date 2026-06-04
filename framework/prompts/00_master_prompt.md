@@ -67,6 +67,8 @@ If `pipeline.steps.create_metric_views` is `true`:
 
 Execute `02_create_metric_views.md`.
 
+**Acceptance (required before Step 4):** Primary metric view exists; draft YAML saved under `{workspace.output_folder}/metric_views/`; `schema_profile.yaml` documents joins and columns; each KPI measure returns results via `SELECT MEASURE(...) ... GROUP BY ALL` (or is documented as skipped). Do not start dashboards on a metric view that failed CREATE or lint checks in `metric_view_yaml.md`.
+
 ---
 
 ## Step 4: Create Dashboards

@@ -94,7 +94,7 @@ Resolve paths from `accelerator.yaml` `paths.*` relative to **EXAMPLE_DIR** only
 | clean_start | Delete `workspace.output_folder` | Workspace API `delete` recursive — **not** `dbutils.fs.rm` |
 | 01 data layer | Write `erd_parsed.yaml`, create notebooks | Workspace `import` / agent tools |
 | 01 execute DDL | Run notebook | Jobs/run or notebook execution API — notebook already at workspace path |
-| 02 metric views | Write `.yaml`, sample `.sql`, `schema_profile.yaml` (brownfield) | Workspace `import` |
+| 02 metric views | Write `schema_profile.yaml`, draft `.yaml`, CREATE view | Workspace `import`; lint per `metric_view_yaml.md` |
 | 03 dashboards | Create/publish via Lakeview API; write `*_manifest.json` only | REST `POST /api/2.0/lakeview/dashboards` |
 | 04 Genie | Create config `.ipynb`; execute cells 8–10; write manifest | Workspace `import` format `JUPYTER`; see `genie_space_configuration.md` |
 | 05 docs | Write `readme.md` | Workspace `import` |

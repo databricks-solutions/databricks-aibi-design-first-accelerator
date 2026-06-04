@@ -41,6 +41,21 @@
 
 ---
 
+## YAML format mapping
+
+When Genie generates metric view YAML, map this **Format** column to `format.type` per [`metric_view_yaml.md`](../../framework/inputs/metric_view_yaml.md):
+
+| Format (in tables above) | YAML `format.type` |
+|--------------------------|-------------------|
+| Integer, Count | `number` |
+| Currency, Currency USD | `currency` |
+| Percentage, Percent, Rate | `percentage` |
+| Decimal | `number` |
+
+Do not use `percent` — it is invalid on the platform.
+
+---
+
 ## Dashboard Mapping
 
 Map KPIs to dashboard `id` values from `accelerator.yaml` → `assets.dashboards`.

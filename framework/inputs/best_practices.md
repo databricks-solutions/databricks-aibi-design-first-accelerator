@@ -1,6 +1,8 @@
 # Design Principles for Metric Views (Databricks Unity Catalog)
 
-Metric Views are a semantic abstraction layer in Unity Catalog that centralizes and standardizes business metrics, making them reusable, consistent, and easy to query. This document outlines key design principles and best practices for designing Metric Views.
+Metric Views are a semantic abstraction layer in Unity Catalog that centralizes and standardizes business metrics, making them reusable, consistent, and easy to query. This document outlines key **design principles** and best practices for designing Metric Views.
+
+**Platform YAML syntax** (joins, formats, forbidden patterns): see **`metric_view_yaml.md`** — mandatory for Step 02.
 
 ---
 
@@ -62,7 +64,7 @@ measures:
     expr: MEASURE(gross_profit) / MEASURE(total_revenue)
     display_name: Gross Margin
     format:
-      type: percent
+      type: percentage
       decimal_places:
         type: exact
         places: 2
@@ -114,8 +116,10 @@ measures:
 
 ## 5. Star Schema Modeling with Joins
 
-- **Principle:** Model fact and dimension tables using LEFT JOINs for a star schema.
-- **Practice:** Use the `joins` section to link fact tables to dimension tables. This allows dimensions from related tables to be used for slicing without denormalizing.
+- **Principle:** Model fact and dimension tables as a star schema (metric views apply LEFT OUTER JOIN implicitly).
+- **Practice:** Use the `joins` section to link the fact `source` to dimension tables. Use join **`name`** as the alias in dimensions and measures.
+
+**Syntax:** Do not set `type: LEFT` on joins (invalid field). Use `'on'` or `using` only. Full rules: **`metric_view_yaml.md`**.
 
 ### Example
 
@@ -125,12 +129,10 @@ source: catalog.schema.orders
 joins:
   - name: customer
     source: catalog.schema.customers
-    type: LEFT
-    on: source.customer_id = customer.customer_id
+    'on': source.customer_id = customer.customer_id
   - name: region
     source: catalog.schema.regions
-    type: LEFT
-    on: customer.region_id = region.region_id
+    'on': customer.region_id = region.region_id
 dimensions:
   - name: customer_name
     expr: customer.name

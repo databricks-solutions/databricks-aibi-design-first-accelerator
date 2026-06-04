@@ -48,7 +48,7 @@ Then **across all locations**:
 1. Build a **unified join map** (which facts join to which dimensions, including cross-catalog joins).
 2. Map KPI spec entities → physical FQNs.
 3. Flag missing tables/columns — KPIs depending on them are skipped with reason.
-4. Write `{workspace.output_folder}/schema_profile.yaml` summarizing locations, tables, roles, and join map.
+4. Write `{workspace.output_folder}/schema_profile.yaml` summarizing locations, tables (with **columns from DESCRIBE**), roles, and join map. See shape in **`metric_view_yaml.md`**.
 
 ---
 
@@ -56,6 +56,7 @@ Then **across all locations**:
 
 - Use **fully qualified** table names in metric view YAML when sources span catalogs/schemas.
 - Prefer joins on confirmed keys from profiling; document assumed keys in `schema_profile.yaml`.
+- Lint metric view YAML against **`metric_view_yaml.md`** before CREATE.
 - Do **not** create or drop source schemas/tables in brownfield mode.
 - Target semantic objects still land in `{catalog.target.catalog}.{catalog.target.schema}`.
 
