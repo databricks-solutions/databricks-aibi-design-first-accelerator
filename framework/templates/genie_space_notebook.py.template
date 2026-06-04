@@ -1,0 +1,432 @@
+# Databricks notebook source
+# DBTITLE 1,Genie Space Configuration Tool
+# MAGIC %md
+# MAGIC # Genie Space Configuration — {{DOMAIN_NAME}}
+# MAGIC
+# MAGIC This notebook is a **modular configuration tool** for managing the Genie space. Edit the configuration cells below, then run the execution cells to create or update the space.
+# MAGIC
+# MAGIC ## Notebook Structure
+# MAGIC | Cell | Purpose | Action |
+# MAGIC |---|---|---|
+# MAGIC | **Cells 2-7** | Configuration (edit these) | Define space settings, instructions, metric views, questions, SQLs, benchmarks |
+# MAGIC | **Cell 8** | Helper functions | Builds the `serialized_space` JSON from your config |
+# MAGIC | **Cell 9** | Create / Update space | Calls the Genie API to apply changes |
+# MAGIC | **Cell 10** | Validate space | Reads back the space and displays a summary |
+# MAGIC
+# MAGIC ## How to Use
+# MAGIC 1. Edit any configuration cell (Cells 2–7)
+# MAGIC 2. Run **Cell 8** (helpers), then **Cell 9** (apply), then **Cell 10** (validate)
+# MAGIC 3. To create a **new** space: set `SPACE_ID = ""` in Cell 2
+# MAGIC 4. To **update** an existing space: set `SPACE_ID = "<existing_id>"` in Cell 2
+
+# COMMAND ----------
+
+# DBTITLE 1,Space Configuration
+# =============================================================================
+# SPACE CONFIGURATION
+# <<< REPLACE: Fill in values from accelerator.yaml >>>
+# =============================================================================
+
+SPACE_TITLE = "<<< REPLACE: Genie space title from config >>>"
+
+SPACE_DESCRIPTION = (
+    "<<< REPLACE: 2-3 sentence description of the Genie space. "
+    "Describe what analytics it provides, what data domains it covers, "
+    "and what kind of questions users can ask. >>>"
+)
+
+# Set to "" to CREATE a new space, or an existing ID to UPDATE
+SPACE_ID = ""
+WAREHOUSE_ID = "<<< REPLACE: warehouse ID from config >>>"
+PARENT_PATH = "<<< REPLACE: parent path, e.g. /Users/your.name@company.com >>>"
+
+print(f"Space: {SPACE_TITLE}")
+print(f"Mode:  {'UPDATE existing' if SPACE_ID else 'CREATE new'}")
+
+# COMMAND ----------
+
+# DBTITLE 1,General Instructions
+# =============================================================================
+# GENERAL INSTRUCTIONS
+# <<< REPLACE: Comprehensive text describing the metric view >>>
+# This is the single instruction block that teaches Genie about the space.
+# The API allows exactly ONE text_instructions entry.
+#
+# MUST INCLUDE:
+#   - Metric view FQN and description
+#   - Full dimension catalog: name, source, valid values
+#   - Full measure catalog: name, type (atomic/filtered/composed), formula
+#   - Query syntax rules: MEASURE() syntax, GROUP BY ALL, backtick-quoted names
+#   - Domain-specific business concepts
+# =============================================================================
+
+GENERAL_INSTRUCTIONS = """
+<<< REPLACE: Full instruction text. Example structure:
+
+This Genie space provides natural-language access to [DOMAIN] analytics.
+It is powered by [N] metric view(s) with [N] measures and [N] dimensions.
+
+METRIC VIEW: catalog.schema.metric_view_name
+  Source: [fact table] ([N] rows)
+  Joins: [dimension tables joined]
+
+DIMENSIONS (N total):
+  - dimension_name: Description. Valid values: [list distinct values]
+  - ...
+
+MEASURES (N total):
+  Atomic:
+    - measure_name: Formula (e.g., SUM(column))
+  Filtered:
+    - measure_name: Formula with FILTER clause
+  Composed:
+    - measure_name: Formula referencing other measures
+
+QUERY RULES:
+  1. Always wrap measures with MEASURE(): MEASURE(measure_name)
+  2. Always end with GROUP BY ALL
+  3. Backtick-quote all dimension/measure names with spaces or special chars
+  4. Use metric view FQN in FROM clause
+>>>
+"""
+
+print(f"General instructions: {len(GENERAL_INSTRUCTIONS):,} chars")
+
+# COMMAND ----------
+
+# DBTITLE 1,Metric View Descriptions
+# =============================================================================
+# METRIC VIEW DESCRIPTIONS
+# <<< REPLACE: Map each metric view FQN to its description >>>
+# Keys MUST be sorted alphabetically (the helper function enforces this).
+# =============================================================================
+
+METRIC_VIEW_DESCRIPTIONS = {
+    "<<< REPLACE: catalog.schema.metric_view_name >>>": (
+        "<<< REPLACE: Description of the metric view. Include: "
+        "number of dimensions, number of measures, source fact table, "
+        "joined dimension tables, and key analytics capabilities. >>>"
+    ),
+}
+
+print(f"Metric views: {len(METRIC_VIEW_DESCRIPTIONS)}")
+for k in sorted(METRIC_VIEW_DESCRIPTIONS):
+    print(f"  • {k}")
+
+# COMMAND ----------
+
+# DBTITLE 1,Sample Questions
+# =============================================================================
+# SAMPLE QUESTIONS
+# <<< REPLACE: 15-20 natural-language questions >>>
+# These appear in the Genie chat UI as suggested questions.
+# Organize by KPI domain with comments.
+# =============================================================================
+
+SAMPLE_QUESTIONS = [
+    # --- <<< Domain 1 >>> ---
+    "<<< REPLACE: Question 1 >>>",
+    "<<< REPLACE: Question 2 >>>",
+    # --- <<< Domain 2 >>> ---
+    "<<< REPLACE: Question 3 >>>",
+    "<<< REPLACE: Question 4 >>>",
+    # --- <<< Domain 3 >>> ---
+    "<<< REPLACE: Question 5 >>>",
+    "<<< REPLACE: Question 6 >>>",
+]
+
+print(f"Sample questions: {len(SAMPLE_QUESTIONS)}")
+for i, q in enumerate(SAMPLE_QUESTIONS, 1):
+    print(f"  {i:2d}. {q}")
+
+# COMMAND ----------
+
+# DBTITLE 1,Example Question SQLs (Instructions)
+# =============================================================================
+# EXAMPLE QUESTION SQLS
+# <<< REPLACE: 15-20 (question, sql) tuples >>>
+# These teach Genie HOW to answer questions (part of instructions).
+# Cover every dimension and measure at least once.
+# All SQL must use MEASURE() syntax.
+# =============================================================================
+
+MV = "<<< REPLACE: catalog.schema >>>"  # shorthand for readability
+
+EXAMPLE_QUESTION_SQLS = [
+    # --- <<< Domain 1 >>> ---
+    (
+        "<<< REPLACE: Question text >>>",
+        f"<<< REPLACE: SELECT dimensions, MEASURE(measures) FROM {MV}.metric_view GROUP BY ALL ORDER BY ... >>>"
+    ),
+    # --- <<< Domain 2 >>> ---
+    (
+        "<<< REPLACE: Question text >>>",
+        f"<<< REPLACE: SQL using MEASURE() syntax >>>"
+    ),
+]
+
+print(f"Example question SQLs: {len(EXAMPLE_QUESTION_SQLS)}")
+for i, (q, _) in enumerate(EXAMPLE_QUESTION_SQLS, 1):
+    print(f"  {i:2d}. {q}")
+
+# COMMAND ----------
+
+# DBTITLE 1,Benchmark Questions
+# =============================================================================
+# BENCHMARK QUESTIONS
+# <<< REPLACE: 15-20 (question, sql) tuples >>>
+# These EVALUATE Genie accuracy (separate from instructions).
+# Use different phrasing from Example Question SQLs.
+# Genie does NOT learn from benchmarks — they are for testing only.
+# =============================================================================
+
+BENCHMARK_QUESTIONS = [
+    # --- <<< Domain 1 >>> ---
+    (
+        "<<< REPLACE: Question text (different phrasing from examples) >>>",
+        f"<<< REPLACE: Expected SQL answer >>>"
+    ),
+    # --- <<< Domain 2 >>> ---
+    (
+        "<<< REPLACE: Question text >>>",
+        f"<<< REPLACE: Expected SQL answer >>>"
+    ),
+]
+
+print(f"Benchmark questions: {len(BENCHMARK_QUESTIONS)}")
+for i, (q, _) in enumerate(BENCHMARK_QUESTIONS, 1):
+    print(f"  {i:2d}. {q}")
+
+# COMMAND ----------
+
+# DBTITLE 1,Helper Functions
+# =============================================================================
+# HELPER FUNCTIONS
+# Run this cell before Cell 9 (Create/Update) or Cell 10 (Validate).
+# =============================================================================
+
+import json
+import uuid
+import requests
+
+
+def get_workspace_url():
+    """Get the current workspace URL."""
+    return spark.conf.get("spark.databricks.workspaceUrl")
+
+
+def get_api_headers():
+    """Get authorization headers for the Genie API."""
+    token = (
+        dbutils.notebook.entry_point.getDbutils()
+        .notebook().getContext().apiToken().get()
+    )
+    return {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+
+def _sorted_hex_ids(n: int) -> list[str]:
+    """Generate *n* sorted 32-char lowercase hex UUIDs."""
+    return sorted(uuid.uuid4().hex for _ in range(n))
+
+
+def build_serialized_space(
+    general_instructions: str,
+    metric_view_descriptions: dict[str, str],
+    sample_questions: list[str],
+    example_question_sqls: list[tuple[str, str]],
+    benchmark_questions: list[tuple[str, str]],
+) -> str:
+    """
+    Build the serialized_space JSON string from user-editable config.
+
+    Returns a JSON string ready for the Genie Space API.
+    All IDs are auto-generated, sorted, and guaranteed unique.
+    """
+
+    # ---- Generate sorted IDs for every section ----
+    sq_ids = _sorted_hex_ids(len(sample_questions))
+    eq_ids = _sorted_hex_ids(len(example_question_sqls))
+    bm_ids = _sorted_hex_ids(len(benchmark_questions))
+    ti_id  = uuid.uuid4().hex                           # single instruction
+
+    # Verify global uniqueness
+    all_ids = sq_ids + eq_ids + bm_ids + [ti_id]
+    assert len(all_ids) == len(set(all_ids)), "UUID collision — rerun the cell."
+
+    # ---- config.sample_questions ----
+    config_sq = [
+        {"id": sq_ids[i], "question": [q]}
+        for i, q in enumerate(sample_questions)
+    ]
+
+    # ---- data_sources.metric_views (sorted by identifier) ----
+    mv_list = [
+        {"identifier": k, "description": [v]}
+        for k, v in sorted(metric_view_descriptions.items())
+    ]
+
+    # ---- instructions.text_instructions (exactly one entry) ----
+    text_instr = [{"id": ti_id, "content": [general_instructions]}]
+
+    # ---- instructions.example_question_sqls (sorted by id) ----
+    ex_sqls = [
+        {"id": eq_ids[i], "question": [q], "sql": [sql]}
+        for i, (q, sql) in enumerate(example_question_sqls)
+    ]
+
+    # ---- benchmarks.questions (sorted by id) ----
+    bm_list = [
+        {
+            "id": bm_ids[i],
+            "question": [q],
+            "answer": [{"format": "SQL", "content": [sql]}],
+        }
+        for i, (q, sql) in enumerate(benchmark_questions)
+    ]
+
+    # ---- Assemble full structure ----
+    payload = {
+        "version": 2,
+        "config": {"sample_questions": config_sq},
+        "data_sources": {"metric_views": mv_list},
+        "instructions": {
+            "text_instructions": text_instr,
+            "example_question_sqls": ex_sqls,
+        },
+        "benchmarks": {"questions": bm_list},
+    }
+
+    return json.dumps(payload)
+
+
+print("✅ Helper functions loaded: get_workspace_url, get_api_headers, build_serialized_space")
+
+# COMMAND ----------
+
+# DBTITLE 1,Create or Update Space
+# =============================================================================
+# CREATE OR UPDATE GENIE SPACE
+# Run this cell to apply the configuration from Cells 2–7.
+# =============================================================================
+
+serialised = build_serialized_space(
+    general_instructions=GENERAL_INSTRUCTIONS,
+    metric_view_descriptions=METRIC_VIEW_DESCRIPTIONS,
+    sample_questions=SAMPLE_QUESTIONS,
+    example_question_sqls=EXAMPLE_QUESTION_SQLS,
+    benchmark_questions=BENCHMARK_QUESTIONS,
+)
+
+ws_url  = get_workspace_url()
+headers = get_api_headers()
+
+if SPACE_ID:
+    # ---------- UPDATE existing space ----------
+    print(f"Updating space {SPACE_ID} ...")
+    resp = requests.patch(
+        f"https://{ws_url}/api/2.0/genie/spaces/{SPACE_ID}",
+        headers=headers,
+        json={
+            "title": SPACE_TITLE,
+            "description": SPACE_DESCRIPTION,
+            "serialized_space": serialised,
+        },
+    )
+else:
+    # ---------- CREATE new space ----------
+    print("Creating new space ...")
+    resp = requests.post(
+        f"https://{ws_url}/api/2.0/genie/spaces",
+        headers=headers,
+        json={
+            "title": SPACE_TITLE,
+            "description": SPACE_DESCRIPTION,
+            "warehouse_id": WAREHOUSE_ID,
+            "parent_path": PARENT_PATH,
+            "serialized_space": serialised,
+        },
+    )
+
+# ---------- Report result ----------
+if resp.status_code == 200:
+    result = resp.json()
+    new_id = result.get("space_id", SPACE_ID)
+    print(f"\n✅ SUCCESS")
+    print(f"   Space ID   : {new_id}")
+    print(f"   Title       : {result.get('title')}")
+    print(f"   Description : {result.get('description', '')[:120]}...")
+    if not SPACE_ID:
+        print(f"\n⚠️  Copy this ID into Cell 2 for future updates:")
+        print(f'   SPACE_ID = "{new_id}"')
+else:
+    print(f"\n❌ FAILED ({resp.status_code})")
+    err = resp.json()
+    print(f"   Error : {err.get('error_code')}")
+    print(f"   Message: {err.get('message', '')[:300]}")
+
+# COMMAND ----------
+
+# DBTITLE 1,Validate Space
+# =============================================================================
+# VALIDATE SPACE
+# Read back the space config and display a summary.
+# =============================================================================
+
+target_id = SPACE_ID
+if not target_id:
+    print("No SPACE_ID set — set it in Cell 2 after creating a space.")
+else:
+    ws_url  = get_workspace_url()
+    headers = get_api_headers()
+
+    resp = requests.get(
+        f"https://{ws_url}/api/2.0/genie/spaces/{target_id}"
+        "?include_serialized_space=true",
+        headers=headers,
+    )
+
+    if resp.status_code != 200:
+        print(f"❌ Failed to read space: {resp.status_code}")
+    else:
+        data = resp.json()
+        ss   = json.loads(data["serialized_space"])
+
+        sqs  = ss.get("config", {}).get("sample_questions", [])
+        mvs  = ss.get("data_sources", {}).get("metric_views", [])
+        tis  = ss.get("instructions", {}).get("text_instructions", [])
+        eqs  = ss.get("instructions", {}).get("example_question_sqls", [])
+        bms  = ss.get("benchmarks", {}).get("questions", [])
+
+        print("=" * 60)
+        print("GENIE SPACE VALIDATION REPORT")
+        print("=" * 60)
+        print(f"Title        : {data.get('title')}")
+        print(f"Space ID     : {data.get('space_id', target_id)}")
+        print(f"Warehouse    : {data.get('warehouse_id', 'N/A')}")
+        print(f"Description  : {data.get('description', '')[:120]}...")
+        print()
+        print(f"Metric Views        : {len(mvs)}")
+        for mv in mvs:
+            print(f"   • {mv['identifier'].split('.')[-1]}")
+        print(f"Sample Questions    : {len(sqs)}")
+        print(f"Example SQLs        : {len(eqs)}")
+        print(f"Benchmark Questions : {len(bms)}")
+        print(f"Text Instructions   : {len(tis)} block(s), "
+              f"{sum(len(t['content'][0]) for t in tis)} chars")
+        print()
+
+        if bms:
+            print("-" * 60)
+            print("BENCHMARK QUESTIONS")
+            print("-" * 60)
+            for i, bm in enumerate(bms, 1):
+                q = bm['question'][0]
+                has_sql = bool(bm.get('answer'))
+                marker = "✅" if has_sql else "⚠️"
+                print(f"  {i:2d}. {marker} {q}")
+
+        print()
+        print("✅ Validation complete")

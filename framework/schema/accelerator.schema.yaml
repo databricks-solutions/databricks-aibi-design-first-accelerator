@@ -1,0 +1,125 @@
+# AIBI Design-First Accelerator — accelerator.yaml schema (v1.0)
+# Workspace host, email, deploy_root, sql_warehouse_id: databricks.yml
+# Reference: docs/design.md
+
+version:
+  type: string
+  required: true
+  default: "1.0"
+
+domain:
+  name:
+    type: string
+    required: true
+    pattern: "^[a-z][a-z0-9_]*$"
+  display_name:
+    type: string
+    required: false
+
+paths:
+  bundle_root:
+    type: string
+    required: true
+    default: ../..
+  databricks_yml:
+    type: string
+    required: true
+    default: ../../databricks.yml
+  framework_root:
+    type: string
+    required: true
+    default: ../../framework
+  framework_prompts:
+    type: string
+    required: true
+    default: ../../framework/prompts
+  master_prompt:
+    type: string
+    required: true
+    default: ../../framework/prompts/00_master_prompt.md
+
+workspace:
+  short_name:
+    type: string
+    required: false
+    nullable: true
+    pattern: "^[a-z][a-z0-9_]*$|^$"
+  output_subpath:
+    type: string
+    required: false
+    default: output
+    description: "Relative segment under deploy_root/examples/<domain>/; absolute output_folder resolved from databricks.yml"
+
+catalog:
+  source:
+    catalog: { type: string, required: true }
+    schema: { type: string, required: true }
+  target:
+    catalog: { type: string, required: true }
+    schema: { type: string, required: true }
+
+data_source:
+  type:
+    enum: [erd, live_schema, erd_and_live_schema]
+    required: true
+  erd:
+    image:
+      type: string
+      required: false
+      description: "PNG/JPG ERD — required for greenfield (type erd or erd_and_live_schema with greenfield.enabled)"
+  live_schema:
+    catalog: { type: string, required: false }
+    schema: { type: string, required: false }
+    tables: { type: array, required: false, description: "Optional table allow-list for single live_schema" }
+  live_schemas:
+    type: array
+    required: false
+    description: "One or more UC catalog.schema locations when data spans multiple schemas or catalogs"
+    items:
+      catalog: { type: string, required: true }
+      schema: { type: string, required: true }
+      tables: { type: array, required: false }
+      label: { type: string, required: false, description: "Optional label in schema_profile.yaml" }
+  greenfield:
+    enabled: { type: boolean, default: false }
+    synthetic_data: { type: boolean, default: false }
+    volume: { type: object, required: false }
+
+inputs:
+  kpi_spec: { type: string, required: true }
+  best_practices: { type: string, required: true }
+
+assets:
+  metric_views:
+    type: array
+    items:
+      name: { type: string, required: true }
+      primary: { type: boolean, default: false }
+  dashboards:
+    type: array
+    items:
+      id: { type: string, required: true }
+      name: { type: string, required: true }
+  genie:
+    space_name: { type: string, required: true }
+    notebook_name: { type: string, required: true }
+  sample_queries_file: { type: string, required: true }
+
+templates:
+  genie_notebook: { type: string, required: true }
+  ddl_notebook: { type: string, required: false }
+  dbldatagen_notebook: { type: string, required: false }
+
+pipeline:
+  steps:
+    create_data_layer: { enum: [auto, skip], default: auto }
+    create_metric_views: { type: boolean, default: true }
+    create_dashboards: { type: boolean, default: true }
+    create_genie_space: { type: boolean, default: true }
+    create_secured_dashboards: { type: boolean, default: false }
+    generate_documentation: { type: boolean, default: true }
+  clean_start: { type: boolean, default: true }
+
+validation:
+  require_all_kpis: { type: boolean, default: true }
+  min_benchmark_questions: { type: integer, default: 15 }

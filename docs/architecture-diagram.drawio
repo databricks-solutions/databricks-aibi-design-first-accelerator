@@ -1,0 +1,247 @@
+<mxfile host="app.diagrams.net" modified="2025-01-01T00:00:00.000Z" agent="draw.io" version="22.0.0" type="device">
+  <diagram name="AI-BI Architecture" id="architecture-flow">
+    <mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ============================================================ -->
+        <!-- LAYER 1: KPI Specs + Metric View Best Practices README       -->
+        <!-- ============================================================ -->
+        <mxCell id="layer1_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="30" width="740" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="layer1_icon" value="📋" style="text;html=1;fontSize=24;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="200" y="45" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="layer1_title" value="&lt;b&gt;KPI Specs + Metric View Best Practices README&lt;/b&gt;" style="text;html=1;fontSize=16;align=left;verticalAlign=middle;fontColor=#1a3a5c;" vertex="1" parent="1">
+          <mxGeometry x="255" y="40" width="450" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="layer1_sub" value="Collaborative KPI design &amp;bull; Financial, Operational &amp; Provider measures &amp;bull; Business rules" style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#4a6a8a;" vertex="1" parent="1">
+          <mxGeometry x="255" y="68" width="600" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 1→2 -->
+        <mxCell id="arrow1" value="" style="shape=mxgraph.arrows2.arrow;dy=0.6;dx=20;notch=0;fillColor=#6c8ebf;strokeColor=none;rotation=90;" vertex="1" parent="1">
+          <mxGeometry x="525" y="113" width="50" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 2: Data Generation                                      -->
+        <!-- ============================================================ -->
+        <mxCell id="layer2_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="150" width="740" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="layer2_icon" value="⚙️" style="text;html=1;fontSize=24;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="200" y="165" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="layer2_title" value="&lt;b&gt;Data Generation — Databricks Labs dbldatagen&lt;/b&gt;" style="text;html=1;fontSize=16;align=left;verticalAlign=middle;fontColor=#2d5a1e;" vertex="1" parent="1">
+          <mxGeometry x="255" y="160" width="450" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="layer2_sub" value="20K members &amp;bull; 1K providers &amp;bull; 100K claim headers &amp;bull; 300K claim detail lines" style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#4a7a3a;" vertex="1" parent="1">
+          <mxGeometry x="255" y="188" width="600" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 2→3 -->
+        <mxCell id="arrow2" value="" style="shape=mxgraph.arrows2.arrow;dy=0.6;dx=20;notch=0;fillColor=#82b366;strokeColor=none;rotation=90;" vertex="1" parent="1">
+          <mxGeometry x="525" y="233" width="50" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 3: Governed Delta Tables in Unity Catalog               -->
+        <!-- ============================================================ -->
+        <mxCell id="layer3_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="270" width="740" height="100" as="geometry" />
+        </mxCell>
+        <mxCell id="layer3_icon" value="🗄️" style="text;html=1;fontSize=24;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="200" y="280" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="layer3_title" value="&lt;b&gt;Governed Delta Tables — Unity Catalog&lt;/b&gt;" style="text;html=1;fontSize=16;align=left;verticalAlign=middle;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="255" y="278" width="400" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Table chips row 1 -->
+        <mxCell id="t1" value="dim_member" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="255" y="310" width="100" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t2" value="dim_provider" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="365" y="310" width="100" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t3" value="dim_address" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="475" y="310" width="100" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t4" value="dim_member_history" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="585" y="310" width="130" height="24" as="geometry" />
+        </mxCell>
+        <!-- Table chips row 2 -->
+        <mxCell id="t5" value="fact_claim_header" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="255" y="340" width="120" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t6" value="fact_claim_detail" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="385" y="340" width="120" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t7" value="fact_member_enrollment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="515" y="340" width="150" height="24" as="geometry" />
+        </mxCell>
+        <mxCell id="t8" value="dim_member_identifier" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9e6;strokeColor=#d6b656;fontSize=10;fontStyle=1;fontColor=#7a5c00;" vertex="1" parent="1">
+          <mxGeometry x="675" y="340" width="140" height="24" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow 3→4 -->
+        <mxCell id="arrow3" value="" style="shape=mxgraph.arrows2.arrow;dy=0.6;dx=20;notch=0;fillColor=#d6b656;strokeColor=none;rotation=90;" vertex="1" parent="1">
+          <mxGeometry x="525" y="373" width="50" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 4: Semantic Layer — Metric Views                        -->
+        <!-- ============================================================ -->
+        <mxCell id="layer4_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;arcSize=12;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="410" width="740" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="layer4_icon" value="📐" style="text;html=1;fontSize=24;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="200" y="425" width="50" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="layer4_title" value="&lt;b&gt;Semantic Layer — Unity Catalog Metric Views&lt;/b&gt;" style="text;html=1;fontSize=16;align=left;verticalAlign=middle;fontColor=#5b3a6e;" vertex="1" parent="1">
+          <mxGeometry x="255" y="418" width="450" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="layer4_sub" value="YAML-defined &amp;bull; 30+ measures &amp;bull; 22 dimensions &amp;bull; MEASURE() syntax &amp;bull; Window measures" style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#7a5a8e;" vertex="1" parent="1">
+          <mxGeometry x="255" y="448" width="600" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="layer4_sub2" value="Rolling PMPM &amp;bull; MoM Growth &amp;bull; Trailing Periods &amp;bull; Single Source of Truth" style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fontColor=#7a5a8e;" vertex="1" parent="1">
+          <mxGeometry x="255" y="468" width="600" height="20" as="geometry" />
+        </mxCell>
+
+        <!-- Arrows 4→5 (three arrows fanning out) -->
+        <mxCell id="arrow4a" value="" style="endArrow=block;endFill=1;strokeColor=#9673a6;strokeWidth=2;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="layer4_box" target="consumer1_box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow4b" value="" style="endArrow=block;endFill=1;strokeColor=#9673a6;strokeWidth=2;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="layer4_box" target="consumer2_box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow4c" value="" style="endArrow=block;endFill=1;strokeColor=#9673a6;strokeWidth=2;exitX=0.75;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="layer4_box" target="consumer3_box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- LAYER 5: Three Consumers                                      -->
+        <!-- ============================================================ -->
+
+        <!-- Consumer 1: AI/BI Dashboards -->
+        <mxCell id="consumer1_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;arcSize=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="180" y="550" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c1_icon" value="📊" style="text;html=1;fontSize=28;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="195" y="555" width="50" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c1_title" value="&lt;b&gt;AI/BI Dashboards&lt;/b&gt;" style="text;html=1;fontSize=14;align=left;verticalAlign=middle;fontColor=#8b2020;" vertex="1" parent="1">
+          <mxGeometry x="245" y="558" width="150" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c1_line1" value="Multi-page layouts" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#a04040;" vertex="1" parent="1">
+          <mxGeometry x="210" y="590" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c1_line2" value="Global filters" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#a04040;" vertex="1" parent="1">
+          <mxGeometry x="210" y="606" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c1_line3" value="MEASURE() auto-sync" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#a04040;" vertex="1" parent="1">
+          <mxGeometry x="210" y="622" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c1_line4" value="Prompt-spec generated" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#a04040;" vertex="1" parent="1">
+          <mxGeometry x="210" y="638" width="170" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- Consumer 2: Genie Spaces -->
+        <mxCell id="consumer2_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d4edfc;strokeColor=#4a90d9;arcSize=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="440" y="550" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c2_icon" value="🧞" style="text;html=1;fontSize=28;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="455" y="555" width="50" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c2_title" value="&lt;b&gt;Genie Spaces&lt;/b&gt;" style="text;html=1;fontSize=14;align=left;verticalAlign=middle;fontColor=#1a5a9e;" vertex="1" parent="1">
+          <mxGeometry x="505" y="558" width="150" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c2_line1" value="Natural-language analytics" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#3a7abe;" vertex="1" parent="1">
+          <mxGeometry x="470" y="590" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c2_line2" value="API-configured" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#3a7abe;" vertex="1" parent="1">
+          <mxGeometry x="470" y="606" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c2_line3" value="Benchmark-validated" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#3a7abe;" vertex="1" parent="1">
+          <mxGeometry x="470" y="622" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c2_line4" value="Governed answers" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#3a7abe;" vertex="1" parent="1">
+          <mxGeometry x="470" y="638" width="170" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- Consumer 3: Ad-hoc SQL -->
+        <mxCell id="consumer3_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f2e6;strokeColor=#6aaf6a;arcSize=14;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="700" y="550" width="220" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c3_icon" value="💻" style="text;html=1;fontSize=28;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="715" y="555" width="50" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="c3_title" value="&lt;b&gt;Ad-hoc SQL&lt;/b&gt;" style="text;html=1;fontSize=14;align=left;verticalAlign=middle;fontColor=#2d6a2d;" vertex="1" parent="1">
+          <mxGeometry x="765" y="558" width="140" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c3_line1" value="Direct MEASURE() queries" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#4a8a4a;" vertex="1" parent="1">
+          <mxGeometry x="730" y="590" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c3_line2" value="Analyst exploration" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#4a8a4a;" vertex="1" parent="1">
+          <mxGeometry x="730" y="606" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c3_line3" value="Same semantic layer" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#4a8a4a;" vertex="1" parent="1">
+          <mxGeometry x="730" y="622" width="170" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="c3_line4" value="No metric drift" style="text;html=1;fontSize=10;align=left;verticalAlign=middle;fontColor=#4a8a4a;" vertex="1" parent="1">
+          <mxGeometry x="730" y="638" width="170" height="16" as="geometry" />
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- SIDE BADGE: Genie Code                                        -->
+        <!-- ============================================================ -->
+        <mxCell id="genie_code_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;arcSize=14;dashed=1;dashPattern=5 3;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="30" y="150" width="120" height="350" as="geometry" />
+        </mxCell>
+        <mxCell id="gc_icon" value="🤖" style="text;html=1;fontSize=22;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="55" y="160" width="50" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="gc_title" value="&lt;b&gt;Genie&lt;br&gt;Code&lt;/b&gt;" style="text;html=1;fontSize=13;align=center;verticalAlign=middle;fontColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="40" y="200" width="80" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="gc_line1" value="Accelerates" style="text;html=1;fontSize=9;align=center;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="240" width="80" height="14" as="geometry" />
+        </mxCell>
+        <mxCell id="gc_line2" value="every step" style="text;html=1;fontSize=9;align=center;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="40" y="254" width="80" height="14" as="geometry" />
+        </mxCell>
+
+        <!-- Dashed arrows from Genie Code to layers -->
+        <mxCell id="gc_arrow1" value="" style="endArrow=open;dashed=1;strokeColor=#999999;strokeWidth=1;exitX=1;exitY=0.15;exitDx=0;exitDy=0;" edge="1" parent="1" source="genie_code_box">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="180" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gc_arrow2" value="" style="endArrow=open;dashed=1;strokeColor=#999999;strokeWidth=1;exitX=1;exitY=0.45;exitDx=0;exitDy=0;" edge="1" parent="1" source="genie_code_box">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="180" y="340" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gc_arrow3" value="" style="endArrow=open;dashed=1;strokeColor=#999999;strokeWidth=1;exitX=1;exitY=0.75;exitDx=0;exitDy=0;" edge="1" parent="1" source="genie_code_box">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="180" y="450" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ============================================================ -->
+        <!-- TITLE BAR                                                     -->
+        <!-- ============================================================ -->
+        <mxCell id="title_bar" value="&lt;b&gt;End-to-End AI/BI Architecture on Databricks&lt;/b&gt;" style="text;html=1;fontSize=20;align=center;verticalAlign=middle;fontColor=#1a1a2e;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="250" y="695" width="600" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Design First → Generate with Genie Code → Consume Everywhere" style="text;html=1;fontSize=12;align=center;verticalAlign=middle;fontColor=#666666;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="300" y="725" width="500" height="25" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

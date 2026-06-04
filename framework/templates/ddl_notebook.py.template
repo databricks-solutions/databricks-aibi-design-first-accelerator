@@ -1,0 +1,13 @@
+# Databricks notebook source
+# DBTITLE 1,DDL — {{DOMAIN_NAME}}
+# Generated from ERD. Edit catalog/schema in accelerator.yaml only.
+# MAGIC %sql
+# MAGIC -- CREATE SCHEMA IF NOT EXISTS {{TARGET_CATALOG}}.{{TARGET_SCHEMA}};
+# MAGIC -- CREATE TABLE IF NOT EXISTS {{TARGET_CATALOG}}.{{TARGET_SCHEMA}}.dim_example (...);
+
+# COMMAND ----------
+
+# Populate DDL from parsed ERD (written to output_folder/erd_parsed.yaml via Workspace API — see framework/inputs/workspace_file_io.md).
+# Do not use dbutils.fs for /Workspace paths (fails on serverless).
+
+print("Replace with generated DDL from ERD entities")
