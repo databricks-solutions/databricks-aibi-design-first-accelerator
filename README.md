@@ -52,7 +52,19 @@ catalog:
   target:
     catalog: aira_test
     schema: member_claims_semantic
+
+data_source:
+  type: erd
+  erd:
+    image: inputs/erd.png
+  greenfield:
+    enabled: true
+    synthetic_data: true
+    volume:
+      scale: standard   # demo | standard | large — optional; row counts per table come from ERD
 ```
+
+Synthetic row counts are **not** configured per table — Genie assigns them from your ERD into `output/erd_parsed.yaml` (see [synthetic data sizing](docs/design.md#framework-reference)).
 
 Validate locally:
 
@@ -167,7 +179,7 @@ Use the [3-step flow above](#get-started-in-3-steps) with `examples/member_claim
 
 ```
 .../examples/member_claims/output/
-├── erd_parsed.yaml
+├── erd_parsed.yaml      # ERD tables, joins, synthetic_rows per table
 ├── notebooks/
 ├── metric_views/
 ├── dashboards/          # manifest JSON (dashboard_id, links) — live dashboards in AI/BI
@@ -184,14 +196,14 @@ cp -r examples/member_claims examples/<your_domain>
 | Task | Action |
 |------|--------|
 | KPIs | Edit from [`framework/inputs/kpi_spec.template.md`](framework/inputs/kpi_spec.template.md) |
-| ERD | Replace `inputs/erd.png` |
-| Config | Update `accelerator.yaml` — `domain.name` must match folder name |
+| ERD | Replace `inputs/erd.png` — drives DDL, synthetic row counts, and joins |
+| Config | Update `accelerator.yaml` — `domain.name` must match folder name; optional `greenfield.volume.scale` only |
 | DAB | Set `variables.example_domain` and add `examples/<your_domain>` to `sync.paths` in [`databricks.yml`](databricks.yml) — see [Deploy](docs/design.md#deploy) |
 | Run | `validate_dab_config.py` → `bundle deploy` → execute the same master prompt (new `examples/<domain>/`) |
 
 | Mode | `data_source.type` | Behavior |
 |------|-------------------|----------|
-| Greenfield | `erd` | ERD → DDL + synthetic data |
+| Greenfield | `erd` | ERD → DDL + synthetic data (row counts from ERD + optional `volume.scale`) |
 | Brownfield | `live_schema` | Profile existing tables; **no** synthetic generation |
 | Brownfield (multi-schema) | `live_schema` + `live_schemas[]` | Profile multiple `catalog.schema` locations; cross-schema joins in metric views |
 | Both | `erd_and_live_schema` | Optional greenfield + validate against live |
