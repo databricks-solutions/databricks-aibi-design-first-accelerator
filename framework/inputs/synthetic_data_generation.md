@@ -34,9 +34,11 @@ tables:
       - name: valid_from_date
         type: DATE
         generator: date
+        format: "%Y-%m-%d"
       - name: valid_to_date
         type: DATE
         generator: date
+        format: "%Y-%m-%d"
       - name: line_of_business
         type: STRING
         generator: string
@@ -48,9 +50,72 @@ tables:
 
 **Every FK column must appear in `columns`** with the same `name` as in DDL.
 
+**Every `DATE` column must include `format: "%Y-%m-%d"`** in `erd_parsed.yaml`. Every `TIMESTAMP` column must include `format: "%Y-%m-%d %H:%M:%S"`.
+
 ---
 
-## Rule 1: Define every column before FKs
+## Rule 2: Date and timestamp formats (mandatory)
+
+dbldatagen error: `time data '2023-01-01' does not match format '%Y-%m-%d %H:%M:%S'`
+
+**Root cause:** A **DATE** column (values like `'2023-01-01'`) was generated with a **TIMESTAMP** format string.
+
+| DDL / Spark type | `format` in erd_parsed.yaml | dbldatagen |
+|------------------|----------------------------|------------|
+| `DATE` | `"%Y-%m-%d"` **required** | `format=DATE_FMT` only |
+| `TIMESTAMP` | `"%Y-%m-%d %H:%M:%S"` **required** | `format=TIMESTAMP_FMT` |
+| `STRING` | omit | string generator — not date parser |
+
+### Forbidden (causes this error)
+
+* ❌ One global `DATE_FORMAT = '%Y-%m-%d %H:%M:%S'` used for all columns
+* ❌ Loop over columns without branching on `col["type"]`
+* ❌ Applying TIMESTAMP `format=` to `type: DATE` (including `valid_from_date`, `service_date`, enrollment dates)
+* ❌ Inline `withColumn` for dates — **must use `add_column()`** from template helper cell
+
+### Required notebook pattern
+
+1. Copy **helper cell verbatim** from `dbldatagen_notebook.py.template` (`validate_erd_date_formats`, `add_column`, `DATE_FMT`, `TIMESTAMP_FMT`).
+2. Run **`validate_erd_date_formats(tables)`** before any `DataGenerator` — must print `✅ erd_parsed.yaml date formats validated`.
+3. For **every** column: `gen = add_column(gen, col)` — never ad-hoc date `withColumn`.
+
+```python
+DATE_FMT = "%Y-%m-%d"
+TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S"
+
+# DATE — format must be DATE_FMT
+gen.withColumn(
+    "valid_from_date",
+    "date",
+    begin=datetime.date(2023, 1, 1),
+    end=datetime.date(2025, 12, 31),
+    format=DATE_FMT,
+)
+
+# TIMESTAMP only
+gen.withColumn(
+    "created_at",
+    "timestamp",
+    begin="2023-01-01 00:00:00",
+    end="2025-12-31 23:59:59",
+    format=TIMESTAMP_FMT,
+)
+```
+
+When unsure, **`DESCRIBE TABLE`** and set `type` + `format` in `erd_parsed.yaml` to match.
+
+### POC fallback (if dbldatagen date API still fails)
+
+Generate as STRING `'2023-01-01'`, then after `build()`:
+
+```python
+from pyspark.sql import functions as F
+df = df.withColumn("valid_from_date", F.to_date(F.col("valid_from_date"), "yyyy-MM-dd"))
+```
+
+---
+
+## Rule 2b — Define every column before FKs
 
 dbldatagen error: `column 'X' must refer to defined column`
 
@@ -63,46 +128,9 @@ dbldatagen error: `column 'X' must refer to defined column`
 **Order per table:**
 
 1. Create `DataGenerator` with `rows=synthetic_rows`
-2. `.withColumn(...)` for **every** non-FK column
-3. `.withColumn(...)` for each **FK column** (type only)
-4. Attach FK to **parent DataFrame** already built
-5. `.build()` → write to Delta
-
----
-
-## Rule 2: Date and timestamp formats (must match SQL type)
-
-dbldatagen error: `time data '2023-01-01' does not match format '%Y-%m-%d %H:%M:%S'`
-
-| DDL / Spark type | Generator | Format / pattern |
-|------------------|-----------|------------------|
-| `DATE` | Date range / date generator | `format="%Y-%m-%d"` only — **no time component** |
-| `TIMESTAMP` | Timestamp generator | `format="%Y-%m-%d %H:%M:%S"` or ISO with time |
-| `STRING` date-like | String generator | Literal `"2023-01-01"` if column is STRING |
-
-**Forbidden:** `%Y-%m-%d %H:%M:%S` format on a **DATE** column or date-only values like `'2023-01-01'`.
-
-Record `type: DATE` vs `TIMESTAMP` in `erd_parsed.yaml` and match generator + format in the notebook.
-
-```python
-# DATE column — date-only format
-gen.withColumn(
-    "valid_from_date",
-    "date",
-    initial=datetime.date(2023, 1, 1),
-    end=datetime.date(2025, 12, 31),
-    format="%Y-%m-%d",
-)
-
-# TIMESTAMP column — include time in format and values
-gen.withColumn(
-    "created_at",
-    "timestamp",
-    format="%Y-%m-%d %H:%M:%S",
-)
-```
-
-When unsure, **`DESCRIBE TABLE`** the column `data_type` and align generator to that type.
+2. `add_column(gen, col)` for **every** non-FK column
+3. `add_column(gen, col, fk_parent_df=..., fk_parent_key=...)` for each FK column
+4. `.build()` → write to Delta
 
 ---
 
@@ -142,6 +170,8 @@ If `withForeignKey` fails after column is defined, POC fallback:
 
 For **each** table in generation order:
 
+- [ ] Helper cell copied verbatim; **`validate_erd_date_formats(tables)`** passed
+- [ ] All columns use **`add_column()`** — no shared datetime format variable
 - [ ] All columns from `DESCRIBE TABLE` listed in generator
 - [ ] PK column defined and unique
 - [ ] Each FK column defined on child **before** FK attachment
@@ -157,7 +187,7 @@ For **each** table in generation order:
 | Error | Fix |
 |-------|-----|
 | `column 'X' must refer to defined column` | Define column X; match DDL name; parent built first |
-| `time data 'YYYY-MM-DD' does not match format '%Y-%m-%d %H:%M:%S'` | Use `%Y-%m-%d` for DATE columns |
+| `time data 'YYYY-MM-DD' does not match format '%Y-%m-%d %H:%M:%S'` | DATE column used TIMESTAMP format — use `add_column()`; set `format: "%Y-%m-%d"` in erd_parsed |
 | FK all null / join failures | Parent row count ≥ distinct FK values; rebuild parent first |
 | Column count mismatch on write | Generator columns = DDL columns |
 

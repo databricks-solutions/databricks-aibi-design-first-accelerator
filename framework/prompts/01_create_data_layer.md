@@ -27,7 +27,7 @@ Generate governed Unity Catalog Delta tables from the **ERD image** when greenfi
 1. Open and read `{data_source.erd.image}`.
 2. Extract for **every table**:
    - **role** (fact, dimension, bridge, reference, scd2)
-   - **columns**: name, Spark SQL **type** (`DATE`, `TIMESTAMP`, `BIGINT`, `STRING`, …), PK/FK flags
+   - **columns**: name, Spark SQL **type**, **`format`** (required on DATE/TIMESTAMP), `generator`, PK/FK flags
    - **primary_key**, **foreign_keys** (column → `parent_table.parent_column`)
    - Cardinality (fact → dimensions)
 3. Assign **`synthetic_rows`** per table using **`synthetic_data_sizing.md`** + `volume.scale` + `volume.overrides`.
@@ -53,11 +53,11 @@ If `data_source.greenfield.synthetic_data` is `true`:
 1. Confirm `erd_parsed.yaml` has **full column lists with types** and `synthetic_rows` for every table.
 2. Create `{workspace.output_folder}/notebooks/synthetic_data_{domain.name}.ipynb`.
 3. **Populate from `templates.dbldatagen_notebook`** following **`synthetic_data_generation.md`**:
-   - One table (or parent-child group) per cell where practical
-   - **Every DDL column** in generator; FK columns defined **before** FK wiring
-   - **DATE** → `format="%Y-%m-%d"`; **TIMESTAMP** → `format="%Y-%m-%d %H:%M:%S"`
-   - Order: reference → dimension → bridge → scd2 → fact
-   - Keep `built[table_name] = df` for parent FK lookups
+   - Copy **helper cell verbatim** (`DATE_FMT`, `TIMESTAMP_FMT`, `validate_erd_date_formats`, `add_column`) — do not remove
+   - Run **`validate_erd_date_formats(tables)`** before any table generation; must print `✅ erd_parsed.yaml date formats validated`
+   - **Every column** via `add_column(gen, col)` — no inline date `withColumn`; no global `%Y-%m-%d %H:%M:%S` on DATE columns
+   - One table per cell where practical; FK columns after non-FK columns
+   - Order: reference → dimension → bridge → scd2 → fact; `built[table_name] = df`
 4. Run **pre-flight checklist** in `synthetic_data_generation.md` before first `build()`.
 5. Execute the notebook. **Halt on first DataGenError** — fix column/FK/date format, re-run from failed table.
 
@@ -77,6 +77,9 @@ If `data_source.greenfield.synthetic_data` is `true`:
 * ❌ dbldatagen specs that omit columns present in DDL
 * ❌ FK references before column defined on child generator
 * ❌ `%Y-%m-%d %H:%M:%S` format on **DATE** columns or date-only literals
+* ❌ Global `DATE_FORMAT` / shared format variable applied to DATE and TIMESTAMP alike
+* ❌ Inline date `withColumn` — must use template **`add_column()`**
+* ❌ Skipping **`validate_erd_date_formats(tables)`** before generation
 * ❌ Proceeding to Step 02 if synthetic generation failed or fact tables are empty
 
 ---

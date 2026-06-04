@@ -78,6 +78,7 @@ tables:
       - name: order_date
         type: DATE
         generator: date
+        format: "%Y-%m-%d"
     primary_key: customer_id
     synthetic_rows: 10000
   - name: fact_orders

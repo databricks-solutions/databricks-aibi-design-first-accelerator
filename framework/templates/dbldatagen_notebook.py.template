@@ -1,7 +1,6 @@
 # Databricks notebook source
 # DBTITLE 1,Synthetic Data — {{DOMAIN_NAME}}
-# Row counts: erd_parsed.yaml (synthetic_data_sizing.md)
-# Column/FK/date rules: framework/inputs/synthetic_data_generation.md
+# Row counts: erd_parsed.yaml | Rules: synthetic_data_generation.md
 # MAGIC %pip install dbldatagen pyyaml --quiet
 
 # COMMAND ----------
@@ -16,6 +15,8 @@ TARGET_CATALOG = "<<< REPLACE: catalog.source.catalog >>>"
 TARGET_SCHEMA = "<<< REPLACE: catalog.source.schema >>>"
 
 GENERATION_ORDER = ["reference", "dimension", "bridge", "scd2", "fact"]
+DATE_FMT = "%Y-%m-%d"
+TIMESTAMP_FMT = "%Y-%m-%d %H:%M:%S"
 
 # COMMAND ----------
 
@@ -25,27 +26,116 @@ with open(ERD_PARSED_PATH) as f:
 
 tables = erd["tables"]
 volume_scale = erd.get("volume_scale", "standard")
-built = {}  # table_name -> DataFrame (for FK parents)
+built = {}  # table_name -> DataFrame (parent tables for FK)
 
 # COMMAND ----------
 
-# DBTITLE 1,Helpers — DATE vs TIMESTAMP formats
-# DATE columns: format="%Y-%m-%d" ONLY (never %H:%M:%S on DATE)
-# TIMESTAMP columns: format="%Y-%m-%d %H:%M:%S"
-# Every column in DESCRIBE must appear in withColumn before FK wiring.
-# See synthetic_data_generation.md
+# DBTITLE 1,Helper functions (COPY VERBATIM — do not remove)
+# All columns MUST use add_column() — never inline withColumn for dates.
 
-def sql_type_format(spark_type: str) -> str:
-    t = (spark_type or "").upper()
+
+def column_format_from_spec(col: dict) -> str | None:
+    """Resolve format from erd_parsed column; DATE/TIMESTAMP defaults are fixed."""
+    if col.get("format"):
+        return col["format"]
+    t = (col.get("type") or "").upper()
     if t == "DATE":
-        return "%Y-%m-%d"
+        return DATE_FMT
     if "TIMESTAMP" in t:
-        return "%Y-%m-%d %H:%M:%S"
+        return TIMESTAMP_FMT
     return None
 
+
+def validate_erd_date_formats(table_specs: list) -> None:
+    """Fail fast before any DataGenerator runs."""
+    errors = []
+    for tbl in table_specs:
+        tname = tbl.get("name", "?")
+        for col in tbl.get("columns", []):
+            t = (col.get("type") or "").upper()
+            fmt = column_format_from_spec(col)
+            cname = col.get("name", "?")
+            if t == "DATE":
+                if fmt != DATE_FMT:
+                    errors.append(
+                        f"{tname}.{cname}: type DATE requires format {DATE_FMT!r}, got {fmt!r}"
+                    )
+                if not col.get("format"):
+                    errors.append(
+                        f"{tname}.{cname}: add format: {DATE_FMT!r} to erd_parsed.yaml"
+                    )
+            if "TIMESTAMP" in t and fmt == DATE_FMT:
+                errors.append(
+                    f"{tname}.{cname}: TIMESTAMP cannot use date-only format {DATE_FMT!r}"
+                )
+    if errors:
+        raise ValueError("erd_parsed.yaml date format errors:\n" + "\n".join(errors))
+
+
+def add_column(gen, col: dict, fk_parent_df=None, fk_parent_key: str | None = None):
+    """
+    Add one column to dbldatagen DataGenerator. Branch on col['type'] — never reuse
+    TIMESTAMP format for DATE columns.
+    """
+    import dbldatagen as dg
+
+    name = col["name"]
+    t = (col.get("type") or "").upper()
+    gen_kind = (col.get("generator") or "").lower()
+    fmt = column_format_from_spec(col)
+
+    if gen_kind == "fk" or (fk_parent_df is not None and fk_parent_key):
+        gen.withColumn(name, "long")
+        if fk_parent_df is not None and fk_parent_key:
+            gen.withForeignKey(
+                fk_parent_df, parentKey=fk_parent_key, childKey=name, ratio=1.0
+            )
+        return gen
+
+    if t == "DATE":
+        # DATE only — never TIMESTAMP_FMT here
+        gen.withColumn(
+            name,
+            "date",
+            begin=datetime.date(2023, 1, 1),
+            end=datetime.date(2025, 12, 31),
+            format=DATE_FMT,
+        )
+        return gen
+
+    if "TIMESTAMP" in t:
+        gen.withColumn(
+            name,
+            "timestamp",
+            begin="2023-01-01 00:00:00",
+            end="2025-12-31 23:59:59",
+            format=TIMESTAMP_FMT,
+        )
+        return gen
+
+    if gen_kind in ("id",) or name.endswith("_sk") or name.endswith("_id"):
+        gen.withColumn(name, "long", minValue=1, maxValue=10_000_000, unique=True)
+        return gen
+
+    if t in ("BIGINT", "LONG", "INT", "INTEGER"):
+        gen.withColumn(name, "long", minValue=0, maxValue=1_000_000)
+        return gen
+
+    if t.startswith("DECIMAL") or t in ("DOUBLE", "FLOAT"):
+        gen.withColumn(name, "float", minValue=0.0, maxValue=100000.0)
+        return gen
+
+    # STRING and default — line_of_business, codes, names, etc.
+    gen.withColumn(name, "string", values=["A", "B", "C", "D", "E"])
+    return gen
+
+
+validate_erd_date_formats(tables)
+print("✅ erd_parsed.yaml date formats validated")
+
 # COMMAND ----------
 
-# DBTITLE 1,Generate tables (one cell per table recommended)
+# DBTITLE 1,Generate tables — one cell per table (populate below)
 # import dbldatagen as dg
 #
 # for role in GENERATION_ORDER:
@@ -55,16 +145,20 @@ def sql_type_format(spark_type: str) -> str:
 #         name = spec["name"]
 #         n = spec["synthetic_rows"]
 #         gen = dg.DataGenerator(spark, rows=n, randomSeed=42)
+#         fk_cols = {fk["column"] for fk in spec.get("foreign_keys", [])}
 #         for col in spec["columns"]:
-#             # withColumn every col; DATE/TIMESTAMP use sql_type_format(col["type"])
-#             pass
+#             if col["name"] in fk_cols:
+#                 continue
+#             gen = add_column(gen, col)
 #         for fk in spec.get("foreign_keys", []):
-#             # define fk["column"] first, then attach from built[fk["parent_table"]]
-#             pass
+#             parent = built[fk["parent_table"]]
+#             parent_key = fk["references"].split(".")[-1]
+#             col_spec = next(c for c in spec["columns"] if c["name"] == fk["column"])
+#             gen = add_column(gen, col_spec, fk_parent_df=parent, fk_parent_key=parent_key)
 #         df = gen.build()
 #         built[name] = df
 #         df.write.format("delta").mode("overwrite").saveAsTable(
 #             f"{TARGET_CATALOG}.{TARGET_SCHEMA}.{name}"
 #         )
 
-print("Populate one cell per table from erd_parsed.yaml — follow synthetic_data_generation.md")
+print("Add one cell per table using add_column() — see synthetic_data_generation.md")

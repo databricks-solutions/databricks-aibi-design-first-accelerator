@@ -328,5 +328,5 @@ Orchestrated by [`prompts/00_master_prompt.md`](../framework/prompts/00_master_p
 | Metric view `Could not resolve type id 'percent'` | Use `format.type: percentage` |
 | Metric view `UNRESOLVED_COLUMN` | Fix join alias / column from DESCRIBE + `schema_profile.yaml` |
 | dbldatagen `column 'X' must refer to defined column` | [`synthetic_data_generation.md`](../framework/inputs/synthetic_data_generation.md) — define FK column before FK |
-| dbldatagen date format `does not match '%Y-%m-%d %H:%M:%S'` | Use `%Y-%m-%d` for DATE columns only |
+| dbldatagen date format `does not match '%Y-%m-%d %H:%M:%S'` | Copy template helper cell; run `validate_erd_date_formats`; use `add_column()` only |
 | Host mismatch | `targets.dev.workspace.host` must match CLI profile |
