@@ -1,0 +1,796 @@
+{% extends "layout.html" %}
+{% block title %}KPI Domains - AI/BI Studio{% endblock %}
+{% block content %}
+<div class="domains-page">
+  <!-- Horizontal Stepper -->
+  <div class="stepper">
+    <div class="stepper-track">
+      <div class="step" data-step="1"><span class="step-num">1</span><span class="step-label">Select Domain</span></div>
+      <div class="step-line"></div>
+      <div class="step" data-step="2"><span class="step-num">2</span><span class="step-label">Review Inputs</span></div>
+      <div class="step-line"></div>
+      <div class="step" data-step="3"><span class="step-num">3</span><span class="step-label">Execute</span></div>
+      <div class="step-line"></div>
+      <div class="step" data-step="4"><span class="step-num">4</span><span class="step-label">Summary</span></div>
+    </div>
+  </div>
+
+  <!-- Step 1: Select Domain -->
+  <section id="step-1" class="step-panel active">
+    <h2>Select a KPI Domain</h2>
+    <div id="domain-cards" class="domain-grid"></div>
+    <div id="domain-empty" class="empty-state" style="display:none;">No domains found. Create an <code>examples/&lt;domain&gt;/accelerator.yaml</code> to get started.</div>
+  </section>
+
+  <!-- Step 2: Review Inputs -->
+  <section id="step-2" class="step-panel">
+    <div class="sub-nav">
+      <button class="sub-nav-item active" data-tab="config">Configuration</button>
+      <button class="sub-nav-item" data-tab="kpi">KPI Matrix</button>
+      <button class="sub-nav-item" data-tab="practices">Best Practices</button>
+    </div>
+
+    <!-- Sub-tab: Configuration -->
+    <div id="tab-config" class="sub-panel active">
+      <div class="config-form" id="config-form"></div>
+    </div>
+
+    <!-- Sub-tab: KPI Matrix -->
+    <div id="tab-kpi" class="sub-panel">
+      <div id="kpi-content"></div>
+    </div>
+
+    <!-- Sub-tab: Best Practices -->
+    <div id="tab-practices" class="sub-panel">
+      <div id="practices-content"></div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+      <button id="step2-prev" class="btn btn-secondary">&larr; Back to Domains</button>
+      <button id="step2-next" class="btn btn-primary">Next &rarr;</button>
+    </div>
+  </section>
+
+  <!-- Step 3: Execute (inline Run Details) -->
+  <section id="step-3" class="step-panel">
+    <div class="run-container">
+      <div class="status-pill" id="status-pill">
+        <span class="sparkle">&#x2728;</span>
+        <span id="pill-text">Working on your request</span>
+      </div>
+      <h2 class="run-title" id="run-title">Preparing your results</h2>
+      <p class="run-subtitle" id="run-subtitle">We're analyzing the information and putting everything together.</p>
+      <div class="steps-track" id="steps-track"></div>
+      <div class="detail-card" id="detail-card">
+        <div class="step-timeline" id="step-timeline">
+          <div class="timeline-progress" id="timeline-progress"></div>
+        </div>
+      </div>
+      <div class="error-card" id="error-card" style="display:none;">
+        <h4>Error Detail</h4>
+        <pre id="error-content"></pre>
+      </div>
+      <div class="action-row">
+        <button class="btn-action cancel" id="cancel-btn" style="display:none;">Cancel</button>
+        <button class="btn-action rerun" id="rerun-btn" style="display:none;">Rerun from Failed</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 4: Summary -->
+  <section id="step-4" class="step-panel">
+    <div class="summary-header">
+      <div class="summary-icon">&#x2705;</div>
+      <h2 class="summary-title">Pipeline Complete</h2>
+      <p class="summary-meta" id="summary-meta"></p>
+    </div>
+    <div class="summary-card" id="summary-content"></div>
+    <div class="bottom-nav">
+      <button id="step4-new" class="btn btn-secondary">&larr; New Domain</button>
+      <button id="step4-rerun" class="btn btn-primary">Re-run</button>
+    </div>
+  </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+  .domains-page { max-width: 960px; margin: 0 auto; padding: 24px; }
+
+  /* Stepper */
+  .stepper { margin-bottom: 32px; }
+  .stepper-track { display: flex; align-items: center; gap: 0; }
+  .step { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; cursor: default; opacity: 0.5; transition: opacity 0.2s; }
+  .step.active { opacity: 1; font-weight: 600; background: #e8f0fe; }
+  .step.completed { opacity: 1; }
+  .step.completed .step-num { background: #34a853; color: #fff; }
+  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #ddd; font-size: 13px; font-weight: 600; }
+  .step.active .step-num { background: #1a73e8; color: #fff; }
+  .step-label { font-size: 13px; }
+  .step-line { flex: 1; height: 2px; background: #ddd; min-width: 24px; }
+
+  /* Step panels */
+  .step-panel { display: none; }
+  .step-panel.active { display: block; }
+
+  /* Domain cards */
+  .domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .domain-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s; }
+  .domain-card:hover { border-color: #1a73e8; box-shadow: 0 2px 8px rgba(26,115,232,0.15); }
+  .domain-card h3 { margin: 0 0 8px; font-size: 16px; }
+  .domain-card p { margin: 0 0 12px; font-size: 13px; color: #666; }
+  .domain-card .version { font-size: 12px; color: #888; background: #f5f5f5; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+
+  /* Sub-nav */
+  .sub-nav { display: flex; gap: 0; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; }
+  .sub-nav-item { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: 14px; color: #666; }
+  .sub-nav-item.active { color: #1a73e8; border-bottom-color: #1a73e8; font-weight: 600; }
+  .sub-panel { display: none; }
+  .sub-panel.active { display: block; }
+
+  /* Config form */
+  .config-form { }
+  .config-section { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; }
+  .config-section:last-child { border-bottom: none; }
+  .config-section-title { font-size: 14px; font-weight: 600; color: #333; margin: 0 0 12px; }
+  .config-grid { display: grid; grid-template-columns: 140px 1fr; gap: 10px 16px; align-items: center; }
+  .config-grid label { font-size: 13px; font-weight: 500; color: #555; }
+  .config-grid input, .config-grid select { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
+  .config-grid input[disabled] { background: #f8f9fa; color: #666; }
+  .config-value { font-size: 13px; color: #444; }
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
+  .checkbox-group label { font-weight: 400; font-size: 13px; display: flex; align-items: center; gap: 4px; }
+  .erd-preview { margin-top: 12px; }
+  .btn-sm { padding: 4px 12px; font-size: 12px; }
+
+  /* KPI table */
+  .kpi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .kpi-table th, .kpi-table td { padding: 8px 12px; border: 1px solid #e0e0e0; text-align: left; }
+  .kpi-table th { background: #f8f9fa; font-weight: 600; }
+
+  /* Best practices */
+  #practices-content { font-size: 13px; line-height: 1.6; }
+  #practices-content pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; }
+  .bp-editor { width: 100%; min-height: 300px; font-family: monospace; font-size: 12px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; }
+
+  /* Bottom nav */
+  .bottom-nav { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee; }
+
+  /* Run Details (inline) */
+  .run-container { max-width: 720px; margin: 0 auto; text-align: center; }
+  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; background: #f0f4ff; color: #2563eb; font-size: 0.85rem; font-weight: 500; margin-bottom: 16px; }
+  .status-pill.completed { background: #ecfdf5; color: #16a34a; }
+  .status-pill.failed { background: #fef2f2; color: #dc2626; }
+  .status-pill .sparkle { font-size: 1rem; }
+  .run-title { font-size: 1.5rem; font-weight: 700; color: #111827; margin: 0 0 8px; }
+  .run-subtitle { font-size: 0.9rem; color: #6b7280; margin: 0 0 28px; }
+  .steps-track { display: flex; align-items: flex-start; justify-content: center; gap: 0; margin-bottom: 24px; }
+  .step-node { display: flex; flex-direction: column; align-items: center; min-width: 80px; flex: 1; }
+  .step-circle { width: 32px; height: 32px; border-radius: 50%; border: 3px solid #e5e7eb; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #9ca3af; z-index: 2; transition: all 0.3s ease; }
+  .step-node.completed .step-circle { border-color: #16a34a; background: #16a34a; color: #fff; }
+  .step-node.running .step-circle { border-color: #2563eb; background: #fff; color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
+  .step-node.running .step-circle::after { content: ''; width: 10px; height: 10px; background: #2563eb; border-radius: 50%; }
+  .step-node.failed .step-circle { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+  .step-node .step-label { margin-top: 6px; font-size: 0.72rem; font-weight: 500; color: #6b7280; white-space: nowrap; }
+  .step-node.running .step-label { color: #111827; font-weight: 600; }
+  .step-node.completed .step-label { color: #374151; }
+  .step-dur { font-size: 0.7rem; color: #9ca3af; margin-top: 2px; }
+  .step-node.completed .step-dur { color: #16a34a; }
+  .step-connector { flex: 1; height: 3px; background: #e5e7eb; margin-top: 16px; min-width: 16px; z-index: 1; }
+  .step-connector.done { background: #16a34a; }
+  .detail-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; text-align: left; margin-bottom: 20px; }
+  .step-timeline { position: relative; padding-left: 24px; }
+  .step-timeline::before { content: ''; position: absolute; left: 7px; top: 12px; bottom: 12px; width: 3px; background: #e5e7eb; border-radius: 2px; }
+  .timeline-progress { position: absolute; left: 7px; top: 12px; width: 3px; height: 0; background: #16a34a; border-radius: 2px; transition: height 0.5s ease; z-index: 1; }
+  .step-entry { position: relative; padding: 8px 0 8px 20px; }
+  .step-entry::before { content: ''; position: absolute; left: -20px; top: 12px; width: 11px; height: 11px; border-radius: 50%; background: #e5e7eb; border: 2px solid #f9fafb; z-index: 2; }
+  .step-entry:first-child::before { top: 4px; }
+  .step-entry.completed::before { background: #16a34a; }
+  .step-entry.running::before { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
+  .step-entry.failed::before { background: #dc2626; }
+  .step-entry-header { display: flex; align-items: center; gap: 8px; }
+  .step-entry-icon { font-size: 0.85rem; }
+  .step-entry.completed .step-entry-icon { color: #16a34a; }
+  .step-entry.running .step-entry-icon { color: #2563eb; }
+  .step-entry.failed .step-entry-icon { color: #dc2626; }
+  .step-entry.pending .step-entry-icon { color: #d1d5db; }
+  .step-entry-title { flex: 1; font-size: 0.85rem; font-weight: 500; color: #374151; }
+  .step-entry.running .step-entry-title { color: #111827; font-weight: 600; }
+  .step-entry.pending .step-entry-title { color: #9ca3af; }
+  .step-entry-dur { font-size: 0.78rem; color: #16a34a; }
+  .step-entry.running .step-entry-dur { color: #2563eb; }
+  .step-entry-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.68rem; font-weight: 500; }
+  .step-entry.completed .step-entry-badge { background: #ecfdf5; color: #16a34a; }
+  .step-entry.running .step-entry-badge { background: #eff6ff; color: #2563eb; }
+  .step-entry.failed .step-entry-badge { background: #fef2f2; color: #dc2626; }
+  .step-logs-btn { padding: 2px 8px; border-radius: 4px; font-size: 0.68rem; cursor: pointer; border: 1px solid #e5e7eb; background: #fff; color: #6b7280; margin-left: 6px; }
+  .step-logs-btn:hover { background: #f3f4f6; }
+  .step-logs-btn.active { background: #1f2937; color: #d1d5db; border-color: #1f2937; }
+  .step-log-panel { display: none; margin-top: 6px; background: #1f2937; border-radius: 6px; padding: 8px 10px; max-height: 120px; overflow-y: auto; }
+  .step-log-panel.visible { display: block; }
+  .step-log-panel pre { margin: 0; font-size: 0.72rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
+  .phase-list { margin-top: 6px; padding-left: 4px; }
+  .phase-row { display: flex; align-items: center; padding: 4px 0; }
+  .phase-icon { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #e5e7eb; display: flex; align-items: center; justify-content: center; margin-right: 8px; font-size: 0.5rem; color: #9ca3af; }
+  .phase-row.completed .phase-icon { border-color: #16a34a; background: #16a34a; color: #fff; }
+  .phase-row.running .phase-icon { border-color: #2563eb; color: #2563eb; }
+  .phase-row.failed .phase-icon { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+  .phase-name { flex: 1; font-size: 0.8rem; color: #374151; }
+  .phase-row.running .phase-name { color: #111827; font-weight: 500; }
+  .phase-row.pending .phase-name { color: #9ca3af; }
+  .phase-duration { font-size: 0.75rem; color: #6b7280; margin-right: 6px; }
+  .phase-check { width: 16px; text-align: center; font-size: 0.8rem; }
+  .phase-row.completed .phase-check { color: #16a34a; }
+  .phase-row.failed .phase-check { color: #dc2626; }
+  .error-card { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px 20px; text-align: left; margin-bottom: 20px; }
+  .error-card h4 { color: #dc2626; margin: 0 0 8px; font-size: 0.85rem; }
+  .error-card pre { font-size: 0.78rem; color: #7f1d1d; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 150px; overflow-y: auto; }
+  .action-row { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
+  .btn-action { padding: 8px 20px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; cursor: pointer; border: none; }
+  .btn-action.cancel { background: #fee2e2; color: #dc2626; }
+  .btn-action.cancel:hover { background: #fecaca; }
+  .btn-action.rerun { background: #fef3c7; color: #92400e; }
+  .btn-action.rerun:hover { background: #fde68a; }
+  .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Summary */
+  .summary-header { text-align: center; margin-bottom: 24px; }
+  .summary-icon { font-size: 2.5rem; margin-bottom: 8px; }
+  .summary-title { font-size: 1.5rem; font-weight: 700; color: #111; margin: 0 0 4px; }
+  .summary-meta { font-size: 0.85rem; color: #6b7280; margin: 0; }
+  .summary-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .summary-row { display: flex; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row-label { width: 140px; font-size: 0.8rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0; padding-top: 2px; }
+  .summary-row-value { flex: 1; font-size: 0.9rem; color: #111; word-break: break-all; }
+  .summary-row-value code { background: #e8f0fe; padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; color: #1a73e8; }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; }
+  .btn-primary { background: #1a73e8; color: #fff; }
+  .btn-primary:hover { background: #1557b0; }
+  .btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
+  .btn-secondary:hover { background: #e8e8e8; }
+  .status-badge { font-size: 12px; padding: 3px 10px; border-radius: 10px; background: #f0f0f0; }
+  .empty-state { text-align: center; padding: 40px; color: #888; }
+</style>
+
+<script>
+(function() {
+  // --- State ---
+  let currentStep = 1;
+  let currentSubTab = 'config';
+  let selectedDomain = null;
+  let domainConfig = null;
+  let runId = null;
+
+  // --- Stepper Navigation ---
+  function goToStep(step) {
+    currentStep = step;
+    document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('step-' + step).classList.add('active');
+    document.querySelectorAll('.stepper-track .step').forEach(s => {
+      const n = parseInt(s.dataset.step);
+      s.classList.remove('active', 'completed');
+      if (n === step) s.classList.add('active');
+      else if (n < step) s.classList.add('completed');
+    });
+  }
+
+  // --- Sub-tab Navigation ---
+  function switchSubTab(tab) {
+    currentSubTab = tab;
+    document.querySelectorAll('.sub-nav-item').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.sub-nav-item[data-tab="${tab}"]`).classList.add('active');
+    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    // Update bottom nav button text
+    const tabs = ['config', 'kpi', 'practices'];
+    const idx = tabs.indexOf(tab);
+    document.getElementById('step2-prev').textContent = idx === 0 ? '\u2190 Back to Domains' : '\u2190 Previous';
+    document.getElementById('step2-next').textContent = idx === 2 ? 'Run Pipeline \u2192' : 'Next \u2192';
+  }
+
+  // --- Step 1: Load Domains ---
+  async function loadDomains() {
+    const resp = await fetch('/api/domains');
+    const data = await resp.json();
+    const container = document.getElementById('domain-cards');
+    const empty = document.getElementById('domain-empty');
+    if (!data.domains || data.domains.length === 0) {
+      container.innerHTML = '';
+      empty.style.display = 'block';
+      if (data.error) {
+        empty.innerHTML = `<strong>Error:</strong> ${data.error}<br><small>Path: ${data.resolved_path || 'unknown'}</small>`;
+      }
+      return;
+    }
+    empty.style.display = 'none';
+    container.innerHTML = data.domains.map(d => `
+      <div class="domain-card" data-domain="${d.name}">
+        <h3>${d.display_name}</h3>
+        <p>${d.description || 'No description'}</p>
+        <span class="version">${d.version || d.version_suffix || 'v1'}</span>
+      </div>
+    `).join('');
+    container.querySelectorAll('.domain-card').forEach(card => {
+      card.addEventListener('click', () => selectDomain(card.dataset.domain));
+    });
+  }
+
+  // --- Select Domain & Load Config ---
+  async function selectDomain(name) {
+    selectedDomain = name;
+    const resp = await fetch(`/api/domains/${name}/config`);
+    const data = await resp.json();
+    domainConfig = data.config;
+    renderConfig();
+    loadKpiMatrix();
+    loadBestPractices();
+    goToStep(2);
+  }
+
+  // --- Step 2: Render Configuration ---
+  function renderConfig() {
+    const c = domainConfig;
+    const domain = c.domain || {};
+    const catalog = c.catalog || {};
+    const source = catalog.source || {};
+    const target = catalog.target || {};
+    const workspace = c.workspace || {};
+    const pipeline = c.pipeline || {};
+    const steps = pipeline.steps || {};
+    const ds = c.data_source || {};
+    const gf = ds.greenfield || {};
+    const assets = c.assets || {};
+    const mv = (assets.metric_views || [])[0] || {};
+    const dashboards = assets.dashboards || [];
+    const genie = assets.genie || {};
+    const erdImage = ds.erd ? ds.erd.image : '';
+
+    const form = document.getElementById('config-form');
+    form.innerHTML = `
+      <div class="config-section">
+        <h3 class="config-section-title">Domain &amp; Catalog</h3>
+        <div class="config-grid">
+          <label>Domain</label><input type="text" value="${domain.name || selectedDomain}" disabled>
+          <label>Display Name</label><input type="text" value="${domain.display_name || ''}" disabled>
+          <label>Target Catalog</label><input type="text" value="${target.catalog || ''}" disabled>
+          <label>Target Schema</label><input type="text" value="${target.schema || ''}" disabled>
+          <label>Source Catalog</label><input type="text" value="${source.catalog || ''}" disabled>
+          <label>Source Schema</label><input type="text" value="${source.schema || ''}" disabled>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3 class="config-section-title">Data Source</h3>
+        <div class="config-grid">
+          <label>Type</label><input type="text" value="${ds.type || ''}" disabled>
+          <label>Greenfield</label><input type="text" value="${gf.enabled ? 'Enabled' : 'Disabled'}" disabled>
+          <label>Synthetic Data</label><input type="text" value="${gf.synthetic_data ? 'Yes' : 'No'}" disabled>
+          <label>Volume</label><select id="cfg-volume">
+            <option value="low" ${gf.volume === 'low' ? 'selected' : ''}>Low</option>
+            <option value="medium" ${gf.volume === 'medium' ? 'selected' : ''}>Medium</option>
+            <option value="large" ${gf.volume === 'large' ? 'selected' : ''}>Large</option>
+          </select>
+          <label>ERD Image</label><span class="config-value">${erdImage || 'None'}</span>
+        </div>
+        ${erdImage ? `
+        <div class="erd-preview">
+          <button class="btn btn-secondary btn-sm" id="btn-toggle-erd">View ERD Diagram</button>
+          <div id="erd-container" style="display:none; margin-top:12px;">
+            <img id="erd-img" src="" alt="ERD Diagram" style="max-width:100%; border:1px solid #ddd; border-radius:4px;">
+          </div>
+        </div>` : ''}
+      </div>
+
+      <div class="config-section">
+        <h3 class="config-section-title">Assets</h3>
+        <div class="config-grid">
+          <label>Metric View</label><input type="text" value="${mv.name || ''}" disabled>
+          <label>Dashboards</label><span class="config-value">${dashboards.map(d => d.name).join(', ') || 'None'}</span>
+          <label>Genie Space</label><input type="text" value="${genie.space_name || ''}" disabled>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3 class="config-section-title">Pipeline Steps</h3>
+        <div class="config-grid">
+          <label>Clean Start</label><select id="cfg-clean"><option value="true" ${pipeline.clean_start ? 'selected' : ''}>Yes</option><option value="false" ${!pipeline.clean_start ? 'selected' : ''}>No</option></select>
+          <label>Steps</label>
+          <div class="checkbox-group">
+            <label><input type="checkbox" data-step="create_data_layer" ${steps.create_data_layer !== false ? 'checked' : ''}> Data Layer</label>
+            <label><input type="checkbox" data-step="create_metric_views" ${steps.create_metric_views !== false ? 'checked' : ''}> Metric Views</label>
+            <label><input type="checkbox" data-step="create_dashboards" ${steps.create_dashboards !== false ? 'checked' : ''}> Dashboards</label>
+            <label><input type="checkbox" data-step="create_genie_space" ${steps.create_genie_space !== false ? 'checked' : ''}> Genie Space</label>
+            <label><input type="checkbox" data-step="generate_documentation" ${steps.generate_documentation !== false ? 'checked' : ''}> Documentation</label>
+          </div>
+        </div>
+      </div>
+
+
+    `;
+
+    // ERD toggle handler
+    const toggleBtn = document.getElementById('btn-toggle-erd');
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        const container = document.getElementById('erd-container');
+        const img = document.getElementById('erd-img');
+        if (container.style.display === 'none') {
+          container.style.display = 'block';
+          toggleBtn.textContent = 'Hide ERD Diagram';
+          // Load ERD image via API
+          if (!img.src || img.src === window.location.href) {
+            img.src = `/api/domains/${selectedDomain}/erd-image`;
+          }
+        } else {
+          container.style.display = 'none';
+          toggleBtn.textContent = 'View ERD Diagram';
+        }
+      });
+    }
+  }
+
+  // --- Step 2: Load KPI Matrix ---
+  async function loadKpiMatrix() {
+    const resp = await fetch(`/api/domains/${selectedDomain}/kpi-matrix`);
+    const data = await resp.json();
+    const container = document.getElementById('kpi-content');
+    if (data.raw) {
+      container.innerHTML = `<textarea class="bp-editor" id="kpi-editor">${escapeHtml(data.raw)}</textarea>`;
+    } else {
+      container.innerHTML = '<p class="empty-state">No KPI spec file found.</p>';
+    }
+  }
+
+  // --- Step 2: Load Best Practices ---
+  async function loadBestPractices() {
+    const resp = await fetch(`/api/domains/${selectedDomain}/best-practices`);
+    const data = await resp.json();
+    const container = document.getElementById('practices-content');
+    if (data.content) {
+      container.innerHTML = `<textarea class="bp-editor" id="bp-editor">${escapeHtml(data.content)}</textarea>`;
+    } else {
+      container.innerHTML = '<p class="empty-state">No best practices file found.</p>';
+    }
+  }
+
+  // --- Step 3: Inline Run Details ---
+  const PIPE_STEPS = [
+    { key: 'load_configuration', label: 'Config' },
+    { key: 'environment_setup', label: 'Setup' },
+    { key: 'create_data_layer', label: 'Data Layer' },
+    { key: 'create_metric_views', label: 'Metrics' },
+    { key: 'create_dashboards', label: 'Dashboards' },
+    { key: 'create_genie_space', label: 'Genie' },
+    { key: 'generate_documentation', label: 'Docs' },
+  ];
+  let stepLogs = {};
+  let evtSource = null;
+
+  function buildStepsTrack() {
+    let html = '';
+    PIPE_STEPS.forEach((step, i) => {
+      if (i > 0) html += `<div class="step-connector" id="conn-${i}"></div>`;
+      html += `<div class="step-node pending" id="node-${step.key}"><div class="step-circle"><span class="circle-content"></span></div><div class="step-label">${step.label}</div><div class="step-dur" id="dur-${step.key}">&mdash;</div></div>`;
+    });
+    document.getElementById('steps-track').innerHTML = html;
+  }
+
+  function buildTimeline() {
+    let html = '';
+    PIPE_STEPS.forEach(step => {
+      html += `<div class="step-entry pending" id="entry-${step.key}"><div class="step-entry-header"><span class="step-entry-icon">&#x2B24;</span><span class="step-entry-title">${step.label}</span><span class="step-entry-dur" id="entry-dur-${step.key}"></span><span class="step-entry-badge" id="entry-badge-${step.key}"></span><button class="step-logs-btn" id="logbtn-${step.key}" onclick="window._toggleLogs('${step.key}')">Logs</button></div><div class="phase-list" id="phases-${step.key}"></div><div class="step-log-panel" id="logpanel-${step.key}"><pre id="logpre-${step.key}">Waiting for logs...</pre></div></div>`;
+    });
+    document.getElementById('step-timeline').innerHTML = '<div class="timeline-progress" id="timeline-progress"></div>' + html;
+  }
+
+  window._toggleLogs = function(stepKey) {
+    const panel = document.getElementById(`logpanel-${stepKey}`);
+    const btn = document.getElementById(`logbtn-${stepKey}`);
+    const isVisible = panel.classList.contains('visible');
+    PIPE_STEPS.forEach(s => {
+      document.getElementById(`logpanel-${s.key}`).classList.remove('visible');
+      document.getElementById(`logbtn-${s.key}`).classList.remove('active');
+    });
+    if (!isVisible) { panel.classList.add('visible'); btn.classList.add('active'); fetchStepLogs(stepKey); }
+  };
+
+  async function fetchStepLogs(stepKey) {
+    try {
+      const res = await fetch(`/api/pipeline/logs/${runId}/${stepKey}`);
+      if (res.ok) { const d = await res.json(); document.getElementById(`logpre-${stepKey}`).textContent = d.logs || 'No logs yet.'; }
+    } catch(e) {}
+  }
+
+  function updateProgressLine() {
+    const timeline = document.getElementById('step-timeline');
+    const progress = document.getElementById('timeline-progress');
+    if (!timeline || !progress) return;
+    let lastActive = null;
+    for (let i = PIPE_STEPS.length - 1; i >= 0; i--) {
+      const entry = document.getElementById(`entry-${PIPE_STEPS[i].key}`);
+      if (entry && (entry.classList.contains('completed') || entry.classList.contains('running') || entry.classList.contains('failed'))) { lastActive = entry; break; }
+    }
+    if (lastActive) {
+      const tRect = timeline.getBoundingClientRect();
+      const eRect = lastActive.getBoundingClientRect();
+      progress.style.height = `${eRect.top - tRect.top + 14}px`;
+    } else { progress.style.height = '0px'; }
+  }
+
+  function updateStepNode(stepKey, status, duration) {
+    const node = document.getElementById(`node-${stepKey}`);
+    if (!node) return;
+    node.className = `step-node ${status}`;
+    const circle = node.querySelector('.circle-content');
+    if (status === 'completed') circle.innerHTML = '&#x2713;';
+    else if (status === 'failed') circle.innerHTML = '&#x2717;';
+    else circle.innerHTML = '';
+    const durEl = document.getElementById(`dur-${stepKey}`);
+    if (duration != null) durEl.textContent = duration < 60 ? `${Math.round(duration)}s` : `${(duration/60).toFixed(1)}m`;
+    const stepIdx = PIPE_STEPS.findIndex(s => s.key === stepKey);
+    if (status === 'completed' && stepIdx < PIPE_STEPS.length - 1) {
+      const conn = document.getElementById(`conn-${stepIdx + 1}`);
+      if (conn) conn.classList.add('done');
+    }
+  }
+
+  function updateStepEntry(stepKey, status, duration) {
+    const entry = document.getElementById(`entry-${stepKey}`);
+    if (!entry) return;
+    entry.className = `step-entry ${status}`;
+    const icon = entry.querySelector('.step-entry-icon');
+    if (status === 'completed') icon.innerHTML = '&#x2713;';
+    else if (status === 'failed') icon.innerHTML = '&#x2717;';
+    else if (status === 'running') icon.innerHTML = '&#x25F7;';
+    else icon.innerHTML = '&#x2B24;';
+    const badge = document.getElementById(`entry-badge-${stepKey}`);
+    if (status === 'completed') badge.textContent = 'Done';
+    else if (status === 'running') badge.textContent = 'In progress';
+    else if (status === 'failed') badge.textContent = 'Failed';
+    else badge.textContent = '';
+    const durEl = document.getElementById(`entry-dur-${stepKey}`);
+    if (duration != null) durEl.textContent = duration < 60 ? `${Math.round(duration)}s` : `${(duration/60).toFixed(1)}m`;
+    requestAnimationFrame(updateProgressLine);
+  }
+
+  function renderPhase(stepKey, phaseName, status, durationMs, error) {
+    const container = document.getElementById(`phases-${stepKey}`);
+    if (!container) return;
+    let row = container.querySelector(`[data-phase="${phaseName}"]`);
+    if (!row) {
+      row = document.createElement('div');
+      row.className = 'phase-row pending';
+      row.setAttribute('data-phase', phaseName);
+      row.innerHTML = `<div class="phase-icon"><span class="pi-inner"></span></div><span class="phase-name">${formatName(phaseName)}</span><span class="phase-duration">&mdash;</span><span class="phase-check"></span>`;
+      container.appendChild(row);
+    }
+    row.className = `phase-row ${status}`;
+    const icon = row.querySelector('.pi-inner');
+    const check = row.querySelector('.phase-check');
+    const dur = row.querySelector('.phase-duration');
+    if (status === 'completed') { icon.innerHTML = '&#x2713;'; check.innerHTML = '&#x2713;'; }
+    else if (status === 'running') { icon.innerHTML = '&#x25CF;'; check.innerHTML = '&mdash;'; }
+    else if (status === 'failed') { icon.innerHTML = '&#x2717;'; check.innerHTML = '&#x2717;'; }
+    else { icon.innerHTML = ''; check.innerHTML = ''; }
+    if (durationMs != null) dur.textContent = durationMs < 1000 ? `${durationMs}ms` : durationMs < 60000 ? `${Math.round(durationMs/1000)}s` : `${(durationMs/60000).toFixed(1)}m`;
+  }
+
+  function formatName(name) { return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
+
+  function handlePipelineEvent(data) {
+    switch(data.type) {
+      case 'step_started': updateStepNode(data.step, 'running'); updateStepEntry(data.step, 'running'); document.getElementById('cancel-btn').style.display = 'inline-block'; break;
+      case 'step_completed': updateStepNode(data.step, 'completed', data.duration_s); updateStepEntry(data.step, 'completed', data.duration_s); break;
+      case 'step_failed': updateStepNode(data.step, 'failed', data.duration_s); updateStepEntry(data.step, 'failed', data.duration_s); showError(data.error, data.error_detail); break;
+      case 'step_skipped':
+        if (data.previously_completed) { updateStepNode(data.step, 'completed', data.duration_s); updateStepEntry(data.step, 'completed', data.duration_s); }
+        else { updateStepNode(data.step, 'skipped'); updateStepEntry(data.step, 'skipped'); }
+        break;
+      case 'phase_started': renderPhase(data.step, data.phase, 'running'); break;
+      case 'phase_completed': renderPhase(data.step, data.phase, 'completed', data.duration_ms); break;
+      case 'phase_failed': renderPhase(data.step, data.phase, 'failed', data.duration_ms, data.error); break;
+      case 'log':
+        if (data.step) {
+          if (!stepLogs[data.step]) stepLogs[data.step] = '';
+          stepLogs[data.step] += data.message + '\n';
+          const logPre = document.getElementById(`logpre-${data.step}`);
+          if (logPre) { logPre.textContent = stepLogs[data.step]; logPre.parentElement.scrollTop = logPre.parentElement.scrollHeight; }
+        }
+        break;
+      case 'pipeline_completed':
+        document.getElementById('cancel-btn').style.display = 'none';
+        const finalStatus = data.status || 'completed';
+        if (finalStatus === 'completed') { setFinalState('completed', 'All done!', 'Your pipeline completed successfully.'); setTimeout(() => { loadSummary(); goToStep(4); }, 2000); }
+        else { setFinalState('failed', 'Pipeline failed', 'An error occurred.'); document.getElementById('rerun-btn').style.display = 'inline-block'; showError(data.error); }
+        break;
+    }
+  }
+
+  function setFinalState(status, title, subtitle) {
+    const pill = document.getElementById('status-pill');
+    pill.className = `status-pill ${status}`;
+    document.getElementById('pill-text').textContent = status === 'completed' ? 'Completed' : 'Failed';
+    document.getElementById('run-title').textContent = title;
+    document.getElementById('run-subtitle').textContent = subtitle;
+  }
+
+  function showError(error, detail) {
+    if (error || detail) {
+      document.getElementById('error-card').style.display = 'block';
+      document.getElementById('error-content').textContent = detail || error || 'Unknown error';
+      document.getElementById('rerun-btn').style.display = 'inline-block';
+    }
+  }
+
+  async function pollStatus() {
+    try {
+      let res = await fetch(`/api/pipeline/status/${runId}`);
+      let data;
+      if (res.ok) { data = await res.json(); }
+      else { res = await fetch(`/api/pipeline/runs/${runId}`); if (!res.ok) return; data = await res.json(); }
+      const status = data.status || 'unknown';
+      if (status === 'started' || status === 'running') {
+        document.getElementById('cancel-btn').style.display = 'inline-block';
+        if (data.steps) { data.steps.forEach(s => { const key = s.step_name || s.name; updateStepNode(key, s.status, s.duration_s); updateStepEntry(key, s.status, s.duration_s); if (s.phases) s.phases.forEach(p => renderPhase(key, p.name || p.phase_name, p.status, p.duration_ms, p.error)); }); }
+        setTimeout(pollStatus, 2000);
+      } else if (status === 'completed') {
+        setFinalState('completed', 'All done!', 'Pipeline completed successfully.');
+        if (data.steps) data.steps.forEach(s => { const key = s.step_name || s.name; updateStepNode(key, s.status, s.duration_s); updateStepEntry(key, s.status, s.duration_s); if (s.phases) s.phases.forEach(p => renderPhase(key, p.name || p.phase_name, p.status, p.duration_ms, p.error)); });
+        setTimeout(() => { loadSummary(); goToStep(4); }, 2000);
+      } else if (status === 'failed') {
+        setFinalState('failed', 'Pipeline failed', 'An error occurred.');
+        document.getElementById('rerun-btn').style.display = 'inline-block';
+        showError(data.error, data.error_detail);
+        if (data.steps) data.steps.forEach(s => { const key = s.step_name || s.name; updateStepNode(key, s.status, s.duration_s); updateStepEntry(key, s.status, s.duration_s); });
+      }
+    } catch(err) { setTimeout(pollStatus, 3000); }
+  }
+
+  async function startPipeline() {
+    goToStep(3);
+    // Reset UI
+    stepLogs = {};
+    document.getElementById('error-card').style.display = 'none';
+    document.getElementById('cancel-btn').style.display = 'none';
+    document.getElementById('rerun-btn').style.display = 'none';
+    document.getElementById('status-pill').className = 'status-pill';
+    document.getElementById('pill-text').textContent = 'Working on your request';
+    document.getElementById('run-title').textContent = 'Preparing your results';
+    document.getElementById('run-subtitle').textContent = 'We\'re analyzing the information and putting everything together.';
+    buildStepsTrack();
+    buildTimeline();
+    // Trigger run
+    const resp = await fetch('/api/pipeline/run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({domain: selectedDomain, run_mode: 'versioned'})
+    });
+    const result = await resp.json();
+    if (!result.run_id) {
+      setFinalState('failed', 'Failed to start', result.error || 'Unknown error');
+      return;
+    }
+    runId = result.run_id;
+    // Start SSE
+    if (evtSource) evtSource.close();
+    evtSource = new EventSource(`/api/pipeline/stream/${runId}`);
+    evtSource.onmessage = (e) => { try { handlePipelineEvent(JSON.parse(e.data)); } catch(ex) {} };
+    evtSource.onerror = () => { evtSource.close(); };
+    // Start polling
+    pollStatus();
+  }
+
+  // --- Step 4: Load Summary ---
+  async function loadSummary() {
+    // Get actual version from run status (not from accelerator.yaml)
+    let runVersion = '';
+    let runDuration = '';
+    try {
+      const statusResp = await fetch(`/api/pipeline/status/${runId}`);
+      if (statusResp.ok) {
+        const statusData = await statusResp.json();
+        runVersion = statusData.version_suffix || statusData.version || '';
+        if (statusData.duration_s) {
+          runDuration = statusData.duration_s < 60 ? `${Math.round(statusData.duration_s)}s` : `${(statusData.duration_s / 60).toFixed(1)} min`;
+        }
+      }
+    } catch(e) {}
+
+    // Get summary data
+    const resp = await fetch(`/api/domains/${selectedDomain}/summary/${runId}`);
+    const data = await resp.json();
+
+    // Use run version if available, otherwise fall back to summary
+    const version = runVersion || data.version || 'v1';
+    const versionDisplay = version.startsWith('_') ? version.substring(1) : version;
+
+    // Update header meta
+    document.getElementById('summary-meta').textContent = `${selectedDomain.replace(/_/g, ' ')} • ${versionDisplay}${runDuration ? ' • ' + runDuration : ''}`;
+
+    // Read asset names from config
+    const cfg = domainConfig || {};
+    const cfgAssets = cfg.assets || {};
+    const metricViews = cfgAssets.metric_views || [];
+    const dashboards = cfgAssets.dashboards || [];
+    const genie = cfgAssets.genie || {};
+    const suffix = runVersion || data.version || '_v1';
+    const suffixClean = suffix.startsWith('_') ? suffix : '_' + suffix;
+
+    const container = document.getElementById('summary-content');
+    let html = '';
+
+    // Output folder
+    html += `<div class="summary-row"><div class="summary-row-label">Output Folder</div><div class="summary-row-value"><code>${data.output_folder || 'N/A'}</code></div></div>`;
+
+    // Metric Views
+    if (metricViews.length) {
+      const mvNames = metricViews.map(mv => mv.name + suffixClean).join(', ');
+      html += `<div class="summary-row"><div class="summary-row-label">Metric Views</div><div class="summary-row-value">${mvNames}</div></div>`;
+    }
+
+    // Dashboards
+    if (dashboards.length) {
+      const dbNames = dashboards.map(d => d.name + suffixClean).join('<br>');
+      html += `<div class="summary-row"><div class="summary-row-label">Dashboards</div><div class="summary-row-value">${dbNames}</div></div>`;
+    }
+
+    // Genie Space
+    if (genie.space_name) {
+      html += `<div class="summary-row"><div class="summary-row-label">Genie Space</div><div class="summary-row-value">${genie.space_name}${suffixClean}</div></div>`;
+    }
+
+    // Notebooks
+    if (data.notebooks && data.notebooks.length) {
+      html += `<div class="summary-row"><div class="summary-row-label">Notebooks</div><div class="summary-row-value">${data.notebooks.join('<br>')}</div></div>`;
+    }
+
+    // Manifest files
+    if (data.assets && data.assets.length) {
+      html += `<div class="summary-row"><div class="summary-row-label">Manifests</div><div class="summary-row-value">${data.assets.map(a => a.file).join('<br>')}</div></div>`;
+    }
+
+    container.innerHTML = html;
+  }
+
+  // --- Helpers ---
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // --- Event Listeners ---
+  document.querySelectorAll('.sub-nav-item').forEach(btn => {
+    btn.addEventListener('click', () => switchSubTab(btn.dataset.tab));
+  });
+
+  document.getElementById('step2-prev').addEventListener('click', () => {
+    const tabs = ['config', 'kpi', 'practices'];
+    const idx = tabs.indexOf(currentSubTab);
+    if (idx === 0) goToStep(1);
+    else switchSubTab(tabs[idx - 1]);
+  });
+
+  document.getElementById('step2-next').addEventListener('click', () => {
+    const tabs = ['config', 'kpi', 'practices'];
+    const idx = tabs.indexOf(currentSubTab);
+    if (idx < 2) switchSubTab(tabs[idx + 1]);
+    else startPipeline();
+  });
+
+  document.getElementById('step4-new').addEventListener('click', () => { goToStep(1); loadDomains(); });
+  document.getElementById('step4-rerun').addEventListener('click', () => startPipeline());
+
+  document.getElementById('cancel-btn').addEventListener('click', async () => {
+    await fetch(`/api/pipeline/cancel/${runId}`, {method: 'POST'});
+    document.getElementById('cancel-btn').disabled = true;
+  });
+  document.getElementById('rerun-btn').addEventListener('click', () => startPipeline());
+
+  // --- Init ---
+  loadDomains();
+})();
+</script>
+{% endblock %}

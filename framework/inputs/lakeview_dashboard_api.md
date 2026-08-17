@@ -160,7 +160,7 @@ databricks api post /api/2.0/lakeview/dashboards/{dashboard_id}/published
 
 Every dashboard needs:
 
-1. **Global filters page** — `"pageType": "PAGE_TYPE_GLOBAL_FILTERS"` with filter widgets (date range, LOB, one profiled dimension).
+1. **Global filters page** — `"pageType": "PAGE_TYPE_GLOBAL_FILTERS"` with filter widgets derived from KPI dimensions and data profile (see Step 2 of `03_create_dashboards.md`).
 2. **Canvas pages** — one per KPI spec Dashboard Mapping page, `"pageType": "PAGE_TYPE_CANVAS"`.
 
 ```json
@@ -202,7 +202,9 @@ Each row must sum to **width = 6**. No gaps.
 | Chart version | bar/line/pie/area/scatter: `spec.version: 3` |
 | Table version | `spec.version: 2` |
 | Filter types | `filter-multi-select`, `filter-single-select`, `filter-date-range-picker` — never `widgetType: "filter"` |
-| Filter queries | Simple field expression — **no** `associative_filter_predicate_group` |
+| Filter version | `spec.version: 2` for ALL filter types (NOT 1 — version 1 causes broken binding) |
+| Filter encodings | `encodings.fields[]` MUST include `queryName` referencing `queries[].name` (e.g., `"queryName": "main_query"`) |
+| Filter queries | `disaggregated: true`, simple field expression — **no** `associative_filter_predicate_group` |
 | Bar color | Omit `color` encoding unless grouping by a dimension |
 | Query name | Always `"main_query"` on chart/table widgets |
 | Widget `name` | alphanumeric, hyphens, underscores only |
@@ -265,6 +267,111 @@ Each row must sum to **width = 6**. No gaps.
 }
 ```
 
+### Filter widget examples (CRITICAL)
+
+Filter widgets are special — they live on the `PAGE_TYPE_GLOBAL_FILTERS` page and **auto-bind** to canvas-page datasets that have a matching column name. For filters to work:
+
+1. **A dedicated filter dataset must exist with actual SQL** — e.g. `ds_filter_values` that SELECTs DISTINCT filter dimensions from the metric view.
+2. **Every canvas-page dataset must also SELECT the filter columns** in its SQL query. Filters cannot narrow widgets whose datasets don't include the filter column.
+3. **The dataset `query` field must be NON-EMPTY** — a dataset with `"query": ""` will cause "Filter has no fields or parameters selected".
+
+#### Filter dataset (REQUIRED):
+
+Datasets MUST use `queryLines` (array of strings) and include `displayName`:
+
+```json
+{
+  "name": "ds_filter_values",
+  "displayName": "Filter Values",
+  "queryLines": [
+    "SELECT DISTINCT service_month, line_of_business, claim_type, member_state FROM catalog.schema.metric_view"
+  ]
+}
+```
+
+**Every dataset** in the dashboard must also include the filter dimension columns and use `queryLines`:
+```json
+{
+  "name": "ds_summary",
+  "displayName": "Summary",
+  "queryLines": [
+    "SELECT service_month, line_of_business, claim_type, member_state, MEASURE(total_claims) as total_claims FROM catalog.schema.metric_view"
+  ]
+}
+```
+
+#### Multi-select filter widget:
+
+```json
+{
+  "widget": {
+    "name": "filter-line-of-business",
+    "queries": [{
+      "name": "main_query",
+      "query": {
+        "datasetName": "ds_filter_values",
+        "fields": [{"name": "line_of_business", "expression": "`line_of_business`"}],
+        "disaggregated": true
+      }
+    }],
+    "spec": {
+      "version": 2,
+      "widgetType": "filter-multi-select",
+      "encodings": {
+        "fields": [{
+          "fieldName": "line_of_business",
+          "displayName": "Line of Business",
+          "queryName": "main_query"
+        }]
+      },
+      "frame": {"showTitle": true, "title": "Line of Business"}
+    }
+  },
+  "position": {"x": 0, "y": 0, "width": 2, "height": 2}
+}
+```
+
+#### Date range filter widget:
+
+```json
+{
+  "widget": {
+    "name": "filter-service-month",
+    "queries": [{
+      "name": "main_query",
+      "query": {
+        "datasetName": "ds_filter_values",
+        "fields": [{"name": "service_month", "expression": "`service_month`"}],
+        "disaggregated": true
+      }
+    }],
+    "spec": {
+      "version": 2,
+      "widgetType": "filter-date-range-picker",
+      "encodings": {
+        "fields": [{
+          "fieldName": "service_month",
+          "displayName": "Service Month",
+          "queryName": "main_query"
+        }]
+      },
+      "frame": {"showTitle": true, "title": "Service Month"}
+    }
+  },
+  "position": {"x": 2, "y": 0, "width": 2, "height": 2}
+}
+```
+
+**Key rules for filter binding (common failures):**
+- **`spec.version` must be `2`** for all filter widget types (NOT 1 — version 1 causes "no fields or parameters selected")
+- **`encodings.fields[]` must include `queryName`** — this references the `queries[].name` value (e.g., `"main_query"`). Without it, the filter cannot resolve its field.
+- **Datasets must use `queryLines` (array)** not `query` (string), and must include `displayName`
+- `queries[].query.datasetName` must reference a dataset with **non-empty SQL**
+- `queries[].query.disaggregated` must be `true` for filters
+- `encodings.fields[].fieldName` must match the column name in the dataset SQL results
+- The same column name must appear in canvas-page datasets for cross-filtering to work
+- If a filter shows "no fields or parameters selected": check `spec.version` is 2, check `queryName` is present, check dataset has SQL
+
 ---
 
 ## Visualization mix
@@ -298,11 +405,13 @@ Do **not** treat `.lvdash.json` export as the deliverable.
 
 Before marking Step 03 complete:
 
-- [ ] Every dataset SQL tested and returns rows
+- [ ] **Every dataset has non-empty `query` SQL** — no dataset may have `"query": ""`. Execute each query on the warehouse first.
+- [ ] **Filter dataset (`ds_filter_values`) has SQL** that SELECTs all filter dimension columns from the metric view
+- [ ] **Every canvas-page dataset includes filter columns** in its SQL SELECT so global filters can bind
 - [ ] `pages` array is non-empty with filters + canvas pages
 - [ ] Every KPI from Dashboard Mapping has at least one widget
 - [ ] Dashboard opens in AI/BI with rendered visuals (not empty canvas)
-- [ ] Global filters affect widgets on canvas pages
+- [ ] Global filters show values (not "no fields or parameters selected")
 - [ ] No Unknown Column / Invalid widget definition errors
 
 On failure: halt with `❌ EXECUTION HALTED`, API response body, and failing SQL or widget name.

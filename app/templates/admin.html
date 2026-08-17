@@ -1,0 +1,533 @@
+{% extends "layout.html" %}
+{% set active_page = "admin" %}
+{% block title %}Admin - AI/BI Studio{% endblock %}
+
+{% block head %}
+<style>
+/* Infrastructure cards */
+.infra-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+}
+.infra-header h2 { margin: 0; }
+.infra-header .subtitle { color: #6b7280; font-size: 0.85rem; margin: 4px 0 0; }
+.infra-actions {
+    display: flex;
+    gap: 8px;
+}
+.btn-setup {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-setup.primary { background: #2563eb; color: #fff; }
+.btn-setup.primary:hover { background: #1d4ed8; }
+.btn-setup.primary:disabled { background: #93c5fd; cursor: not-allowed; }
+.btn-setup.secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+.btn-setup.secondary:hover { background: #e5e7eb; }
+
+/* Status grid */
+.infra-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.infra-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.2s;
+}
+.infra-card:hover { border-color: #d1d5db; }
+.infra-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.infra-card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #111827;
+}
+.infra-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #d1d5db;
+}
+.infra-status-dot.ready { background: #16a34a; }
+.infra-status-dot.error { background: #dc2626; }
+.infra-status-dot.running { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
+.infra-status-dot.unknown { background: #9ca3af; }
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+.infra-card-status {
+    font-size: 0.78rem;
+    color: #6b7280;
+    margin-bottom: 8px;
+}
+.infra-card-detail {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    font-family: monospace;
+    word-break: break-all;
+}
+.infra-card-action {
+    margin-top: 12px;
+}
+.btn-card-action {
+    padding: 5px 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 0.75rem;
+    color: #374151;
+    cursor: pointer;
+}
+.btn-card-action:hover { background: #f9fafb; }
+
+/* Job run status */
+.setup-status {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: none;
+}
+.setup-status.visible { display: block; }
+.setup-status .status-text {
+    font-size: 0.85rem;
+    color: #374151;
+}
+.setup-status .status-detail {
+    font-size: 0.75rem;
+    color: #6b7280;
+    margin-top: 4px;
+}
+
+/* Spinner animation for delete button */
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="infra-header">
+    <div>
+        <h2>Infrastructure</h2>
+        <p class="subtitle">One-time workspace setup. Run after first deploy.</p>
+    </div>
+</div>
+
+<!-- Setup job status banner -->
+<div class="setup-status" id="setup-banner">
+    <div class="status-text" id="setup-banner-text">Setup running...</div>
+    <div class="status-detail" id="setup-banner-detail"></div>
+</div>
+
+<!-- Infrastructure status cards (ordered by setup flow) -->
+<div class="infra-grid">
+    <div class="infra-card" id="card-lakebase">
+        <div class="infra-card-header">
+            <span class="infra-card-title">1. Lakebase Instance</span>
+            <span class="infra-status-dot unknown" id="dot-lakebase"></span>
+        </div>
+        <div class="infra-card-status" id="status-lakebase">Checking...</div>
+        <div class="infra-card-detail" id="detail-lakebase">Postgres project, database, schema tables</div>
+        <div class="infra-card-detail" id="detail-lakebase-project" style="margin-top:4px;color:#6b7280;"></div>
+        <div class="infra-card-action" id="lakebase-actions"></div>
+    </div>
+
+    <div class="infra-card" id="card-metadata">
+        <div class="infra-card-header">
+            <span class="infra-card-title">2. Phase Config</span>
+            <span class="infra-status-dot unknown" id="dot-metadata"></span>
+        </div>
+        <div class="infra-card-status" id="status-metadata">Checking...</div>
+        <div class="infra-card-detail" id="detail-metadata">step_phases_config seeded (15 phase definitions)</div>
+        <div class="infra-card-detail" id="detail-metadata-access" style="margin-top:4px;color:#6b7280;"></div>
+    </div>
+
+    <div class="infra-card" id="card-perms">
+        <div class="infra-card-header">
+            <span class="infra-card-title">3. Workspace Permissions</span>
+            <span class="infra-status-dot unknown" id="dot-perms"></span>
+        </div>
+        <div class="infra-card-status" id="status-perms">Checking...</div>
+        <div class="infra-card-detail" id="detail-perms-sp" style="color:#6b7280;font-size:0.8rem;"></div>
+        <div class="infra-card-detail" id="detail-perms-access" style="margin-top:2px;"></div>
+    </div>
+
+    <div class="infra-card" id="card-uc">
+        <div class="infra-card-header">
+            <span class="infra-card-title">4. Unity Catalog Access</span>
+            <span class="infra-status-dot unknown" id="dot-uc"></span>
+        </div>
+        <div class="infra-card-status" id="status-uc">Checking...</div>
+        <div class="infra-card-detail" id="detail-uc-sp" style="color:#6b7280;font-size:0.8rem;"></div>
+        <div class="infra-card-detail" id="detail-uc-access" style="margin-top:2px;"></div>
+    </div>
+</div>
+
+<!-- Pipeline Runs Section -->
+<div style="margin-top:32px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div>
+            <h2 style="margin:0; font-size:1.1rem;">Pipeline Runs</h2>
+            <p class="subtitle">Latest run per domain version</p>
+        </div>
+        <div>
+            <select id="runs-domain-filter" style="padding:6px 12px; border:1px solid #e5e7eb; border-radius:6px; font-size:0.82rem; color:#374151; background:#fff;">
+                <option value="">All Domains</option>
+            </select>
+        </div>
+    </div>
+    <div style="background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:0; overflow:hidden;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.82rem;" id="runs-table">
+            <thead>
+                <tr style="background:#f9fafb;">
+                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Domain</th>
+                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Version</th>
+                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Started</th>
+                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Duration</th>
+                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Actions</th>
+                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Status</th>
+                </tr>
+            </thead>
+            <tbody id="admin-runs-tbody">
+                <tr><td colspan="6" style="text-align:center; padding:24px; color:#9ca3af;">Loading runs...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Load infrastructure status on page load
+async function loadStatus() {
+    try {
+        const res = await fetch('/api/admin/setup-status');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        updateCard('perms', data.permissions || {});
+        updateCard('uc', data.uc_access || {});
+        updateCard('metadata', data.metadata || {});
+        updateCard('lakebase', data.lakebase || {});
+
+        // 3. Workspace Permissions: SP id + folder
+        const perms = data.permissions || {};
+        const permsSp = document.getElementById('detail-perms-sp');
+        const permsAccess = document.getElementById('detail-perms-access');
+        permsSp.textContent = perms.sp_id ? `SP: ${perms.sp_id}` : '';
+        if (perms.folder) {
+            permsAccess.textContent = `Folder: ${perms.folder}`;
+        } else {
+            permsAccess.textContent = '';
+        }
+
+        // 4. Unity Catalog Access: SP id + catalog + schemas
+        const uc = data.uc_access || {};
+        const ucSp = document.getElementById('detail-uc-sp');
+        const ucAccess = document.getElementById('detail-uc-access');
+        ucSp.textContent = uc.sp_id ? `SP: ${uc.sp_id}` : '';
+        if (uc.catalog) {
+            let text = `Catalog: ${uc.catalog}`;
+            if (uc.schemas && uc.schemas.length > 0) {
+                text += ` | Schemas: ${uc.schemas.slice(0, 4).join(', ')}${uc.schema_count > 4 ? ' (+' + (uc.schema_count - 4) + ' more)' : ''}`;
+            }
+            ucAccess.textContent = text;
+        } else {
+            ucAccess.textContent = '';
+        }
+
+        // Show SP Lakebase access under Phase Config
+        const access = data.lakebase_access || {};
+        const accessEl = document.getElementById('detail-metadata-access');
+        if (access.status === 'ready') {
+            const accessPerms = (access.membership || []).join(', ');
+            accessEl.innerHTML = `<span style="color:#059669;">SP Access:</span> ${accessPerms}`;
+        } else if (access.status === 'warning') {
+            accessEl.innerHTML = `<span style="color:#d97706;">⚠ ${access.message || 'SP role missing'}</span>`;
+        } else {
+            accessEl.textContent = '';
+        }
+
+        // Lakebase project state
+        const lbState = (data.lakebase || {}).project_state || 'unknown';
+        const config = data.config || {};
+        if (lbState === 'not_found') {
+            document.getElementById('detail-lakebase-project').textContent = '';
+        } else {
+            const stateLabel = lbState === 'active' ? '(active)' : lbState === 'soft_deleted' ? '(soft-deleted)' : '';
+            document.getElementById('detail-lakebase-project').textContent = `Project: ${config.lakebase_project_id || 'aibi-studio'} ${stateLabel}`;
+        }
+
+        // Show context-appropriate actions for Lakebase card
+        const lakebaseActions = document.getElementById('lakebase-actions');
+        const projectState = (data.lakebase || {}).project_state || 'not_found';
+        if (projectState === 'active' || projectState === 'no_endpoints' || projectState === 'soft_deleted') {
+            // Project exists — only option is to purge and recreate
+            lakebaseActions.innerHTML = `
+                <button class="btn-card-action" onclick="confirmPurgeAndCreate()" style="color:#dc2626;border-color:#fecaca;">Purge &amp; Recreate</button>
+            `;
+        } else {
+            // No project — only option is to create
+            lakebaseActions.innerHTML = `
+                <button class="btn-card-action" onclick="runSetup('create')" style="color:#2563eb;border-color:#bfdbfe;">Create</button>
+            `;
+        }
+    } catch (e) {
+        console.warn('Failed to load infra status:', e);
+    }
+}
+
+function updateCard(id, info) {
+    const dot = document.getElementById(`dot-${id}`);
+    const status = document.getElementById(`status-${id}`);
+    const detail = document.getElementById(`detail-${id}`);
+
+    const state = info.status || 'unknown';
+    if (dot) dot.className = `infra-status-dot ${state}`;
+
+    if (state === 'ready') {
+        if (status) status.textContent = 'Ready';
+    } else if (state === 'error') {
+        if (status) status.textContent = info.message || 'Error';
+    } else if (state === 'not_provisioned') {
+        if (status) status.textContent = 'Not provisioned';
+    } else {
+        if (status) status.textContent = 'Unknown';
+    }
+
+    if (info.detail && detail) {
+        detail.textContent = info.detail;
+    }
+}
+
+function confirmPurgeAndCreate() {
+    runSetup('purge_and_create');
+}
+
+function grayOutCards() {
+    // Reset all status cards to "resetting" state while setup job runs
+    ['lakebase', 'metadata', 'perms', 'uc'].forEach(id => {
+        const dot = document.getElementById(`dot-${id}`);
+        const status = document.getElementById(`status-${id}`);
+        if (dot) dot.className = 'infra-status-dot unknown';
+        if (status) status.textContent = 'Resetting...';
+    });
+    // Clear detail lines
+    ['detail-metadata-access', 'detail-perms-sp', 'detail-perms-access',
+     'detail-uc-sp', 'detail-uc-access'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '';
+    });
+}
+
+async function runSetup(action) {
+    // Disable all action buttons and gray out status cards
+    document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+    grayOutCards();
+
+    try {
+        const res = await fetch(`/api/admin/run-setup?action=${action}`, { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            showBanner(`Setup job triggered (action=${action}, run_id: ${data.run_id})`, 'Polling for completion...');
+            pollJobRun(data.job_id, data.run_id);
+        } else {
+            const err = await res.json();
+            showBanner(`Failed: ${err.error || 'Unknown error'}`, '', true);
+            document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+        }
+    } catch (e) {
+        showBanner(`Connection error: ${e.message}`, '', true);
+        document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+    }
+}
+
+async function runTask(jobKey) {
+    try {
+        const res = await fetch(`/api/admin/run-setup?job=${jobKey}`, { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            showBanner(`Job '${jobKey}' triggered`, `run_id: ${data.run_id}`);
+            pollJobRun(data.job_id, data.run_id);
+        }
+    } catch (e) {
+        showBanner(`Error: ${e.message}`, '', true);
+    }
+}
+
+function showBanner(text, detail, isError) {
+    const banner = document.getElementById('setup-banner');
+    banner.classList.add('visible');
+    document.getElementById('setup-banner-text').textContent = text;
+    document.getElementById('setup-banner-detail').textContent = detail || '';
+    if (isError) banner.style.borderColor = '#fecaca';
+    else banner.style.borderColor = '#e5e7eb';
+}
+
+async function pollJobRun(jobId, runId) {
+    const interval = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/admin/job-status/${runId}`);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            if (data.state === 'TERMINATED') {
+                clearInterval(interval);
+                if (data.result_state === 'SUCCESS') {
+                    showBanner('Setup completed successfully!', 'Refreshing status...');
+                    // Re-enable buttons and refresh status after Lakebase settles
+                    setTimeout(() => {
+                        document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+                        loadStatus();
+                    }, 3000);
+                } else {
+                    showBanner(`Setup failed: ${data.state_message || data.result_state}`, '', true);
+                    document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+                    loadStatus();  // Refresh to show actual state
+                }
+            } else {
+                showBanner(`Running... (${data.state})`, `Tasks: ${data.tasks_completed || 0}/${data.tasks_total || '?'}`);
+            }
+        } catch (e) {}
+    }, 5000);
+}
+
+loadStatus();
+
+// --- Pipeline Runs (latest per domain+version) ---
+let allRuns = [];
+let domainFilter = '';
+
+async function loadRuns() {
+    try {
+        const res = await fetch('/api/pipeline/runs');
+        if (!res.ok) throw new Error('Failed');
+        allRuns = await res.json();
+        populateDomainFilter();
+        renderRuns();
+    } catch(e) {
+        document.getElementById('admin-runs-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#dc2626;">Failed to load runs</td></tr>';
+    }
+}
+
+function populateDomainFilter() {
+    const select = document.getElementById('runs-domain-filter');
+    const domains = [...new Set(allRuns.map(r => r.domain).filter(Boolean))];
+    const current = select.value;
+    select.innerHTML = '<option value="">All Domains</option>' + domains.map(d => `<option value="${d}" ${d === current ? 'selected' : ''}>${d.replace(/_/g, ' ')}</option>`).join('');
+}
+
+function renderRuns() {
+    const filtered = domainFilter ? allRuns.filter(r => r.domain === domainFilter) : allRuns;
+    // Group by domain+version, keep only latest run per group
+    const latestMap = {};
+    const retryCount = {};
+    filtered.forEach(run => {
+        const key = `${run.domain}|${run.version_suffix || ''}`;
+        if (!retryCount[key]) retryCount[key] = 0;
+        retryCount[key]++;
+        if (!latestMap[key] || (run.started_at || '') > (latestMap[key].started_at || '')) {
+            latestMap[key] = run;
+        }
+    });
+    const latest = Object.values(latestMap).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+    const tbody = document.getElementById('admin-runs-tbody');
+    if (latest.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#9ca3af;">No pipeline runs yet.</td></tr>';
+        return;
+    }
+    const td = 'padding:10px 14px; border-bottom:1px solid #f0f0f0;';
+    tbody.innerHTML = latest.map(run => {
+        const key = `${run.domain}|${run.version_suffix || ''}`;
+        const retries = retryCount[key] - 1;
+        const version = (run.version_suffix || '').replace(/^_/, '') || '-';
+        const started = run.started_at ? new Date(run.started_at).toLocaleString() : '-';
+        const duration = run.duration_s ? `${Number(run.duration_s).toFixed(1)}s` : '-';
+        const statusColor = run.status === 'completed' ? '#16a34a' : run.status === 'failed' ? '#dc2626' : run.status === 'running' ? '#f59e0b' : '#9ca3af';
+        const retryBadge = retries > 0 ? ` <span title="${retries} previous attempt(s)" style="font-size:0.68rem; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:8px; cursor:help;">${retries} retry</span>` : '';
+        let actions = `<a href="/run/${run.run_id}" style="color:#2563eb; text-decoration:none; font-size:0.78rem;">View</a>`;
+        if (run.status === 'failed') {
+            actions += ` <button onclick="rerunFromAdmin('${run.run_id}')" style="margin-left:6px; padding:2px 8px; border:1px solid #e5e7eb; border-radius:4px; background:#fff; font-size:0.72rem; cursor:pointer;">Rerun</button>`;
+        }
+        if (run.status !== 'running') {
+            const btnId = `del-${run.domain}-${(run.version_suffix||'').replace(/[^a-z0-9]/gi,'')}`;
+            actions += ` <button id="${btnId}" onclick="requestCleanup('${run.domain}', '${run.version_suffix || ''}', '${btnId}')" style="margin-left:6px; padding:2px 8px; border:1px solid #fecaca; border-radius:4px; background:#fff; font-size:0.72rem; cursor:pointer; color:#dc2626;" title="Remove this version">Delete</button>`;
+        }
+        return `<tr>
+            <td style="${td}">${(run.domain || '').replace(/_/g, ' ')}</td>
+            <td style="${td}">${version}</td>
+            <td style="${td}">${started}</td>
+            <td style="${td}">${duration}</td>
+            <td style="${td}">${actions}</td>
+            <td style="${td}"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${statusColor}; margin-right:6px;"></span>${run.status}${retryBadge}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function rerunFromAdmin(runId) {
+    const res = await fetch(`/api/pipeline/rerun/${runId}`, {method:'POST'});
+    if (res.ok) { const d = await res.json(); window.location.href = `/run/${d.run_id}`; }
+}
+
+async function requestCleanup(domain, versionSuffix, btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn || btn.disabled) return;
+    // Switch to deleting state
+    btn.disabled = true;
+    btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="#dc2626" stroke-width="3" fill="none" stroke-dasharray="31 31" stroke-linecap="round"/></svg>Deleting...</span>`;
+    btn.style.color = '#9ca3af';
+    btn.style.borderColor = '#e5e7eb';
+    btn.style.cursor = 'default';
+    try {
+        const res = await fetch('/api/pipeline/cleanup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({domain: domain, version_suffix: versionSuffix})
+        });
+        const data = await res.json();
+        if (res.ok) {
+            const c = data.cleaned || {};
+            btn.innerHTML = `<span style="color:#059669;">&#x2713; Removed</span>`;
+            btn.style.borderColor = '#bbf7d0';
+            // Remove row after brief delay
+            setTimeout(() => loadRuns(), 1500);
+        } else {
+            btn.innerHTML = `<span style="color:#dc2626;">Failed</span>`;
+            btn.disabled = false;
+            btn.style.cursor = 'pointer';
+            setTimeout(() => { btn.innerHTML = 'Delete'; btn.style.color = '#dc2626'; btn.style.borderColor = '#fecaca'; }, 3000);
+        }
+    } catch(e) {
+        btn.innerHTML = `<span style="color:#dc2626;">Error</span>`;
+        btn.disabled = false;
+        btn.style.cursor = 'pointer';
+        setTimeout(() => { btn.innerHTML = 'Delete'; btn.style.color = '#dc2626'; btn.style.borderColor = '#fecaca'; }, 3000);
+    }
+}
+
+document.getElementById('runs-domain-filter').addEventListener('change', (e) => {
+    domainFilter = e.target.value;
+    renderRuns();
+});
+
+loadRuns();
+setInterval(loadRuns, 15000);
+</script>
+{% endblock %}

@@ -1,0 +1,799 @@
+{% extends "layout.html" %}
+{% set active_page = "run_details" %}
+{% block title %}Run Details - AI/BI Studio{% endblock %}
+
+{% block head %}
+<style>
+/* ─── Run Details — Modern Progress UI ─── */
+.run-container {
+    max-width: 720px;
+    margin: 40px auto;
+    text-align: center;
+    padding: 0 24px;
+}
+
+/* Status pill */
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    background: #f0f4ff;
+    color: #2563eb;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 16px;
+}
+.status-pill.completed { background: #ecfdf5; color: #16a34a; }
+.status-pill.failed { background: #fef2f2; color: #dc2626; }
+.status-pill .sparkle { font-size: 1rem; }
+
+/* Title / subtitle */
+.run-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 8px;
+}
+.run-subtitle {
+    font-size: 0.95rem;
+    color: #6b7280;
+    margin: 0 0 28px;
+}
+
+/* ─── Horizontal Step Progress ─── */
+.steps-track {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    margin-bottom: 36px;
+    padding: 0 16px;
+}
+.step-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    min-width: 90px;
+    flex: 1;
+}
+.step-circle {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid #e5e7eb;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    color: #9ca3af;
+    position: relative;
+    z-index: 2;
+    transition: all 0.3s ease;
+}
+.step-node.completed .step-circle {
+    border-color: #16a34a;
+    background: #16a34a;
+    color: #fff;
+}
+.step-node.running .step-circle {
+    border-color: #2563eb;
+    background: #fff;
+    color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+.step-node.running .step-circle::after {
+    content: '';
+    width: 12px;
+    height: 12px;
+    background: #2563eb;
+    border-radius: 50%;
+}
+.step-node.failed .step-circle {
+    border-color: #dc2626;
+    background: #fef2f2;
+    color: #dc2626;
+}
+.step-label {
+    margin-top: 8px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #6b7280;
+    white-space: nowrap;
+}
+.step-node.running .step-label { color: #111827; font-weight: 600; }
+.step-node.completed .step-label { color: #374151; }
+.step-dur {
+    font-size: 0.72rem;
+    color: #9ca3af;
+    margin-top: 2px;
+}
+.step-node.completed .step-dur { color: #16a34a; }
+
+/* Connector line between nodes */
+.step-connector {
+    flex: 1;
+    height: 3px;
+    background: #e5e7eb;
+    margin-top: 18px;
+    min-width: 20px;
+    position: relative;
+    z-index: 1;
+}
+.step-connector.done { background: #16a34a; }
+
+/* ─── Detail Card — All Steps with Phases ─── */
+.detail-card {
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 24px;
+    text-align: left;
+    margin-bottom: 24px;
+}
+
+/* Step rows in detail card — vertical timeline */
+.step-timeline {
+    position: relative;
+    padding-left: 24px;
+}
+
+/* Grey background line */
+.step-timeline::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 12px;
+    bottom: 12px;
+    width: 3px;
+    background: #e5e7eb;
+    border-radius: 2px;
+}
+
+/* Green progress overlay — dynamically sized via JS */
+.timeline-progress {
+    position: absolute;
+    left: 7px;
+    top: 12px;
+    width: 3px;
+    height: 0;
+    background: #16a34a;
+    border-radius: 2px;
+    transition: height 0.5s ease;
+    z-index: 1;
+}
+
+.step-entry {
+    position: relative;
+    padding: 10px 0 10px 20px;
+}
+.step-entry:last-child { padding-bottom: 0; }
+.step-entry:first-child { padding-top: 0; }
+
+/* Timeline dot */
+.step-entry::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 14px;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    border: 2px solid #f9fafb;
+    z-index: 2;
+}
+.step-entry:first-child::before { top: 4px; }
+.step-entry.completed::before { background: #16a34a; }
+.step-entry.running::before { background: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2); }
+.step-entry.failed::before { background: #dc2626; }
+.step-entry.skipped::before { background: #d1d5db; }
+
+/* Step entry header */
+.step-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.step-entry-icon {
+    font-size: 0.9rem;
+}
+.step-entry.completed .step-entry-icon { color: #16a34a; }
+.step-entry.running .step-entry-icon { color: #2563eb; }
+.step-entry.failed .step-entry-icon { color: #dc2626; }
+.step-entry.pending .step-entry-icon { color: #d1d5db; }
+.step-entry.skipped .step-entry-icon { color: #9ca3af; }
+
+.step-entry-title {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: #374151;
+}
+.step-entry.running .step-entry-title { color: #111827; font-weight: 600; }
+.step-entry.pending .step-entry-title { color: #9ca3af; }
+.step-entry.completed .step-entry-title { color: #166534; }
+
+.step-entry-dur {
+    font-size: 0.8rem;
+    color: #16a34a;
+    font-variant-numeric: tabular-nums;
+}
+.step-entry.running .step-entry-dur { color: #2563eb; }
+.step-entry.failed .step-entry-dur { color: #dc2626; }
+
+.step-entry-badge {
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+.step-entry.completed .step-entry-badge { background: #ecfdf5; color: #16a34a; }
+.step-entry.running .step-entry-badge { background: #eff6ff; color: #2563eb; }
+.step-entry.failed .step-entry-badge { background: #fef2f2; color: #dc2626; }
+
+/* Logs button per step */
+.step-logs-btn {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #6b7280;
+    margin-left: 6px;
+    transition: all 0.2s;
+}
+.step-logs-btn:hover { background: #f3f4f6; border-color: #d1d5db; }
+.step-logs-btn.active { background: #1f2937; color: #d1d5db; border-color: #1f2937; }
+
+/* Step log panel */
+.step-log-panel {
+    display: none;
+    margin-top: 8px;
+    background: #1f2937;
+    border-radius: 6px;
+    padding: 10px 12px;
+    max-height: 150px;
+    overflow-y: auto;
+}
+.step-log-panel.visible { display: block; }
+.step-log-panel pre {
+    margin: 0;
+    font-size: 0.75rem;
+    color: #d1d5db;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.5;
+}
+
+/* Phase rows inside a step entry */
+.phase-list {
+    margin-top: 8px;
+    padding-left: 4px;
+}
+.phase-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 0;
+}
+.phase-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    flex-shrink: 0;
+    font-size: 0.55rem;
+    color: #9ca3af;
+}
+.phase-row.completed .phase-icon { border-color: #16a34a; background: #16a34a; color: #fff; }
+.phase-row.running .phase-icon { border-color: #2563eb; color: #2563eb; animation: pulse-ring 1.5s infinite; }
+.phase-row.failed .phase-icon { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+@keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.3); }
+    70% { box-shadow: 0 0 0 5px rgba(37, 99, 235, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+.phase-name {
+    flex: 1;
+    font-size: 0.85rem;
+    color: #374151;
+}
+.phase-row.running .phase-name { color: #111827; font-weight: 500; }
+.phase-row.pending .phase-name { color: #9ca3af; }
+.phase-duration {
+    font-size: 0.8rem;
+    color: #6b7280;
+    font-variant-numeric: tabular-nums;
+    margin-right: 6px;
+}
+.phase-row.running .phase-duration { color: #2563eb; }
+.phase-check {
+    width: 16px;
+    text-align: center;
+    font-size: 0.85rem;
+}
+.phase-row.completed .phase-check { color: #16a34a; }
+.phase-row.failed .phase-check { color: #dc2626; }
+
+/* Error section */
+.error-card {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 12px;
+    padding: 16px 20px;
+    text-align: left;
+    margin-bottom: 24px;
+}
+.error-card h4 { color: #dc2626; margin: 0 0 8px; font-size: 0.9rem; }
+.error-card pre {
+    font-size: 0.8rem;
+    color: #7f1d1d;
+    white-space: pre-wrap;
+    word-break: break-word;
+    margin: 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* Action buttons */
+.action-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 20px;
+}
+.btn-action {
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+}
+.btn-action.cancel { background: #fee2e2; color: #dc2626; }
+.btn-action.cancel:hover { background: #fecaca; }
+.btn-action.rerun { background: #fef3c7; color: #92400e; }
+.btn-action.rerun:hover { background: #fde68a; }
+.btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="run-container">
+    <!-- Status pill -->
+    <div class="status-pill" id="status-pill">
+        <span class="sparkle">&#x2728;</span>
+        <span id="pill-text">Working on your request</span>
+    </div>
+
+    <!-- Title -->
+    <h1 class="run-title" id="run-title">Preparing your results</h1>
+    <p class="run-subtitle" id="run-subtitle">We're analyzing the information and putting everything together.</p>
+
+    <!-- Horizontal step progress -->
+    <div class="steps-track" id="steps-track">
+        <!-- Dynamically built by JS -->
+    </div>
+
+    <!-- Detail card — ALL steps with phases -->
+    <div class="detail-card" id="detail-card">
+        <div class="step-timeline" id="step-timeline">
+            <div class="timeline-progress" id="timeline-progress"></div>
+            <!-- Dynamically populated by JS -->
+        </div>
+    </div>
+
+    <!-- Error card (hidden unless failed) -->
+    <div class="error-card" id="error-card" style="display:none;">
+        <h4>Error Detail</h4>
+        <pre id="error-content"></pre>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="action-row">
+        <button class="btn-action cancel" id="cancel-btn" style="display:none;">Cancel</button>
+        <button class="btn-action rerun" id="rerun-btn" style="display:none;">Rerun from Failed</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const runId = '{{ run_id }}';
+
+// Pipeline steps definition
+const STEPS = [
+    { key: 'load_configuration', label: 'Config', desc: 'Loading accelerator.yaml and databricks.yml.' },
+    { key: 'environment_setup', label: 'Setup', desc: 'Configuring environment.' },
+    { key: 'create_data_layer', label: 'Data Layer', desc: 'Creating tables and synthetic data.' },
+    { key: 'create_metric_views', label: 'Metrics', desc: 'Creating metric views.' },
+    { key: 'create_dashboards', label: 'Dashboards', desc: 'Publishing AI/BI dashboards.' },
+    { key: 'create_genie_space', label: 'Genie', desc: 'Creating Genie space.' },
+    { key: 'generate_documentation', label: 'Docs', desc: 'Generating documentation.' },
+];
+
+// State
+let stepStates = {};
+let stepLogs = {};  // { stepKey: "log text..." }
+
+// ─── Build horizontal step track ───
+function buildStepsTrack() {
+    let html = '';
+    STEPS.forEach((step, i) => {
+        if (i > 0) html += `<div class="step-connector" id="conn-${i}"></div>`;
+        html += `
+            <div class="step-node pending" id="node-${step.key}">
+                <div class="step-circle"><span class="circle-content"></span></div>
+                <div class="step-label">${step.label}</div>
+                <div class="step-dur" id="dur-${step.key}">&mdash;</div>
+            </div>`;
+    });
+    document.getElementById('steps-track').innerHTML = html;
+}
+buildStepsTrack();
+
+// ─── Build detail timeline (all steps) ───
+function buildTimeline() {
+    let html = '';
+    STEPS.forEach(step => {
+        html += `
+            <div class="step-entry pending" id="entry-${step.key}">
+                <div class="step-entry-header">
+                    <span class="step-entry-icon">&#x2B24;</span>
+                    <span class="step-entry-title">${step.label}</span>
+                    <span class="step-entry-dur" id="entry-dur-${step.key}"></span>
+                    <span class="step-entry-badge" id="entry-badge-${step.key}"></span>
+                    <button class="step-logs-btn" id="logbtn-${step.key}" onclick="toggleLogs('${step.key}')">Logs</button>
+                </div>
+                <div class="phase-list" id="phases-${step.key}"></div>
+                <div class="step-log-panel" id="logpanel-${step.key}"><pre id="logpre-${step.key}">Waiting for logs...</pre></div>
+            </div>`;
+    });
+    document.getElementById('step-timeline').innerHTML =
+        '<div class="timeline-progress" id="timeline-progress"></div>' + html;
+}
+buildTimeline();
+
+// ─── Toggle per-step logs ───
+function toggleLogs(stepKey) {
+    const panel = document.getElementById(`logpanel-${stepKey}`);
+    const btn = document.getElementById(`logbtn-${stepKey}`);
+    const isVisible = panel.classList.contains('visible');
+    // Close all other panels
+    STEPS.forEach(s => {
+        document.getElementById(`logpanel-${s.key}`).classList.remove('visible');
+        document.getElementById(`logbtn-${s.key}`).classList.remove('active');
+    });
+    if (!isVisible) {
+        panel.classList.add('visible');
+        btn.classList.add('active');
+        fetchStepLogs(stepKey);
+    }
+}
+
+// ─── Fetch logs for a step ───
+async function fetchStepLogs(stepKey) {
+    try {
+        const res = await fetch(`/api/pipeline/logs/${runId}/${stepKey}`);
+        if (res.ok) {
+            const data = await res.json();
+            const logPre = document.getElementById(`logpre-${stepKey}`);
+            logPre.textContent = data.logs || 'No logs available yet.';
+            // Scroll to bottom
+            logPre.parentElement.scrollTop = logPre.parentElement.scrollHeight;
+        }
+    } catch(e) {}
+}
+
+// ─── Update green progress line ───
+function updateProgressLine() {
+    const timeline = document.getElementById('step-timeline');
+    const progress = document.getElementById('timeline-progress');
+    if (!timeline || !progress) return;
+
+    // Find the last completed (or running/failed) step entry
+    let lastActiveEntry = null;
+    for (let i = STEPS.length - 1; i >= 0; i--) {
+        const entry = document.getElementById(`entry-${STEPS[i].key}`);
+        if (entry && (entry.classList.contains('completed') || entry.classList.contains('running') || entry.classList.contains('failed'))) {
+            lastActiveEntry = entry;
+            break;
+        }
+    }
+
+    if (lastActiveEntry) {
+        const timelineRect = timeline.getBoundingClientRect();
+        const entryRect = lastActiveEntry.getBoundingClientRect();
+        // Green line extends from top (12px) to the dot position of the last active entry
+        const dotOffset = entryRect.top - timelineRect.top + 14;
+        progress.style.height = `${dotOffset}px`;
+    } else {
+        progress.style.height = '0px';
+    }
+}
+
+// ─── Step node (top bar) ───
+function updateStepNode(stepKey, status, duration) {
+    const node = document.getElementById(`node-${stepKey}`);
+    if (!node) return;
+    node.className = `step-node ${status}`;
+    const circle = node.querySelector('.circle-content');
+    if (status === 'completed') circle.innerHTML = '&#x2713;';
+    else if (status === 'failed') circle.innerHTML = '&#x2717;';
+    else if (status === 'running') circle.innerHTML = '';
+    else circle.innerHTML = '';
+
+    const durEl = document.getElementById(`dur-${stepKey}`);
+    if (duration != null) {
+        durEl.textContent = duration < 60 ? `${Math.round(duration)} sec` : `${(duration/60).toFixed(1)} min`;
+    }
+
+    // Update connectors
+    const stepIdx = STEPS.findIndex(s => s.key === stepKey);
+    if (status === 'completed' && stepIdx < STEPS.length - 1) {
+        const conn = document.getElementById(`conn-${stepIdx + 1}`);
+        if (conn) conn.classList.add('done');
+    }
+}
+
+// ─── Step entry (timeline card) ───
+function updateStepEntry(stepKey, status, duration) {
+    const entry = document.getElementById(`entry-${stepKey}`);
+    if (!entry) return;
+    entry.className = `step-entry ${status}`;
+
+    const icon = entry.querySelector('.step-entry-icon');
+    if (status === 'completed') icon.innerHTML = '&#x2713;';
+    else if (status === 'failed') icon.innerHTML = '&#x2717;';
+    else if (status === 'running') icon.innerHTML = '&#x25F7;';
+    else icon.innerHTML = '&#x2B24;';
+
+    const badge = document.getElementById(`entry-badge-${stepKey}`);
+    if (status === 'completed') { badge.textContent = 'Done'; }
+    else if (status === 'running') { badge.textContent = 'In progress'; }
+    else if (status === 'failed') { badge.textContent = 'Failed'; }
+    else { badge.textContent = ''; }
+
+    const durEl = document.getElementById(`entry-dur-${stepKey}`);
+    if (duration != null) {
+        durEl.textContent = duration < 60 ? `${Math.round(duration)} sec` : `${(duration/60).toFixed(1)} min`;
+    }
+
+    // Update the green progress line after any status change
+    requestAnimationFrame(updateProgressLine);
+}
+
+// ─── Phase rendering (scoped per step) ───
+function renderPhase(stepKey, phaseName, status, durationMs, error) {
+    const container = document.getElementById(`phases-${stepKey}`);
+    if (!container) return;
+
+    let row = container.querySelector(`[data-phase="${phaseName}"]`);
+    if (!row) {
+        row = document.createElement('div');
+        row.className = 'phase-row pending';
+        row.setAttribute('data-phase', phaseName);
+        row.innerHTML = `
+            <div class="phase-icon"><span class="pi-inner"></span></div>
+            <span class="phase-name">${formatName(phaseName)}</span>
+            <span class="phase-duration">&mdash;</span>
+            <span class="phase-check"></span>`;
+        container.appendChild(row);
+    }
+    row.className = `phase-row ${status}`;
+    const icon = row.querySelector('.pi-inner');
+    const check = row.querySelector('.phase-check');
+    const dur = row.querySelector('.phase-duration');
+
+    if (status === 'completed') { icon.innerHTML = '&#x2713;'; check.innerHTML = '&#x2713;'; }
+    else if (status === 'running') { icon.innerHTML = '&#x25CF;'; check.innerHTML = '&mdash;'; }
+    else if (status === 'failed') { icon.innerHTML = '&#x2717;'; check.innerHTML = '&#x2717;'; }
+    else { icon.innerHTML = ''; check.innerHTML = ''; }
+
+    if (durationMs != null) {
+        dur.textContent = durationMs < 1000 ? `${durationMs}ms` :
+                          durationMs < 60000 ? `${Math.round(durationMs/1000)} sec` :
+                          `${(durationMs/60000).toFixed(1)} min`;
+    }
+}
+
+// ─── Event handling ───
+function handleEvent(data) {
+    switch(data.type) {
+        case 'step_started':
+            updateStepNode(data.step, 'running');
+            updateStepEntry(data.step, 'running');
+            document.getElementById('cancel-btn').style.display = 'inline-block';
+            break;
+        case 'step_completed':
+            updateStepNode(data.step, 'completed', data.duration_s);
+            updateStepEntry(data.step, 'completed', data.duration_s);
+            break;
+        case 'step_skipped':
+            if (data.previously_completed) {
+                updateStepNode(data.step, 'completed', data.duration_s);
+                updateStepEntry(data.step, 'completed', data.duration_s);
+            } else {
+                updateStepNode(data.step, 'skipped');
+                updateStepEntry(data.step, 'skipped');
+            }
+            break;
+        case 'step_failed':
+            updateStepNode(data.step, 'failed', data.duration_s);
+            updateStepEntry(data.step, 'failed', data.duration_s);
+            showError(data.error, data.error_detail);
+            break;
+        case 'phase_started':
+            renderPhase(data.step, data.phase, 'running');
+            break;
+        case 'phase_completed':
+            renderPhase(data.step, data.phase, 'completed', data.duration_ms);
+            break;
+        case 'phase_failed':
+            renderPhase(data.step, data.phase, 'failed', data.duration_ms, data.error);
+            break;
+        case 'phase_skipped':
+            renderPhase(data.step, data.phase, 'skipped');
+            break;
+        case 'log':
+            // Append log to step
+            if (data.step) {
+                if (!stepLogs[data.step]) stepLogs[data.step] = '';
+                stepLogs[data.step] += data.message + '\n';
+                const logPre = document.getElementById(`logpre-${data.step}`);
+                if (logPre) {
+                    logPre.textContent = stepLogs[data.step];
+                    logPre.parentElement.scrollTop = logPre.parentElement.scrollHeight;
+                }
+            }
+            break;
+        case 'pipeline_completed':
+            const finalStatus = data.status || 'completed';
+            document.getElementById('cancel-btn').style.display = 'none';
+            if (finalStatus === 'completed') {
+                setFinalState('completed', 'All done!', 'Your pipeline completed successfully.');
+            } else {
+                setFinalState('failed', 'Pipeline failed', 'An error occurred during execution.');
+                document.getElementById('rerun-btn').style.display = 'inline-block';
+                showError(data.error);
+            }
+            break;
+    }
+}
+
+function setFinalState(status, title, subtitle) {
+    const pill = document.getElementById('status-pill');
+    pill.className = `status-pill ${status}`;
+    document.getElementById('pill-text').textContent = status === 'completed' ? 'Completed' : 'Failed';
+    document.getElementById('run-title').textContent = title;
+    document.getElementById('run-subtitle').textContent = subtitle;
+}
+
+function showError(error, detail) {
+    if (error || detail) {
+        document.getElementById('error-card').style.display = 'block';
+        document.getElementById('error-content').textContent = detail || error || 'Unknown error';
+        document.getElementById('rerun-btn').style.display = 'inline-block';
+    }
+}
+
+function formatName(name) {
+    return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// SSE connection
+try {
+    const evtSource = new EventSource(`/api/pipeline/stream/${runId}`);
+    evtSource.onmessage = function(event) {
+        try { handleEvent(JSON.parse(event.data)); } catch(e) {}
+    };
+    evtSource.onerror = function() { evtSource.close(); };
+} catch(e) {}
+
+// Polling (handles both live and historical runs)
+async function pollStatus() {
+    try {
+        let res = await fetch(`/api/pipeline/status/${runId}`);
+        let data;
+        if (res.ok) {
+            data = await res.json();
+        } else {
+            res = await fetch(`/api/pipeline/runs/${runId}`);
+            if (!res.ok) { document.getElementById('run-title').textContent = 'Run not found'; return; }
+            data = await res.json();
+        }
+
+        const status = data.status || 'unknown';
+
+        if (status === 'started' || status === 'running') {
+            document.getElementById('cancel-btn').style.display = 'inline-block';
+            if (data.steps) {
+                data.steps.forEach(s => {
+                    const key = s.step_name || s.name;
+                    updateStepNode(key, s.status, s.duration_s);
+                    updateStepEntry(key, s.status, s.duration_s);
+                    if (s.phases) {
+                        s.phases.forEach(p => {
+                            renderPhase(key, p.name || p.phase_name, p.status, p.duration_ms, p.error);
+                        });
+                    }
+                });
+            }
+            // Refresh open log panel
+            refreshOpenLogPanel();
+            setTimeout(pollStatus, 2000);
+        } else if (status === 'completed') {
+            setFinalState('completed', 'All done!', 'Your pipeline completed successfully.');
+            if (data.steps) {
+                data.steps.forEach(s => {
+                    const key = s.step_name || s.name;
+                    updateStepNode(key, s.status, s.duration_s);
+                    updateStepEntry(key, s.status, s.duration_s);
+                    if (s.phases) {
+                        s.phases.forEach(p => renderPhase(key, p.name || p.phase_name, p.status, p.duration_ms, p.error));
+                    }
+                });
+            }
+        } else if (status === 'failed') {
+            setFinalState('failed', 'Pipeline failed', 'An error occurred during execution.');
+            document.getElementById('rerun-btn').style.display = 'inline-block';
+            showError(data.error, data.error_detail);
+            if (data.steps) {
+                data.steps.forEach(s => {
+                    const key = s.step_name || s.name;
+                    updateStepNode(key, s.status, s.duration_s);
+                    updateStepEntry(key, s.status, s.duration_s);
+                    if (s.phases) {
+                        s.phases.forEach(p => renderPhase(key, p.name || p.phase_name, p.status, p.duration_ms, p.error));
+                    }
+                });
+            }
+        }
+    } catch(err) {
+        setTimeout(pollStatus, 3000);
+    }
+}
+pollStatus();
+
+// Refresh whichever log panel is currently open
+function refreshOpenLogPanel() {
+    STEPS.forEach(s => {
+        const panel = document.getElementById(`logpanel-${s.key}`);
+        if (panel && panel.classList.contains('visible')) {
+            fetchStepLogs(s.key);
+        }
+    });
+}
+
+// Cancel
+document.getElementById('cancel-btn').addEventListener('click', async () => {
+    await fetch(`/api/pipeline/cancel/${runId}`, {method: 'POST'});
+    document.getElementById('cancel-btn').disabled = true;
+});
+
+// Rerun
+document.getElementById('rerun-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('rerun-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+    const res = await fetch(`/api/pipeline/rerun/${runId}`, {method: 'POST'});
+    if (res.ok) {
+        const d = await res.json();
+        window.location.href = `/run/${d.run_id}`;
+    } else {
+        btn.disabled = false;
+        btn.textContent = 'Rerun from Failed';
+    }
+});
+</script>
+{% endblock %}

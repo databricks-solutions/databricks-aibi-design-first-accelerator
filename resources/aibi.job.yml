@@ -1,0 +1,103 @@
+# AI/BI Studio — All Jobs
+# Deployed via: databricks bundle deploy -t <target>
+
+resources:
+  jobs:
+    # ─────────────────────────────────────────────────────────────
+    # Setup App Infrastructure — One-time provisioning
+    #
+    # Task execution order:
+    #   setup_lakebase              (provision Lakebase instance)
+    #         │
+    #         └── setup_metadata_tables  (seed phase config into Lakebase)
+    #                │
+    #                └── grant_permissions  (UC + Lakebase + workspace folder)
+    # ─────────────────────────────────────────────────────────────
+    setup_app_infrastructure:
+      name: "aibi-studio-setup-infrastructure"
+      description: "Full one-time infrastructure setup: permissions, metadata tables, and Lakebase state store."
+      tags:
+        project: aibi-studio
+        purpose: infrastructure-setup
+
+      parameters:
+        - name: app_name
+          default: ${var.app_name}
+        - name: project_folder
+          default: ${var.source_root}
+        - name: app_sp_id
+          default: ${var.app_sp_application_id}
+        - name: app_sp_uuid
+          default: ${var.app_sp_uuid}
+        - name: catalog_name
+          default: ${var.catalog_name}
+        - name: lakebase_project_id
+          default: ${var.lakebase_project_id}
+        - name: action
+          default: "create"
+
+      tasks:
+        # --- Step 1: Clean up existing Lakebase project (only runs on purge_and_create) ---
+        - task_key: cleanup_lakebase
+          description: "Remove existing Lakebase project if action=purge_and_create"
+          notebook_task:
+            notebook_path: "../notebooks/setup_lakebase.py"
+            base_parameters:
+              project_id: "{{job.parameters.lakebase_project_id}}"
+              app_sp_id: "{{job.parameters.app_sp_id}}"
+              action: "{{job.parameters.action}}"
+              task_mode: "cleanup"
+
+        # --- Step 2: Provision Lakebase instance ---
+        - task_key: create_lakebase
+          description: "Create Lakebase project, database, tables, and SP role"
+          depends_on:
+            - task_key: cleanup_lakebase
+          notebook_task:
+            notebook_path: "../notebooks/setup_lakebase.py"
+            base_parameters:
+              project_id: "{{job.parameters.lakebase_project_id}}"
+              app_sp_id: "{{job.parameters.app_sp_id}}"
+              app_sp_uuid: "{{job.parameters.app_sp_uuid}}"
+              action: "create"
+              task_mode: "provision"
+
+        # --- Step 3: Seed phase config into Lakebase ---
+        - task_key: setup_metadata_tables
+          description: "Seed step_phases_config into Lakebase (pipeline phase structure)"
+          depends_on:
+            - task_key: create_lakebase
+          notebook_task:
+            notebook_path: "../notebooks/setup_metadata_tables.py"
+            base_parameters:
+              project_id: "{{job.parameters.lakebase_project_id}}"
+              action: "{{job.parameters.action}}"
+
+        # --- Step 4: Grant permissions ---
+        - task_key: grant_workspace_folder_access
+          description: "Grants CAN_MANAGE on project folder to the app service principal"
+          depends_on:
+            - task_key: setup_metadata_tables
+          notebook_task:
+            notebook_path: "../notebooks/setup_permissions.py"
+            base_parameters:
+              app_name: "{{job.parameters.app_name}}"
+              project_folder: "{{job.parameters.project_folder}}"
+              action: "{{job.parameters.action}}"
+
+        - task_key: grant_uc_catalog_access
+          description: "Grants USE CATALOG and CREATE SCHEMA to the app SP"
+          depends_on:
+            - task_key: setup_metadata_tables
+          notebook_task:
+            notebook_path: "../notebooks/setup_uc_permissions.py"
+            base_parameters:
+              sp_id: "{{job.parameters.app_sp_id}}"
+              catalog_name: "{{job.parameters.catalog_name}}"
+              action: "{{job.parameters.action}}"
+      
+      permissions:
+        - level: CAN_MANAGE_RUN
+          service_principal_name: ${resources.apps.aibi_app.service_principal_client_id}
+      queue:
+        enabled: true

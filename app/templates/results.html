@@ -1,0 +1,142 @@
+{% extends "layout.html" %}
+{% block title %}Run Results - AI/BI Studio{% endblock %}
+{% block nav_results %}active{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h2>Run Results</h2>
+    <p>Run ID: <code>{{ run_id }}</code></p>
+</div>
+
+<!-- Summary -->
+<section class="card" id="summary-card">
+    <h3>Summary</h3>
+    <div id="summary-content">
+        <p class="muted">Loading...</p>
+    </div>
+</section>
+
+<!-- Generated Assets -->
+<section class="card">
+    <h3>Generated Assets</h3>
+    <div id="assets-content">
+        <p class="muted">Loading...</p>
+    </div>
+</section>
+
+<!-- Steps breakdown -->
+<section class="card">
+    <h3>Steps</h3>
+    <div id="steps-content">
+        <p class="muted">Loading...</p>
+    </div>
+</section>
+
+<!-- Actions -->
+<section class="card actions-bar">
+    <a href="/dashboard" class="btn btn-secondary">New Run</a>
+    <a href="/api/results/{{ run_id }}/assets" class="btn btn-secondary" target="_blank">Raw Assets JSON</a>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const runId = '{{ run_id }}';
+
+async function loadResults() {
+    try {
+        const res = await fetch(`/api/results/${runId}`);
+        if (!res.ok) {
+            document.getElementById('summary-content').innerHTML = '<p class="error">Run not found.</p>';
+            return;
+        }
+        const data = await res.json();
+        renderSummary(data);
+        renderSteps(data.steps || []);
+    } catch (err) {
+        document.getElementById('summary-content').innerHTML = `<p class="error">${err.message}</p>`;
+    }
+
+    // Load assets separately
+    try {
+        const res = await fetch(`/api/results/${runId}/assets`);
+        const assets = await res.json();
+        renderAssets(assets);
+    } catch (err) {
+        document.getElementById('assets-content').innerHTML = '<p class="muted">No assets available.</p>';
+    }
+}
+
+function renderSummary(data) {
+    const html = `
+        <table class="table table-compact">
+            <tr><td><strong>Domain</strong></td><td>${data.domain || '-'}</td></tr>
+            <tr><td><strong>Status</strong></td><td><span class="badge badge-${data.status}">${data.status}</span></td></tr>
+            <tr><td><strong>Started</strong></td><td>${data.started_at || '-'}</td></tr>
+            <tr><td><strong>Duration</strong></td><td>${data.duration_s ? data.duration_s.toFixed(1) + 's' : '-'}</td></tr>
+            ${data.error ? `<tr><td><strong>Error</strong></td><td class="error">${data.error}</td></tr>` : ''}
+        </table>
+    `;
+    document.getElementById('summary-content').innerHTML = html;
+}
+
+function renderSteps(steps) {
+    if (steps.length === 0) {
+        document.getElementById('steps-content').innerHTML = '<p class="muted">No step data.</p>';
+        return;
+    }
+    let html = '<table class="table"><thead><tr><th>Step</th><th>Status</th><th>Duration</th><th>Artifacts</th></tr></thead><tbody>';
+    steps.forEach(step => {
+        const badge = step.status === 'completed' ? 'completed' : step.status === 'failed' ? 'failed' : 'pending';
+        html += `<tr>
+            <td>${step.name}</td>
+            <td><span class="badge badge-${badge}">${step.status}</span></td>
+            <td>${step.duration_s ? step.duration_s.toFixed(1) + 's' : '-'}</td>
+            <td>${(step.artifacts || []).length} files</td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('steps-content').innerHTML = html;
+}
+
+function renderAssets(assets) {
+    const sections = [];
+
+    if (assets.dashboards && assets.dashboards.length > 0) {
+        sections.push('<h4>Dashboards</h4><ul>');
+        assets.dashboards.forEach(d => {
+            sections.push(`<li><a href="#" class="asset-link">${d.display_name || d}</a></li>`);
+        });
+        sections.push('</ul>');
+    }
+
+    if (assets.metric_views && assets.metric_views.length > 0) {
+        sections.push('<h4>Metric Views</h4><ul>');
+        assets.metric_views.forEach(mv => {
+            sections.push(`<li><code>${mv}</code></li>`);
+        });
+        sections.push('</ul>');
+    }
+
+    if (assets.genie_space) {
+        sections.push(`<h4>Genie Space</h4><p>${assets.genie_space.title || assets.genie_space}</p>`);
+    }
+
+    if (assets.notebooks && assets.notebooks.length > 0) {
+        sections.push('<h4>Notebooks</h4><ul>');
+        assets.notebooks.forEach(nb => {
+            sections.push(`<li><code>${nb.split('/').pop()}</code></li>`);
+        });
+        sections.push('</ul>');
+    }
+
+    if (sections.length === 0) {
+        document.getElementById('assets-content').innerHTML = '<p class="muted">No assets generated yet.</p>';
+    } else {
+        document.getElementById('assets-content').innerHTML = sections.join('');
+    }
+}
+
+loadResults();
+</script>
+{% endblock %}

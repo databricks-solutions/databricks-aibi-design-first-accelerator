@@ -1,0 +1,455 @@
+{% extends "layout.html" %}
+{% set active_page = "pipeline" %}
+{% block title %}New Run - AI/BI Studio{% endblock %}
+
+{% block head %}
+<style>
+/* ─── Pipeline Launcher — Modern UI ─── */
+.launcher-container {
+    max-width: 640px;
+    margin: 48px auto;
+    padding: 0 24px;
+}
+
+/* Header */
+.launcher-header {
+    text-align: center;
+    margin-bottom: 36px;
+}
+.launcher-header .launch-icon {
+    font-size: 2.5rem;
+    margin-bottom: 12px;
+}
+.launcher-header h1 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #111827;
+    margin: 0 0 8px;
+}
+.launcher-header p {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+/* Form card */
+.launcher-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 24px;
+}
+.form-group {
+    margin-bottom: 20px;
+}
+.form-group:last-child { margin-bottom: 0; }
+.form-label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.form-hint {
+    font-size: 0.75rem;
+    color: #9ca3af;
+    margin-top: 4px;
+}
+.form-select, .form-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    color: #111827;
+    background: #f9fafb;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+}
+.form-select:focus, .form-input:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    background: #fff;
+}
+.form-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%236b7280'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+}
+
+/* Run mode toggle */
+.mode-toggle {
+    display: flex;
+    gap: 8px;
+}
+.mode-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+}
+.mode-btn:hover { border-color: #93c5fd; }
+.mode-btn.active {
+    border-color: #2563eb;
+    background: #eff6ff;
+}
+.mode-btn .mode-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #111827;
+}
+.mode-btn .mode-desc {
+    display: block;
+    font-size: 0.72rem;
+    color: #6b7280;
+    margin-top: 3px;
+}
+.mode-btn.active .mode-label { color: #2563eb; }
+
+/* Steps selector */
+.steps-selector {
+    margin-top: 24px;
+    padding: 16px;
+    background: #f9fafb;
+    border-radius: 8px;
+    border: 1px solid #f3f4f6;
+}
+.steps-selector-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.steps-selector-header h4 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin: 0;
+}
+.steps-selector-header .toggle-all {
+    font-size: 0.72rem;
+    color: #2563eb;
+    cursor: pointer;
+    font-weight: 500;
+    user-select: none;
+}
+.steps-selector-header .toggle-all:hover { text-decoration: underline; }
+.step-check-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 8px;
+    border-radius: 6px;
+    transition: background 0.15s;
+    cursor: pointer;
+}
+.step-check-item:hover { background: #f3f4f6; }
+.step-check-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #2563eb;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.step-check-item .sp-num {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6b7280;
+    flex-shrink: 0;
+}
+.step-check-item.unchecked .sp-num { opacity: 0.4; }
+.step-check-item.unchecked .sp-name { opacity: 0.4; text-decoration: line-through; }
+.step-check-item .sp-name {
+    font-size: 0.85rem;
+    color: #374151;
+    flex: 1;
+}
+.step-check-item .sp-time {
+    font-size: 0.75rem;
+    color: #9ca3af;
+}
+.steps-count {
+    margin-top: 8px;
+    font-size: 0.72rem;
+    color: #9ca3af;
+    text-align: right;
+}
+
+/* Launch button */
+.launch-btn {
+    width: 100%;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.launch-btn:hover { background: #1d4ed8; }
+.launch-btn:active { transform: scale(0.98); }
+.launch-btn:disabled {
+    background: #93c5fd;
+    cursor: not-allowed;
+    transform: none;
+}
+.launch-btn .btn-spinner {
+    display: none;
+    width: 18px;
+    height: 18px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+.launch-btn.loading .btn-spinner { display: inline-block; }
+.launch-btn.loading .btn-text { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Version input (shown for versioned mode) */
+.version-field {
+    margin-top: 12px;
+    display: none;
+}
+.version-field.visible { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="launcher-container">
+    <!-- Header -->
+    <div class="launcher-header">
+        <div class="launch-icon">&#x1f680;</div>
+        <h1>Start a New Pipeline Run</h1>
+        <p>Generate a complete AI/BI analytics layer for your domain.</p>
+    </div>
+
+    <!-- Configuration card -->
+    <div class="launcher-card">
+        <!-- Domain -->
+        <div class="form-group">
+            <label class="form-label">Domain</label>
+            <select class="form-select" id="launch-domain">
+                <option value="member_claims" selected>Member Claims</option>
+            </select>
+            <p class="form-hint">The domain module to process (defined in accelerator.yaml)</p>
+        </div>
+
+        <!-- Run Mode -->
+        <div class="form-group">
+            <label class="form-label">Run Mode</label>
+            <div class="mode-toggle">
+                <div class="mode-btn active" data-mode="versioned" onclick="selectMode(this)">
+                    <span class="mode-label">Versioned</span>
+                    <span class="mode-desc">Auto-increment version</span>
+                </div>
+                <div class="mode-btn" data-mode="clean" onclick="selectMode(this)">
+                    <span class="mode-label">Clean</span>
+                    <span class="mode-desc">Fresh start, no versioning</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Version Override (only for versioned mode) -->
+        <div class="version-field visible" id="version-field">
+            <label class="form-label">Version Override (optional)</label>
+            <input type="number" class="form-input" id="launch-version" min="1" placeholder="Auto (next available)">
+            <p class="form-hint">Leave empty to auto-detect next version, or specify a number to overwrite</p>
+        </div>
+
+        <!-- Steps selector -->
+        <div class="steps-selector">
+            <div class="steps-selector-header">
+                <h4>Pipeline Steps</h4>
+                <span class="toggle-all" id="toggle-all-steps" onclick="toggleAllSteps()">Deselect All</span>
+            </div>
+            <label class="step-check-item" data-step="environment_setup">
+                <input type="checkbox" checked onchange="updateStepState(this)">
+                <span class="sp-num">1</span>
+                <span class="sp-name">Environment Setup</span>
+                <span class="sp-time">~10s</span>
+            </label>
+            <label class="step-check-item" data-step="create_data_layer">
+                <input type="checkbox" checked onchange="updateStepState(this)">
+                <span class="sp-num">2</span>
+                <span class="sp-name">Data Layer (DDL + Synthetic Data)</span>
+                <span class="sp-time">~2m</span>
+            </label>
+            <label class="step-check-item" data-step="create_metric_views">
+                <input type="checkbox" checked onchange="updateStepState(this)">
+                <span class="sp-num">3</span>
+                <span class="sp-name">Metric Views</span>
+                <span class="sp-time">~1m</span>
+            </label>
+            <label class="step-check-item" data-step="create_dashboards">
+                <input type="checkbox" checked onchange="updateStepState(this)">
+                <span class="sp-num">4</span>
+                <span class="sp-name">Dashboards</span>
+                <span class="sp-time">~1m</span>
+            </label>
+            <label class="step-check-item" data-step="create_genie_space">
+                <input type="checkbox" checked onchange="updateStepState(this)">
+                <span class="sp-num">5</span>
+                <span class="sp-name">Genie Space</span>
+                <span class="sp-time">~30s</span>
+            </label>
+            <label class="step-check-item" data-step="generate_documentation">
+                <input type="checkbox" checked onchange="updateStepState(this)">
+                <span class="sp-num">6</span>
+                <span class="sp-name">Documentation</span>
+                <span class="sp-time">~10s</span>
+            </label>
+            <div class="steps-count" id="steps-count">6 of 6 steps selected</div>
+        </div>
+    </div>
+
+    <!-- Launch button -->
+    <button class="launch-btn" id="launch-btn" onclick="launchPipeline()">
+        <span class="btn-text">&#x1f680; Launch Pipeline</span>
+        <span class="btn-spinner"></span>
+    </button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedMode = 'versioned';
+const ALL_STEPS = ['environment_setup','create_data_layer','create_metric_views','create_dashboards','create_genie_space','generate_documentation'];
+
+// ─── Step Selector ───
+function updateStepState(checkbox) {
+    const item = checkbox.closest('.step-check-item');
+    if (checkbox.checked) {
+        item.classList.remove('unchecked');
+    } else {
+        item.classList.add('unchecked');
+    }
+    updateStepsCount();
+}
+
+function updateStepsCount() {
+    const checks = document.querySelectorAll('.step-check-item input[type="checkbox"]');
+    const selected = [...checks].filter(c => c.checked).length;
+    document.getElementById('steps-count').textContent = `${selected} of ${checks.length} steps selected`;
+    // Update toggle-all label
+    const toggleEl = document.getElementById('toggle-all-steps');
+    toggleEl.textContent = selected === checks.length ? 'Deselect All' : 'Select All';
+    // Disable launch if none selected
+    document.getElementById('launch-btn').disabled = (selected === 0);
+}
+
+function toggleAllSteps() {
+    const checks = document.querySelectorAll('.step-check-item input[type="checkbox"]');
+    const allChecked = [...checks].every(c => c.checked);
+    checks.forEach(c => {
+        c.checked = !allChecked;
+        updateStepState(c);
+    });
+}
+
+function getSelectedSteps() {
+    const items = document.querySelectorAll('.step-check-item');
+    const selected = [];
+    items.forEach(item => {
+        const cb = item.querySelector('input[type="checkbox"]');
+        if (cb.checked) {
+            selected.push(item.dataset.step);
+        }
+    });
+    return selected;
+}
+
+function selectMode(el) {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    selectedMode = el.dataset.mode;
+
+    // Show/hide version override
+    const vf = document.getElementById('version-field');
+    if (selectedMode === 'versioned') {
+        vf.classList.add('visible');
+    } else {
+        vf.classList.remove('visible');
+    }
+}
+
+async function launchPipeline() {
+    const btn = document.getElementById('launch-btn');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    const domain = document.getElementById('launch-domain').value;
+    const versionInput = document.getElementById('launch-version').value;
+    const versionOverride = versionInput ? parseInt(versionInput) : null;
+
+    const selectedSteps = getSelectedSteps();
+    if (selectedSteps.length === 0) {
+        alert('Please select at least one step to run.');
+        btn.classList.remove('loading');
+        btn.disabled = false;
+        return;
+    }
+
+    const payload = {
+        domain: domain,
+        run_mode: selectedMode,
+    };
+    // Only include 'steps' if user deselected some (subset run)
+    if (selectedSteps.length < ALL_STEPS.length) {
+        payload.steps = selectedSteps;
+    }
+    if (selectedMode === 'versioned' && versionOverride) {
+        payload.version_override = versionOverride;
+    }
+
+    try {
+        const res = await fetch('/api/pipeline/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            // Navigate to the live run details page
+            window.location.href = `/run/${data.run_id}`;
+        } else {
+            const err = await res.json();
+            alert(`Failed to start: ${err.error?.message || 'Unknown error'}`);
+            btn.classList.remove('loading');
+            btn.disabled = false;
+        }
+    } catch (err) {
+        alert(`Connection error: ${err.message}`);
+        btn.classList.remove('loading');
+        btn.disabled = false;
+    }
+}
+</script>
+{% endblock %}

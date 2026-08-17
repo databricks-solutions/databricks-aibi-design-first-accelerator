@@ -1,0 +1,138 @@
+{% extends "layout.html" %}
+{% set active_page = "dashboard" %}
+{% block title %}Dashboard - AI/BI Studio{% endblock %}
+
+{% block head %}
+<style>
+.dash-header { margin-bottom: 24px; }
+.dash-header h2 { margin: 0 0 4px; font-size: 1.3rem; font-weight: 700; color: #111; }
+.dash-header p { margin: 0; font-size: 0.85rem; color: #6b7280; }
+.domain-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.domain-table th { text-align: left; padding: 10px 14px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; font-size: 0.75rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.3px; }
+.domain-table td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; color: #374151; }
+.domain-table tr:hover td { background: #f8fafc; }
+.domain-name { font-weight: 600; color: #111; }
+.domain-desc { font-size: 0.78rem; color: #9ca3af; margin-top: 2px; }
+.asset-tag { display: inline-block; background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; margin: 1px 3px 1px 0; }
+.asset-tag.mv { background: #ecfdf5; color: #059669; }
+.asset-tag.db { background: #eff6ff; color: #2563eb; }
+.asset-tag.genie { background: #fef3c7; color: #92400e; }
+.version-badge { background: #f3f4f6; color: #374151; padding: 3px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+.status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.status-dot.ok { background: #16a34a; }
+.status-dot.fail { background: #dc2626; }
+.status-dot.none { background: #d1d5db; }
+.empty-row td { text-align: center; padding: 40px; color: #9ca3af; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+    <h2>KPI Domains</h2>
+    <p>Overview of configured domains and their latest assets</p>
+</div>
+
+<section class="card">
+    <table class="domain-table" id="domain-table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th>Version</th>
+                <th>Metric Views</th>
+                <th>Dashboards</th>
+                <th>Genie Space</th>
+                <th>Last Run</th>
+            </tr>
+        </thead>
+        <tbody id="domain-tbody">
+            <tr><td colspan="6" class="empty-row">Loading domains...</td></tr>
+        </tbody>
+    </table>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadDomainOverview() {
+    try {
+        // Load domains
+        const domRes = await fetch('/api/domains');
+        const domData = await domRes.json();
+        const domains = domData.domains || [];
+
+        // Load recent runs for status
+        let runs = [];
+        try {
+            const runsRes = await fetch('/api/pipeline/runs');
+            if (runsRes.ok) runs = await runsRes.json();
+        } catch(e) {}
+
+        const tbody = document.getElementById('domain-tbody');
+        if (domains.length === 0) {
+            tbody.innerHTML = '<tr class="empty-row"><td colspan="6">No domains found. Create an examples/&lt;domain&gt;/accelerator.yaml to get started.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = domains.map(d => {
+            // Find latest run for this domain
+            const domainRuns = runs.filter(r => r.domain === d.name).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+            const latest = domainRuns[0];
+            const rawVersion = latest ? (latest.version_suffix || '') : '';
+            const latestVersion = rawVersion ? rawVersion.replace(/^_/, '') : '-';
+            const statusDot = latest ? (latest.status === 'completed' ? 'ok' : latest.status === 'failed' ? 'fail' : 'none') : 'none';
+            const statusText = latest ? `${latest.status}` : 'No runs';
+
+            // Get assets from config (loaded when domain was listed)
+            // We'll use names from the domain list + version suffix
+            const suffix = latestVersion !== '-' ? latestVersion : '';
+
+            return `<tr>
+                <td>
+                    <div class="domain-name">${d.display_name}</div>
+                    <div class="domain-desc">${d.description || d.name}</div>
+                </td>
+                <td><span class="version-badge">${latestVersion}</span></td>
+                <td><span class="asset-tag mv" id="mv-${d.name}">Loading...</span></td>
+                <td><span id="db-${d.name}">Loading...</span></td>
+                <td><span id="genie-${d.name}">Loading...</span></td>
+                <td><span class="status-dot ${statusDot}"></span>${statusText}</td>
+            </tr>`;
+        }).join('');
+
+        // Load asset details per domain
+        for (const d of domains) {
+            loadDomainAssets(d.name);
+        }
+    } catch(err) {
+        document.getElementById('domain-tbody').innerHTML = `<tr class="empty-row"><td colspan="6">Error: ${err.message}</td></tr>`;
+    }
+}
+
+async function loadDomainAssets(domainName) {
+    try {
+        const res = await fetch(`/api/domains/${domainName}/config`);
+        if (!res.ok) return;
+        const data = await res.json();
+        const cfg = data.config || {};
+        const assets = cfg.assets || {};
+        const mvs = assets.metric_views || [];
+        const dbs = assets.dashboards || [];
+        const genie = assets.genie || {};
+
+        // Metric views
+        const mvEl = document.getElementById(`mv-${domainName}`);
+        if (mvEl) mvEl.innerHTML = mvs.map(m => `<span class="asset-tag mv">${m.name}</span>`).join('') || '<span style="color:#9ca3af">-</span>';
+
+        // Dashboards
+        const dbEl = document.getElementById(`db-${domainName}`);
+        if (dbEl) dbEl.innerHTML = dbs.map(d => `<span class="asset-tag db">${d.name}</span>`).join('') || '<span style="color:#9ca3af">-</span>';
+
+        // Genie
+        const genieEl = document.getElementById(`genie-${domainName}`);
+        if (genieEl) genieEl.innerHTML = genie.space_name ? `<span class="asset-tag genie">${genie.space_name}</span>` : '<span style="color:#9ca3af">-</span>';
+    } catch(e) {}
+}
+
+loadDomainOverview();
+</script>
+{% endblock %}

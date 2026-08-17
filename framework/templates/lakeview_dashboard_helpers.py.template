@@ -79,6 +79,145 @@ def patch_dashboard(dashboard_id: str, serialized_dashboard: dict, display_name:
 
 # COMMAND ----------
 
+# --- Dashboard Builder (prevents empty-query datasets) ---
+
+def build_filter_dataset(metric_view_fqn: str, filter_dimensions: list[str]) -> dict:
+    """Build the ds_filter_values dataset with SQL that SELECTs DISTINCT filter dimensions.
+    This dataset powers all global filter dropdowns.
+    Uses queryLines (array) + displayName as required by Lakeview API."""
+    cols = ", ".join(f"`{d}`" for d in filter_dimensions)
+    sql = f"SELECT DISTINCT {cols} FROM {metric_view_fqn}"
+    return {"name": "ds_filter_values", "displayName": "Filter Values", "queryLines": [sql]}
+
+
+def build_dataset(name: str, sql: str, display_name: str = "") -> dict:
+    """Build a single dataset entry. Raises ValueError if SQL is empty.
+    Uses queryLines (array) + displayName as required by Lakeview API."""
+    if not sql or not sql.strip():
+        raise ValueError(f"Dataset '{name}' has empty SQL query. Every dataset MUST have tested SQL.")
+    return {
+        "name": name,
+        "displayName": display_name or name.replace("ds_", "").replace("_", " ").title(),
+        "queryLines": [sql]
+    }
+
+
+def build_serialized_dashboard(
+    datasets: list[dict],
+    pages: list[dict],
+    filter_dimensions: list[str] | None = None,
+) -> dict:
+    """Assemble the full serialized_dashboard with validation.
+    
+    Args:
+        datasets: List of dataset dicts (use build_dataset() to create each)
+        pages: List of page dicts (filters page + canvas pages)
+        filter_dimensions: Optional list of filter column names to validate against datasets
+    
+    Raises:
+        ValueError: If any dataset has empty query, or filter dimensions missing from datasets
+    """
+    # Validate: no empty queries (check both queryLines and query formats)
+    for ds in datasets:
+        query_lines = ds.get("queryLines", [])
+        query_str = ds.get("query", "")
+        has_sql = (query_lines and any(line.strip() for line in query_lines)) or (query_str and query_str.strip())
+        if not has_sql:
+            raise ValueError(
+                f"Dataset '{ds.get('name', 'unknown')}' has empty SQL. "
+                f"Every dataset must have non-empty queryLines. Fix before calling create_dashboard()."
+            )
+        # Ensure displayName exists (API requires it)
+        if not ds.get("displayName"):
+            ds["displayName"] = ds.get("name", "Dataset").replace("ds_", "").replace("_", " ").title()
+    
+    # Validate: filter dimensions present in datasets (warn if missing)
+    if filter_dimensions:
+        for ds in datasets:
+            sql_lower = " ".join(ds.get("queryLines", [ds.get("query", "")])).lower()
+            missing = [d for d in filter_dimensions if d.lower() not in sql_lower]
+            if missing and ds["name"] != "ds_filter_values":
+                print(f"⚠️  Dataset '{ds['name']}' missing filter columns: {missing}. Filters won't bind to this widget.")
+    
+    return {
+        "datasets": datasets,
+        "pages": pages,
+        "uiSettings": {"themeColors": {}}
+    }
+
+
+def build_filter_widget(name: str, field_name: str, display_name: str, widget_type: str = "filter-multi-select", position: dict = None) -> dict:
+    """Build a filter widget for the global filters page.
+    
+    Args:
+        name: Widget name (alphanumeric, hyphens, underscores)
+        field_name: Column name from ds_filter_values (must match exactly)
+        display_name: Human-readable label
+        widget_type: 'filter-multi-select', 'filter-single-select', or 'filter-date-range-picker'
+        position: {x, y, width, height} on 6-column grid
+    
+    CRITICAL format rules (version 2 + queryName required):
+    - spec.version MUST be 2 (not 1) — version 1 causes 'no fields or parameters selected'
+    - encodings.fields[] MUST include 'queryName' referencing queries[].name
+    """
+    pos = position or {"x": 0, "y": 0, "width": 2, "height": 2}
+    return {
+        "widget": {
+            "name": name,
+            "queries": [{
+                "name": "main_query",
+                "query": {
+                    "datasetName": "ds_filter_values",
+                    "fields": [{"name": field_name, "expression": f"`{field_name}`"}],
+                    "disaggregated": True
+                }
+            }],
+            "spec": {
+                "version": 2,
+                "widgetType": widget_type,
+                "encodings": {
+                    "fields": [{
+                        "fieldName": field_name,
+                        "displayName": display_name,
+                        "queryName": "main_query"
+                    }]
+                },
+                "frame": {"showTitle": True, "title": display_name}
+            }
+        },
+        "position": pos
+    }
+
+
+def build_filters_page(filter_dimensions: list[dict]) -> dict:
+    """Build the PAGE_TYPE_GLOBAL_FILTERS page from a list of filter specs.
+    
+    Args:
+        filter_dimensions: List of dicts with keys:
+            - field_name: column name in metric view
+            - display_name: human-readable label
+            - widget_type: 'filter-multi-select' or 'filter-date-range-picker'
+    """
+    layout = []
+    for i, f in enumerate(filter_dimensions):
+        widget = build_filter_widget(
+            name=f"filter-{f['field_name'].replace('_', '-')}",
+            field_name=f["field_name"],
+            display_name=f["display_name"],
+            widget_type=f.get("widget_type", "filter-multi-select"),
+            position={"x": (i % 3) * 2, "y": (i // 3) * 2, "width": 2, "height": 2}
+        )
+        layout.append(widget)
+    
+    return {
+        "name": "filters_page",
+        "displayName": "Filters",
+        "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+        "layout": layout
+    }
+
+# COMMAND ----------
+
 # Example: idempotent delete before recreate
 TARGET_NAMES = {
     "Member Claims KPIs Dashboard",

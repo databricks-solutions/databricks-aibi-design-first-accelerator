@@ -49,6 +49,30 @@ If `data_source.greenfield.synthetic_data` is `true`:
 4. Map `data_source.greenfield.volume` keys to tables (e.g. `members` → `dim_member`, `claim_headers` → `fact_claim_header`); infer defaults for other dimensions from ERD.
 5. Execute the notebook.
 
+### Data completeness rules for synthetic data (MANDATORY)
+
+* **Dimension columns must have ZERO nulls.** For every dimension table column that will be used for slicing, filtering, or grouping in KPIs (from the KPI spec), set `percentNulls=0.0` in `withColumn()`. This includes: date columns, categorical dimensions (state, sex, age band, line of business, etc.), and FK columns.
+* **Generate realistic categorical values** for ALL string dimension columns. Use representative `values=[...]` lists (e.g., US state codes, M/F, age bands) — never leave them as random strings or NULL.
+* **Every column in the DDL should be populated** — do not skip columns. A dimension table with NULLs in key fields makes dashboards show `null` bars/slices and renders filters useless.
+
+### Versioning rules for synthetic data (MANDATORY)
+
+* **Populate `VERSION_SUFFIX`** from `config.version_suffix` (e.g. `_v1`, `_v2`, or `""` for unversioned). The DDL notebook creates tables like `dim_address_v1` — the synthetic data notebook MUST reference the same versioned names.
+* **Use `discover_tables()`** at the top of the notebook (from template). It returns `TABLES = {"dim_address": "dim_address_v1", ...}` — a mapping from logical name to actual versioned table name. This handles multiple versions coexisting in one schema.
+* **Always reference tables via `TABLES["logical_name"]`**, never hardcode unversioned table names. Example: `table_name = TABLES["dim_address"]` resolves to `"dim_address_v1"`.
+* **FK lookups**: Use `spark.table(f"{CATALOG}.{SCHEMA}.{TABLES['dim_table']}")` to collect FK values from the versioned table.
+
+### Type-safety rules for synthetic data (MANDATORY)
+
+* **ALWAYS use `base_generator(table_name, rows)` as the starting point for EVERY table.** This function reads the DDL schema and pre-configures ALL columns with the correct PySpark types automatically. It makes CAST_INVALID_INPUT errors impossible.
+* **Pattern**: `gen = base_generator(TABLES["logical"], rows)` then override specific columns for realism: `gen = gen.withColumn("col", StringType(), values=[...], percentNulls=0.0)`. The base types are already correct — only override for realistic categorical values.
+* **NEVER construct a `dg.DataGenerator()` from scratch.** Always start with `base_generator()` which reads the actual DDL types and ensures BIGINT columns get `LongType()`, timestamps get correct format, etc.
+* **NEVER use `StringType()` with `template=r"..."` for PK/FK/ID columns** — `base_generator()` handles these as `LongType()` automatically.
+* **Date columns** (`DateType`): Use `begin="YYYY-MM-DD", end="YYYY-MM-DD"` format.
+* **Timestamp columns** (`TimestampType`): Use `begin="YYYY-MM-DD HH:MM:SS", end="YYYY-MM-DD HH:MM:SS"` format. Using date-only strings (`"2024-12-31"`) for timestamp columns causes `ValueError: time data does not match format`. Use the `date_range_for()` helper from the template to auto-format.
+* **DECIMAL/FLOAT columns**: Use numeric ranges — never formatted currency strings.
+* **Violation = pipeline halt**: A type mismatch causes `CAST_INVALID_INPUT` and halts the pipeline.
+
 ---
 
 ## Step 5: Validate

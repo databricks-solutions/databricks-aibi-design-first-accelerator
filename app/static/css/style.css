@@ -1,0 +1,138 @@
+/* AI/BI Studio — Main Stylesheet */
+
+/* --- Reset & Base --- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; color: #1a1a2e; }
+a { color: #2563eb; text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* --- App Layout (sidebar + content) --- */
+.app-container { display: flex; min-height: 100vh; }
+
+/* --- Sidebar --- */
+.sidebar {
+    width: 240px;
+    background: #1e293b;
+    color: #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 100;
+}
+.sidebar-header { padding: 20px 16px; border-bottom: 1px solid #334155; }
+.app-title { font-size: 18px; font-weight: 700; color: #fff; }
+.nav-menu { list-style: none; padding: 12px 0; flex: 1; }
+.nav-item a {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    color: #94a3b8;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+}
+.nav-item a:hover { background: #334155; color: #fff; text-decoration: none; }
+.nav-item.active a { background: #334155; color: #fff; border-left-color: #3b82f6; }
+.nav-icon { width: 24px; text-align: center; margin-right: 10px; }
+.sidebar-footer { padding: 16px; border-top: 1px solid #334155; }
+.sidebar-footer label { display: block; font-size: 11px; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+.sidebar-footer select { width: 100%; padding: 6px 8px; border-radius: 4px; border: 1px solid #475569; background: #1e293b; color: #e2e8f0; margin-bottom: 12px; }
+.btn-block { width: 100%; }
+
+/* --- Main Panel (header + content) --- */
+.main-panel { margin-left: 240px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* --- Top Header --- */
+.top-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 32px;
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+}
+.header-left { display: flex; align-items: baseline; gap: 12px; }
+.header-title { font-size: 20px; font-weight: 700; color: #1e293b; }
+.header-subtitle { font-size: 13px; color: #64748b; }
+.header-right { display: flex; align-items: center; gap: 12px; }
+.header-user { font-size: 13px; color: #475569; }
+
+/* --- Content Area --- */
+.content-area { flex: 1; padding: 24px 32px; }
+
+/* --- Components --- */
+.page-header { margin-bottom: 24px; }
+.page-header h2 { font-size: 24px; font-weight: 600; }
+.subtitle { color: #64748b; margin-top: 4px; }
+
+.card { background: #fff; border-radius: 8px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* Buttons */
+.btn { display: inline-block; padding: 8px 16px; border-radius: 6px; border: none; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-warning { background: #f59e0b; color: #fff; }
+.btn-warning:hover { background: #d97706; }
+.btn-danger { background: #ef4444; color: #fff; }
+.btn-danger:hover { background: #dc2626; }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+
+/* Badges */
+.badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-danger { background: #fef2f2; color: #991b1b; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-secondary { background: #f1f5f9; color: #475569; }
+
+/* --- Progress --- */
+.progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.header-actions { display: flex; gap: 8px; }
+.progress-bar-container { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+.progress-bar { height: 100%; background: #2563eb; border-radius: 3px; transition: width 0.5s ease; }
+.progress-detail { font-size: 13px; color: #64748b; }
+
+/* --- Steps --- */
+.steps-list { display: flex; flex-direction: column; gap: 4px; }
+.step-item { display: flex; align-items: center; padding: 10px 12px; border-radius: 6px; background: #f8fafc; border: 1px solid #e2e8f0; }
+.step-item.running { background: #eff6ff; border-color: #93c5fd; }
+.step-item.completed { background: #f0fdf4; border-color: #86efac; }
+.step-item.failed { background: #fef2f2; border-color: #fca5a5; }
+.step-icon { width: 20px; text-align: center; margin-right: 10px; font-size: 14px; }
+.step-name { flex: 1; font-size: 14px; }
+.step-duration { font-size: 12px; color: #64748b; margin-right: 8px; }
+.step-error { font-size: 12px; color: #dc2626; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* --- Table --- */
+.table-container { overflow-x: auto; }
+.runs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.runs-table th { text-align: left; padding: 10px 12px; border-bottom: 2px solid #e2e8f0; color: #64748b; font-weight: 600; text-transform: uppercase; font-size: 11px; }
+.runs-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; }
+.run-row { cursor: pointer; transition: background 0.15s; }
+.run-row:hover { background: #f8fafc; }
+.error-preview { color: #dc2626; font-size: 12px; }
+.loading, .empty { text-align: center; color: #64748b; padding: 24px; }
+
+/* --- Error Detail --- */
+.error-detail {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 6px;
+    padding: 12px 16px;
+    color: #991b1b;
+    font-family: monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.error { color: #dc2626; }
+
+/* --- Logs --- */
+.log-container { max-height: 300px; overflow-y: auto; background: #1e1e1e; border-radius: 6px; padding: 12px 16px; }
+.log-container pre { color: #d4d4d4; font-family: 'Fira Code', 'Consolas', monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }

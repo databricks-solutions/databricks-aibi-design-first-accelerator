@@ -9,6 +9,9 @@
 bundle:
   name: aibi_design_first_accelerator
 
+include:
+  - resources/*.yml
+
 variables:
   bundle_name_path:
     description: Folder name under /Workspace/Users/<current_user>/ for this bundle.
@@ -16,36 +19,60 @@ variables:
   deploy_root:
     description: Bundle sync root; uses the Databricks user deploying the bundle.
     default: /Workspace/Users/${workspace.current_user.userName}/${var.bundle_name_path}
+  source_root:
+    description: "Workspace path to bundle source (where files live with source-linked deployment)."
+    default: /Workspace/Users/${workspace.current_user.userName}/databricks-${var.bundle_name_path}
   sql_warehouse_id:
     description: SQL warehouse for Genie SQL and future bundle jobs.
-    default: "CHANGE_ME"
+    default: "2d8e531640ffa469"
+  catalog_name:
+    description: Unity Catalog catalog for all schemas (source, target, metadata).
+    default: "aw_serverless_stable_catalog"
+
+  app_name:
+    description: Deployed Databricks App name (resolved from app resource).
+    default: ${resources.apps.aibi_app.name}
+  app_sp_application_id:
+    description: Numeric service_principal_id of the app (resolved from deployed app resource). The notebook resolves this to the UUID needed for GRANT statements.
+    default: ${resources.apps.aibi_app.service_principal_id}
+  app_sp_uuid:
+    description: The applicationId (UUID) of the app service principal. Used for job permissions.
+    default: ${resources.apps.aibi_app.service_principal_client_id}
+  lakebase_project_id:
+    description: Lakebase project ID for pipeline durable state store.
+    default: "aibi-studio"
   example_domain:
     description: Active example module (must match domain.name in accelerator.yaml).
     default: member_claims
-
 sync:
   paths:
     - databricks.yml
+    - app.yaml
     - framework
     - examples/member_claims
+    - app
+    - notebooks
+    - resources
+    - docs
   exclude:
     - "**/.DS_Store"
     - "**/__pycache__/**"
+    - "notebooks/setup_metadata_tables.sql"
 
 targets:
   dev:
     default: true
     mode: development
     workspace:
-      host: https://your-workspace.cloud.databricks.com/
+      host: https://fevm-aw-serverless-stable.cloud.databricks.com
       root_path: ${var.deploy_root}
     variables:
       example_domain: member_claims
 
   staging:
-    mode: development
+    mode: production
     workspace:
-      host: https://your-workspace.cloud.databricks.com/
+      host: https://fevm-aw-serverless-stable.cloud.databricks.com
       root_path: ${var.deploy_root}
     variables:
       example_domain: member_claims

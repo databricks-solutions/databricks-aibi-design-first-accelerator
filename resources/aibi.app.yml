@@ -1,0 +1,20 @@
+# AI/BI Studio — Databricks App Resource
+# Deployed via: databricks bundle deploy -t <target>
+
+resources:
+  apps:
+    aibi_app:
+      name: aibi-studio-${workspace.current_user.domain_friendly_name}
+      description: "AI/BI Studio — Design-First Semantic Layer, Metric Views, Dashboards & Genie"
+      # Deploys entire project root (app/, framework/, examples/) to container.
+      # app.yaml must be at this root. gunicorn --chdir app starts Flask.
+      source_code_path: ..
+
+      # On-behalf-of user scopes (files = workspace-files API, sql = statements)
+      user_api_scopes:
+        - "files"
+        - "sql"
+
+      permissions:
+        - level: CAN_USE
+          group_name: users

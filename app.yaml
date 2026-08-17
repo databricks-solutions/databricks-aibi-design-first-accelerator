@@ -1,0 +1,54 @@
+# AI/BI Studio — App Runtime Configuration
+# This file must be at the root of source_code_path (project root).
+# Runs Flask via gunicorn from the app/ subdirectory.
+# --- Flask dev server (for debugging) ---
+# command:
+#   - python
+#   - app/app.py
+# --- Production (gunicorn) ---
+command:
+  - gunicorn
+  - "app:app"
+  - --chdir
+  - app
+  - --bind
+  - "0.0.0.0:8080"
+  - -w
+  - '2'
+  - --timeout
+  - '600'
+  - --access-logfile
+  - '-'
+  - --error-logfile
+  - '-'
+  - --log-level
+  - info
+env:
+  - name: 'FLASK_ENV'
+    value: 'production'
+  # WORKSPACE_ROOT: workspace path to bundle source root (where files live).
+  # With source_linked_deployment, files stay at source root. SP has CAN_MANAGE here.
+  - name: 'WORKSPACE_ROOT'
+    value: '/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator'
+  - name: 'CATALOG_NAME'
+    value: 'aw_serverless_stable_catalog'
+  - name: 'SQL_WAREHOUSE_ID'
+    value: '2d8e531640ffa469'
+  - name: 'LLM_ENDPOINT_NAME'
+    value: 'databricks-gpt-5-5'
+  - name: 'VISION_ENDPOINT_NAME'
+    value: 'databricks-gpt-5-5'
+  - name: 'LLM_TEMPERATURE'
+    value: '1'
+  - name: 'LLM_MAX_RETRIES'
+    value: '3'
+  - name: 'DEFAULT_EXAMPLE_DOMAIN'
+    value: 'member_claims'
+  - name: 'LAKEBASE_PROJECT_ID'
+    value: 'aibi-studio'
+  - name: 'APP_SP_UUID'
+    value: 'e0e73b08-ee2a-4ee2-95ec-ce11cd2609c9'
+  - name: 'SETUP_JOB_ID'
+    value: '483755798063523'
+  - name: 'SECRET_KEY'
+    value: 'dev-change-me-in-production'

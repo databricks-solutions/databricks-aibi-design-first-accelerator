@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AI/BI Studio{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Navigation Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="app-title">AI/BI Studio</h1>
+            </div>
+            <ul class="nav-menu">
+                <li class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                    <a href="/dashboard">
+                        <span class="nav-icon">&#9632;</span>
+                        <span class="nav-label">Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item {% if active_page == 'domains' %}active{% endif %}">
+                    <a href="/domains">
+                        <span class="nav-icon">&#9733;</span>
+                        <span class="nav-label">KPI Domains</span>
+                    </a>
+                </li>
+                <li class="nav-item {% if active_page == 'admin' %}active{% endif %}">
+                    <a href="/admin">
+                        <span class="nav-icon">&#9881;</span>
+                        <span class="nav-label">Admin</span>
+                    </a>
+                </li>
+            </ul>
+            <div class="sidebar-footer">
+            </div>
+        </nav>
+
+        <!-- Right Content Area -->
+        <div class="main-panel">
+            <!-- Top Header -->
+            <header class="top-header">
+                <div class="header-left">
+                    <h1 class="header-title">AI/BI Studio</h1>
+                    <span class="header-subtitle">Design-First Accelerator</span>
+                </div>
+                <div class="header-right">
+                    <span class="header-user">{% block user_info %}{% endblock %}</span>
+                </div>
+            </header>
+
+            <!-- Main Content -->
+            <main class="content-area">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

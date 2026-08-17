@@ -19,10 +19,10 @@ workspace:
 
 catalog:
   source:
-    catalog: aira_test
+    catalog: aw_serverless_stable_catalog
     schema: member_claims_source
   target:
-    catalog: aira_test
+    catalog: aw_serverless_stable_catalog
     schema: member_claims_semantic
 
 data_source:
@@ -30,17 +30,12 @@ data_source:
   erd:
     image: inputs/erd.png
   live_schema:
-    catalog: aira_test
+    catalog: aw_serverless_stable_catalog
     schema: member_claims_source
   greenfield:
     enabled: true
     synthetic_data: true
-    volume:
-      members: 20000
-      providers: 1000
-      claim_headers: 100000
-      claim_details: 300000
-      enrollments: 60000
+    volume: low  # low | medium | large (determines row counts dynamically from ERD)
 
 inputs:
   kpi_spec: inputs/kpi_spec.md
