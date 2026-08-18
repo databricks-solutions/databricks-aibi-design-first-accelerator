@@ -137,11 +137,7 @@ def setup_status():
 
             # Check SP role access in Lakebase
             try:
-                sp_app_id = os.environ.get("APP_SP_UUID", "")
-                if not sp_app_id:
-                    # Resolve from current identity
-                    me = w.current_user.me()
-                    sp_app_id = getattr(me, "application_id", None) or me.user_name
+                sp_app_id = os.environ.get("DATABRICKS_CLIENT_ID", "")
                 roles = list(w.postgres.list_roles(parent=f"projects/{project_id}/branches/{branch_id}"))
                 sp_role = None
                 for r in roles:

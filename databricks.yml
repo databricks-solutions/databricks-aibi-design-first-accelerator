@@ -13,25 +13,18 @@ include:
   - resources/*.yml
 
 variables:
-  bundle_name_path:
-    description: Folder name under /Workspace/Users/<current_user>/ for this bundle.
-    default: aibi-design-first-accelerator
-  deploy_root:
-    description: Bundle sync root; uses the Databricks user deploying the bundle.
-    default: /Workspace/Users/${workspace.current_user.userName}/${var.bundle_name_path}
   source_root:
     description: "Workspace path to bundle source (where files live with source-linked deployment)."
-    default: /Workspace/Users/${workspace.current_user.userName}/databricks-${var.bundle_name_path}
+    default: /Workspace/Users/${workspace.current_user.userName}/databricks-aibi-design-first-accelerator
   sql_warehouse_id:
     description: SQL warehouse for Genie SQL and future bundle jobs.
     default: "2d8e531640ffa469"
   catalog_name:
     description: Unity Catalog catalog for all schemas (source, target, metadata).
     default: "aw_serverless_stable_catalog"
-
   app_name:
-    description: Deployed Databricks App name (resolved from app resource).
-    default: ${resources.apps.aibi_app.name}
+    description: Deployed Databricks App name (must match the name in aibi.app.yml).
+    default: aibi-studio-${workspace.current_user.domain_friendly_name}
   app_sp_application_id:
     description: Numeric service_principal_id of the app (resolved from deployed app resource). The notebook resolves this to the UUID needed for GRANT statements.
     default: ${resources.apps.aibi_app.service_principal_id}
@@ -41,23 +34,10 @@ variables:
   lakebase_project_id:
     description: Lakebase project ID for pipeline durable state store.
     default: "aibi-studio"
-  example_domain:
-    description: Active KPI domain (must match domain.name in accelerator.yaml).
-    default: member_claims
 sync:
-  paths:
-    - databricks.yml
-    - app.yaml
-    - framework
-    - kpi_domains/member_claims
-    - app
-    - notebooks
-    - resources
-    - docs
   exclude:
     - "**/.DS_Store"
     - "**/__pycache__/**"
-    - "notebooks/setup_metadata_tables.sql"
 
 targets:
   dev:
@@ -65,22 +45,13 @@ targets:
     mode: development
     workspace:
       host: https://fevm-aw-serverless-stable.cloud.databricks.com
-      root_path: ${var.deploy_root}
-    variables:
-      example_domain: member_claims
 
   staging:
     mode: production
     workspace:
       host: https://fevm-aw-serverless-stable.cloud.databricks.com
-      root_path: ${var.deploy_root}
-    variables:
-      example_domain: member_claims
 
   prod:
     mode: production
     workspace:
       host: https://your-workspace.cloud.databricks.com/
-      root_path: ${var.deploy_root}
-    variables:
-      example_domain: member_claims

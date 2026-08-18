@@ -418,4 +418,34 @@ class StateStore:
             self._execute("DELETE FROM public.runs WHERE run_id = %s", (rid,))
 
         logger.info(f"Deleted {count} run records for {domain} {version_suffix}")
+
+    def purge_all_runs(self) -> int:
+        """Remove ALL run records and associated data (phases, steps, logs, events).
+
+        Used for full reset from the Admin page. Clears pipeline execution
+        history so the user can start fresh.
+
+        Returns the number of run records removed.
+        """
+        runs = self._execute("SELECT run_id FROM public.runs")
+        if not runs:
+            return 0
+
+        count = len(runs)
+        run_ids = [r["run_id"] for r in runs]
+
+        for rid in run_ids:
+            for tbl in ("phases", "steps", "step_logs"):
+                try:
+                    self._execute(f"DELETE FROM public.{tbl} WHERE run_id = %s", (rid,))
+                except Exception:
+                    pass
+            try:
+                self._execute("DELETE FROM public.events WHERE run_id = %s", (rid,))
+            except Exception:
+                pass
+            self._execute("DELETE FROM public.runs WHERE run_id = %s", (rid,))
+
+        logger.info(f"Purged all {count} run records from Lakebase")
+        return count
         return count

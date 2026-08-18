@@ -1,0 +1,21 @@
+passed: true
+checks:
+- check: view_exists
+  passed: true
+  fqn: aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1
+- check: has_columns
+  passed: true
+  column_count: 82
+  columns:
+  - service_date
+  - service_month
+  - claim_receive_date
+  - paid_date
+  - claim_type
+  - benefit_category
+  - benefit_level
+  - line_status
+  - adjudication_status
+  - clean_claim_indicator
+- check: queryable
+  passed: true

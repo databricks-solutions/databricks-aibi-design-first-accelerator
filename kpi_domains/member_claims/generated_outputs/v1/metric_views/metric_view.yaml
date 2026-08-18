@@ -1,0 +1,298 @@
+version: "1.1"
+source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v1
+comment: "Member Claims metric view v1. Claim and member-claim KPIs are sourced at claim-line grain. Skipped KPI: MC-4 High-Cost Member Count because member-level paid threshold logic requires pre-aggregation/HAVING that is not safely expressible as a single metric-view aggregate at claim-line grain. Skipped KPI: W-2 MoM Active Member Growth because offset/LAG over prior month is not supported directly by metric-view window syntax and should be implemented in dashboard SQL."
+joins:
+- name: claim_header
+  source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_header_v1
+  on: source.clm_dtl_claim_id = claim_header.clm_claim_id
+  cardinality: many_to_one
+- name: member
+  source: aw_serverless_stable_catalog.aibi_member_claims.dim_member_v1
+  on: source.clm_dtl_member_nbr_sk = CAST(member.member_sk AS STRING)
+  cardinality: many_to_one
+- name: member_history
+  source: aw_serverless_stable_catalog.aibi_member_claims.dim_member_history_v1
+  on: source.clm_dtl_member_nbr_sk = CAST(member_history.member_sk AS STRING)
+  cardinality: many_to_one
+- name: enrollment
+  source: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_v1
+  on: source.clm_dtl_member_nbr_sk = CAST(enrollment.member_sk AS STRING)
+  cardinality: many_to_one
+fields:
+- name: service_date
+  expr: clm_dtl_specific_dos_date
+  display_name: Service Date
+  comment: Claim line specific date of service.
+- name: service_month
+  expr: DATE_TRUNC('MONTH', clm_dtl_specific_dos_date)
+  display_name: Service Month
+  comment: Month of claim line service, used for trends and window measures.
+- name: claim_receive_date
+  expr: CAST(clm_dtl_claim_receive_date AS DATE)
+  display_name: Claim Receive Date
+- name: paid_date
+  expr: CAST(clm_dtl_check_date AS DATE)
+  display_name: Paid Date
+- name: claim_type
+  expr: clm_dtl_claim_type
+  display_name: Claim Type
+- name: benefit_category
+  expr: clm_dtl_benefit_category
+  display_name: Benefit Category
+- name: benefit_level
+  expr: clm_dtl_benefit_level
+  display_name: Benefit Level
+- name: line_status
+  expr: clm_dtl_line_status
+  display_name: Claim Line Status
+- name: adjudication_status
+  expr: clm_dtl_adjudication_status
+  display_name: Adjudication Status
+- name: clean_claim_indicator
+  expr: clm_dtl_clean_claim_ind
+  display_name: Clean Claim Indicator
+- name: place_of_service
+  expr: clm_dtl_place_of_service
+  display_name: Place of Service
+- name: procedure_code
+  expr: clm_dtl_procedure_code
+  display_name: Procedure Code
+- name: revenue_code
+  expr: clm_dtl_revenue_code
+  display_name: Revenue Code
+- name: rendering_provider
+  expr: clm_dtl_rendering_provider
+  display_name: Rendering Provider
+- name: rendering_provider_type
+  expr: clm_dtl_rendering_provider_type
+  display_name: Rendering Provider Type
+- name: rendering_provider_specialty
+  expr: clm_dtl_rendering_provider_spec
+  display_name: Rendering Provider Specialty
+- name: submitting_provider
+  expr: clm_dtl_submitting_provider
+  display_name: Submitting Provider
+- name: source_system
+  expr: clm_dtl_source_system
+  display_name: Source System
+- name: claim_header_line_of_business
+  expr: claim_header.clm_line_of_business
+  display_name: Claim Line of Business
+- name: plan_code
+  expr: claim_header.clm_plan_code
+  display_name: Plan Code
+- name: member_group_number
+  expr: claim_header.clm_member_group_nbr
+  display_name: Member Group Number
+- name: member_subgroup_number
+  expr: claim_header.clm_member_subgroup_nbr
+  display_name: Member Subgroup Number
+- name: primary_diagnosis_code
+  expr: claim_header.clm_diagnosis_1
+  display_name: Primary Diagnosis Code
+- name: drg_code
+  expr: claim_header.clm_drg_code
+  display_name: DRG Code
+- name: service_type_code
+  expr: claim_header.clm_service_type_code
+  display_name: Service Type Code
+- name: member_key
+  expr: clm_dtl_member_nbr_sk
+  display_name: Member Key
+- name: member_line_of_business
+  expr: member.mbr_line_of_business
+  display_name: Member Line of Business
+- name: member_line_of_business_name
+  expr: member.mbr_line_of_business_name
+  display_name: Member Line of Business Name
+- name: member_state
+  expr: member.mbr_state
+  display_name: Member State
+- name: member_zip_code
+  expr: member.mbr_zip_code
+  display_name: Member ZIP Code
+- name: member_sex
+  expr: member.mbr_sex
+  display_name: Member Sex
+- name: member_race
+  expr: member.mbr_race
+  display_name: Member Race
+- name: member_ethnicity
+  expr: member.mbr_ethnicity
+  display_name: Member Ethnicity
+- name: member_age
+  expr: FLOOR(DATEDIFF(CURRENT_DATE(), member.mbr_dob) / 365.25)
+  display_name: Member Age
+- name: member_age_band
+  expr: CASE WHEN member.mbr_dob IS NULL THEN 'Unknown' WHEN FLOOR(DATEDIFF(CURRENT_DATE(), member.mbr_dob) / 365.25) < 18 THEN '0-17' WHEN FLOOR(DATEDIFF(CURRENT_DATE(), member.mbr_dob) / 365.25) < 35 THEN '18-34' WHEN FLOOR(DATEDIFF(CURRENT_DATE(), member.mbr_dob) / 365.25) < 50 THEN '35-49' WHEN FLOOR(DATEDIFF(CURRENT_DATE(), member.mbr_dob) / 365.25) < 65 THEN '50-64' ELSE '65+' END
+  display_name: Member Age Band
+- name: enrollment_start_date
+  expr: CAST(member_history.valid_from_date AS DATE)
+  display_name: Enrollment Start Date
+- name: enrollment_start_month
+  expr: DATE_TRUNC('MONTH', CAST(member_history.valid_from_date AS DATE))
+  display_name: Enrollment Start Month
+- name: enrollment_status
+  expr: enrollment.mbr_enr_status
+  display_name: Enrollment Status
+- name: enrollment_line_of_business
+  expr: enrollment.mbr_enr_line_of_business
+  display_name: Enrollment Line of Business
+- name: enrollment_plan_id
+  expr: enrollment.mbr_enr_plan_id
+  display_name: Enrollment Plan ID
+measures:
+- name: new_member_enrollment
+  expr: COUNT(DISTINCT member_history.member_sk) FILTER (WHERE member_history.valid_from_date IS NOT NULL)
+  display_name: New Member Enrollment
+  comment: M-1. Count of distinct members with a history valid_from_date in the queried period.
+- name: active_members
+  expr: COUNT(DISTINCT member.member_sk) FILTER (WHERE member.is_active = TRUE)
+  display_name: Active Members
+  comment: M-2/M-3 base measure. Slice by line of business or geography fields; do not sum across time.
+- name: active_members_by_lob
+  expr: COUNT(DISTINCT member.member_sk) FILTER (WHERE member.is_active = TRUE)
+  display_name: Members by Line of Business
+  comment: M-2. Use with member_line_of_business, member_line_of_business_name, claim_header_line_of_business, or enrollment_line_of_business.
+- name: active_members_by_geography
+  expr: COUNT(DISTINCT member.member_sk) FILTER (WHERE member.is_active = TRUE)
+  display_name: Members by Geography
+  comment: M-3. Use with member_state and member_zip_code.
+- name: total_claims
+  expr: COUNT(DISTINCT clm_dtl_claim_id)
+  display_name: Total Claims
+  comment: C-1. Distinct claim count.
+- name: total_claim_lines
+  expr: COUNT(clm_dtl_line_nbr)
+  display_name: Total Claim Lines
+  comment: C-2. Claim service line count.
+- name: total_paid
+  expr: SUM(clm_dtl_paid_amt)
+  display_name: Total Paid Amount
+  comment: C-3. Sum of paid amount across claim lines.
+- name: average_paid_per_claim
+  expr: MEASURE(total_paid) / NULLIF(MEASURE(total_claims), 0)
+  display_name: Average Paid per Claim
+  comment: C-4. Paid amount divided by distinct claims.
+- name: member_months
+  expr: COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk AS STRING), '-', CAST(DATE_TRUNC('MONTH', clm_dtl_specific_dos_date) AS STRING)))
+  display_name: Member Months
+  comment: Distinct member-service-month exposure observed at claim-line grain.
+- name: pmpm
+  expr: MEASURE(total_paid) / NULLIF(MEASURE(member_months), 0)
+  display_name: PMPM
+  comment: MC-1. Total paid divided by member-months.
+- name: claims_per_1000_members
+  expr: (MEASURE(total_claims) / NULLIF(MEASURE(member_months), 0)) * 1000
+  display_name: Claims per 1,000 Members
+  comment: MC-2. Distinct claims normalized by member-months and scaled by 1,000.
+- name: members_with_claims
+  expr: COUNT(DISTINCT clm_dtl_member_nbr_sk)
+  display_name: Members with Claims
+- name: active_enrolled_members
+  expr: COUNT(DISTINCT enrollment.member_sk) FILTER (WHERE enrollment.is_active = TRUE)
+  display_name: Active Enrolled Members
+  comment: Enrollment-based denominator available through enrollment member_sk.
+- name: utilization_rate
+  expr: MEASURE(members_with_claims) / NULLIF(MEASURE(active_enrolled_members), 0)
+  display_name: Utilization Rate
+  comment: MC-3. Members with claims divided by active enrolled members.
+- name: denied_lines
+  expr: COUNT(clm_dtl_line_nbr) FILTER (WHERE UPPER(clm_dtl_adjudication_status) = 'DENIED' OR UPPER(clm_dtl_line_status) = 'DENIED')
+  display_name: Denied Lines
+- name: denial_rate
+  expr: MEASURE(denied_lines) / NULLIF(MEASURE(total_claim_lines), 0)
+  display_name: Denial Rate
+- name: clean_lines
+  expr: COUNT(clm_dtl_line_nbr) FILTER (WHERE UPPER(clm_dtl_clean_claim_ind) IN ('Y', 'YES', 'TRUE', '1'))
+  display_name: Clean Lines
+- name: clean_claim_rate
+  expr: MEASURE(clean_lines) / NULLIF(MEASURE(total_claim_lines), 0)
+  display_name: Clean Claim Rate
+- name: total_billed
+  expr: SUM(clm_dtl_billed_amt)
+  display_name: Total Billed Amount
+- name: total_allowed
+  expr: SUM(clm_dtl_allowed_amt)
+  display_name: Total Allowed Amount
+- name: payment_to_billed_ratio
+  expr: MEASURE(total_paid) / NULLIF(MEASURE(total_billed), 0)
+  display_name: Payment-to-Billed Ratio
+- name: payment_to_allowed_ratio
+  expr: MEASURE(total_paid) / NULLIF(MEASURE(total_allowed), 0)
+  display_name: Payment-to-Allowed Ratio
+- name: unique_members
+  expr: COUNT(DISTINCT clm_dtl_member_nbr_sk)
+  display_name: Unique Members
+- name: average_paid_per_member
+  expr: MEASURE(total_paid) / NULLIF(MEASURE(unique_members), 0)
+  display_name: Average Paid per Member
+- name: claims_per_member
+  expr: MEASURE(total_claims) / NULLIF(MEASURE(unique_members), 0)
+  display_name: Claims per Member
+- name: lines_per_claim
+  expr: MEASURE(total_claim_lines) / NULLIF(MEASURE(total_claims), 0)
+  display_name: Lines per Claim
+- name: inpatient_paid_amount
+  expr: SUM(clm_dtl_paid_amt) FILTER (WHERE UPPER(clm_dtl_claim_type) = 'INSTITUTIONAL')
+  display_name: Inpatient Paid Amount
+- name: outpatient_paid_amount
+  expr: SUM(clm_dtl_paid_amt) FILTER (WHERE UPPER(clm_dtl_claim_type) = 'PROFESSIONAL')
+  display_name: Outpatient Paid Amount
+- name: par_paid
+  expr: SUM(clm_dtl_paid_amt) FILTER (WHERE claim_header.clm_is_par_rendering_provider = TRUE OR claim_header.clm_is_par_referring_provider = TRUE OR UPPER(claim_header.clm_is_par_submitting_provider) IN ('Y', 'YES', 'TRUE', '1'))
+  display_name: Participating Provider Paid Amount
+- name: participating_provider_rate
+  expr: MEASURE(par_paid) / NULLIF(MEASURE(total_paid), 0)
+  display_name: Participating Provider Rate
+- name: total_net_amount
+  expr: SUM(clm_dtl_net_amt)
+  display_name: Total Net Amount
+- name: total_deductible_amount
+  expr: SUM(clm_dtl_deduct_amt)
+  display_name: Total Deductible Amount
+- name: total_copay_amount
+  expr: SUM(clm_dtl_copay_amt)
+  display_name: Total Copay Amount
+- name: total_coinsurance_amount
+  expr: SUM(clm_dtl_co_insurance_amt)
+  display_name: Total Coinsurance Amount
+- name: total_not_covered_amount
+  expr: SUM(clm_dtl_not_covered_amt)
+  display_name: Total Not Covered Amount
+- name: total_cob_savings
+  expr: SUM(clm_dtl_cob_savings)
+  display_name: Total COB Savings
+- name: total_interest_amount
+  expr: SUM(clm_dtl_interest_amt)
+  display_name: Total Interest Amount
+- name: procedure_units
+  expr: SUM(clm_dtl_procedure_qty)
+  display_name: Procedure Units
+- name: paid_days
+  expr: SUM(clm_dtl_paid_days)
+  display_name: Paid Days
+- name: trailing_3m_paid
+  expr: SUM(clm_dtl_paid_amt)
+  display_name: Trailing 3-Month Paid Amount
+  comment: W-1 numerator component.
+  window:
+  - order: service_month
+    range: trailing 3 month
+    semiadditive: last
+- name: trailing_3m_member_months
+  expr: COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk AS STRING), '-', CAST(DATE_TRUNC('MONTH', clm_dtl_specific_dos_date) AS STRING)))
+  display_name: Trailing 3-Month Member Months
+  comment: W-1 denominator component.
+  window:
+  - order: service_month
+    range: trailing 3 month
+    semiadditive: last
+- name: rolling_3m_pmpm
+  expr: SUM(clm_dtl_paid_amt) / NULLIF(COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk AS STRING), '-', CAST(DATE_TRUNC('MONTH', clm_dtl_specific_dos_date) AS STRING))), 0)
+  display_name: Rolling 3-Month PMPM
+  comment: W-1. Windowed ratio computed from paid numerator and member-month denominator, not by averaging PMPM.
+  window:
+  - order: service_month
+    range: trailing 3 month
+    semiadditive: last

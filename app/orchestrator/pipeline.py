@@ -11,7 +11,7 @@ Design notes:
     - Fail-fast: any phase failure stops the step and pipeline
     - LLM self-correction happens WITHIN each step (not here)
     - Cancellation is cooperative (checked between steps)
-    - Resume from exact failed phase without re-running completed phases
+    - Rerun re-executes the full failed step (no phase-level resume — avoids inconsistent state)
 
 See docs/design_phase2.md Section 4.1 for full reference.
 """
@@ -216,9 +216,10 @@ class PipelineRunner:
             steps: Optional list of step names to execute. If None, runs all.
             callback: Optional function called with each PipelineEvent for
                       real-time progress streaming (SSE).
-            resume_from: Optional dict {"step_name": str, "phase_name": str}
-                         to resume execution from a specific phase of a step.
-                         Steps before resume_from.step_name are skipped entirely.
+            resume_from: Optional dict {"step_name": str} to resume from a
+                         failed step. Steps before it are skipped (already
+                         completed). The resumed step re-runs ALL phases from
+                         scratch to avoid inconsistent intermediate state.
             run_id: Optional run_id to reuse (for reruns). If None, generates new UUID.
 
         Returns:
@@ -237,9 +238,8 @@ class PipelineRunner:
         steps_to_run = steps or self.STEP_NAMES
         total_steps = len(steps_to_run)
 
-        # Determine resume step index (skip completed steps on rerun)
+        # Determine resume step (skip completed steps on rerun)
         resume_step = resume_from.get("step_name") if resume_from else None
-        resume_phase = resume_from.get("phase_name") if resume_from else None
         resume_step_reached = (resume_step is None)  # True if no resume = run all
 
         logger.info(
@@ -277,8 +277,9 @@ class PipelineRunner:
                         })
                         continue
 
-                # Determine phase resume for THIS step only
-                step_resume_phase = resume_phase if step_name == resume_step else None
+                # On rerun, always re-execute the full step from scratch.
+                # Phase-level resume is intentionally disabled — partial phase
+                # outputs may leave data in an inconsistent state.
 
                 # Execute step
                 run.current_step = step_name
@@ -288,7 +289,7 @@ class PipelineRunner:
                     "total": total_steps
                 })
 
-                step_result = self._execute_step(step_name, callback, step_resume_phase)
+                step_result = self._execute_step(step_name, callback, resume_from_phase=None)
                 run.steps.append(step_result)
 
                 if step_result.status == StepStatus.FAILED:
@@ -349,6 +350,9 @@ class PipelineRunner:
     def _execute_step(self, step_name: str, callback,
                       resume_from_phase: Optional[str] = None) -> StepResult:
         """Execute a single step with phase-level tracking.
+
+        On rerun (user clicks Rerun), the entire step re-executes all phases
+        from scratch — no phase-level resume, avoids inconsistent state.
 
         Args:
             step_name: Name of the step to execute.

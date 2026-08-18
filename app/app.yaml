@@ -1,0 +1,33 @@
+command:
+  - gunicorn
+  - "app:app"
+  - --bind
+  - "0.0.0.0:$DATABRICKS_APP_PORT"
+  - --workers
+  - "2"
+  - --timeout
+  - "600"
+  - --access-logfile
+  - "-"
+  - --error-logfile
+  - "-"
+  - --log-level
+  - info
+
+env:
+  - name: FLASK_ENV
+    value: "production"
+
+  # Injected from app resources (declared in aibi.app.yml)
+  - name: SQL_WAREHOUSE_ID
+    valueFrom: sql_warehouse
+
+  - name: CATALOG_NAME
+    value: "aw_serverless_stable_catalog"
+
+  - name: LLM_ENDPOINT_NAME
+    value: "databricks-gpt-5-5"
+
+  - name: VISION_ENDPOINT_NAME
+    value: "databricks-gpt-5-5"
+

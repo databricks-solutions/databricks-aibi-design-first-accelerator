@@ -62,6 +62,10 @@ If `data_source.greenfield.synthetic_data` is `true`:
 * **Always reference tables via `TABLES["logical_name"]`**, never hardcode unversioned table names. Example: `table_name = TABLES["dim_address"]` resolves to `"dim_address_v1"`.
 * **FK lookups**: Use `spark.table(f"{CATALOG}.{SCHEMA}.{TABLES['dim_table']}")` to collect FK values from the versioned table.
 
+### Spark config for synthetic data (MANDATORY)
+
+* **ALWAYS set `spark.conf.set("spark.sql.ansi.enabled", "false")` in the setup cell** before any `dg.DataGenerator` calls. dbldatagen internally performs arithmetic that can produce `DIVIDE_BY_ZERO` with small row counts and random distributions. Disabling ANSI mode converts division-by-zero to NULL instead of throwing, eliminating intermittent failures.
+
 ### Type-safety rules for synthetic data (MANDATORY)
 
 * **ALWAYS use `base_generator(table_name, rows)` as the starting point for EVERY table.** This function reads the DDL schema and pre-configures ALL columns with the correct PySpark types automatically. It makes CAST_INVALID_INPUT errors impossible.
@@ -71,7 +75,8 @@ If `data_source.greenfield.synthetic_data` is `true`:
 * **Date columns** (`DateType`): Use `begin="YYYY-MM-DD", end="YYYY-MM-DD"` format.
 * **Timestamp columns** (`TimestampType`): Use `begin="YYYY-MM-DD HH:MM:SS", end="YYYY-MM-DD HH:MM:SS"` format. Using date-only strings (`"2024-12-31"`) for timestamp columns causes `ValueError: time data does not match format`. Use the `date_range_for()` helper from the template to auto-format.
 * **DECIMAL/FLOAT columns**: Use numeric ranges — never formatted currency strings.
-* **Violation = pipeline halt**: A type mismatch causes `CAST_INVALID_INPUT` and halts the pipeline.
+* **BOOLEAN columns**: NEVER use `values=[True, False]` or `weights` with `BooleanType()`. dbldatagen's internal CASE expression stringifies the ELSE fallback causing `DATATYPE_MISMATCH.DATA_DIFF_TYPES`. Use `BooleanType()` without `values` — dbldatagen handles 50/50 distribution by default.
+* **Violation = pipeline halt**: A type mismatch causes `CAST_INVALID_INPUT` or `DATATYPE_MISMATCH` and halts the pipeline.
 
 ---
 

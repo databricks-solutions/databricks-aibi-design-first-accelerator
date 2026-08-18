@@ -305,11 +305,10 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
         # - Resolve output folder, name suffix, paths
         from config import get_config
         app_config = get_config()
-        local_root = app_config.LOCAL_ROOT
         workspace_root = app_config.WORKSPACE_ROOT
         warehouse_id = app_config.SQL_WAREHOUSE_ID
         loader = ConfigLoader(services["workspace"])
-        config = loader.load(domain, local_root, warehouse_id,
+        config = loader.load(domain, workspace_root, warehouse_id,
                              workspace_root=workspace_root)
 
         # Handle versioning
@@ -872,3 +871,26 @@ def cleanup_version():
         'version_suffix': version_suffix,
         **result,
     })
+
+
+@pipeline_bp.route('/runs', methods=['DELETE'])
+def purge_all_runs():
+    """Purge ALL pipeline run records from Lakebase.
+
+    Used from the Admin page to reset pipeline history after cleanup.
+    Does NOT delete generated assets (tables, folders) — use /cleanup for that.
+
+    Returns:
+        {status: 'purged', count: <number of runs removed>}
+    """
+    run_store = _get_state_store()
+    if not run_store:
+        return jsonify({'error': 'Lakebase not available'}), 503
+
+    try:
+        count = run_store.purge_all_runs()
+        logger.info(f"Purged {count} run records via Admin API")
+        return jsonify({'status': 'purged', 'count': count})
+    except Exception as e:
+        logger.error(f"purge_all_runs failed: {e}")
+        return jsonify({'error': str(e)[:200]}), 500

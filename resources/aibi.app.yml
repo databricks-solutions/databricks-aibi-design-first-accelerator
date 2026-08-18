@@ -6,9 +6,16 @@ resources:
     aibi_app:
       name: aibi-studio-${workspace.current_user.domain_friendly_name}
       description: "AI/BI Studio — Design-First Semantic Layer, Metric Views, Dashboards & Genie"
-      # Deploys entire project root (app/, framework/, kpi_domains/) to container.
-      # app.yaml must be at this root. gunicorn --chdir app starts Flask.
-      source_code_path: ..
+      # Deploys app/ folder to container. app.yaml is at app/ root.
+      source_code_path: ../app
+
+      # App resources — referenced via valueFrom in app.yaml
+      resources:
+        - name: sql_warehouse
+          sql_warehouse:
+            id: ${var.sql_warehouse_id}
+            permission: CAN_USE
+
 
       # On-behalf-of user scopes (files = workspace-files API, sql = statements)
       user_api_scopes:

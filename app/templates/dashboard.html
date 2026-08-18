@@ -18,7 +18,11 @@
 .domain-table td { padding: 12px 14px; border-bottom: 1px solid #f0f0f0; color: #374151; vertical-align: top; }
 .domain-table tr:hover td { background: #f8fafc; }
 .domain-name { font-weight: 600; color: #111; }
-.domain-desc { font-size: 0.75rem; color: #9ca3af; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.domain-desc { font-size: 0.75rem; color: #9ca3af; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; cursor: pointer; }
+.domain-cell { position: relative; }
+.domain-desc-tooltip { display: none; position: absolute; left: 14px; top: 100%; z-index: 100; background: #1f2937; color: #f9fafb; padding: 8px 12px; border-radius: 6px; font-size: 0.75rem; line-height: 1.4; max-width: 320px; width: max-content; box-shadow: 0 4px 12px rgba(0,0,0,0.15); white-space: normal; margin-top: -2px; }
+.domain-desc-tooltip::before { content: ''; position: absolute; top: -5px; left: 16px; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 5px solid #1f2937; }
+.domain-cell.show-tooltip .domain-desc-tooltip { display: block; }
 .domain-table td:last-child { white-space: nowrap; }
 .asset-tag { display: inline-block; background: #e8f0fe; color: #1a73e8; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 500; margin: 1px 3px 1px 0; }
 .asset-tag.mv { background: #ecfdf5; color: #059669; }
@@ -81,10 +85,15 @@ async function loadDomainOverview() {
         }
 
         tbody.innerHTML = domains.map(d => {
-            // Find latest run for this domain
+            // Find latest COMPLETED run for this domain (for accurate version)
             const domainRuns = runs.filter(r => r.domain === d.name).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+            const completedRuns = domainRuns.filter(r => r.status === 'completed');
             const latest = domainRuns[0];
-            const rawVersion = latest ? (latest.version_suffix || '') : '';
+            const latestCompleted = completedRuns[0];
+            // Version: prefer latest completed run, then domain config
+            const runVersion = latestCompleted ? (latestCompleted.version_suffix || '') : '';
+            const configVersion = d.version || '';
+            const rawVersion = runVersion || configVersion;
             const latestVersion = rawVersion ? rawVersion.replace(/^_/, '') : '-';
             const statusDot = latest ? (latest.status === 'completed' ? 'ok' : latest.status === 'failed' ? 'fail' : 'none') : 'none';
             const statusText = latest ? `${latest.status}` : 'No runs';
@@ -94,9 +103,10 @@ async function loadDomainOverview() {
             const suffix = latestVersion !== '-' ? latestVersion : '';
 
             return `<tr>
-                <td>
+                <td class="domain-cell" onclick="this.classList.toggle('show-tooltip')" onmouseover="this.classList.add('show-tooltip')" onmouseout="this.classList.remove('show-tooltip')">
                     <div class="domain-name">${d.display_name}</div>
                     <div class="domain-desc">${d.description || d.name}</div>
+                    <div class="domain-desc-tooltip">${(d.description || d.name).replace(/</g, '&lt;')}</div>
                 </td>
                 <td><span class="version-badge">${latestVersion}</span></td>
                 <td><span class="asset-tag mv" id="mv-${d.name}">Loading...</span></td>
@@ -106,16 +116,19 @@ async function loadDomainOverview() {
             </tr>`;
         }).join('');
 
-        // Load asset details per domain
+        // Load asset details per domain (with version suffix from latest completed run)
         for (const d of domains) {
-            loadDomainAssets(d.name);
+            const dRuns = runs.filter(r => r.domain === d.name && r.status === 'completed')
+                              .sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+            const versionSuffix = dRuns[0] ? (dRuns[0].version_suffix || '') : '';
+            loadDomainAssets(d.name, versionSuffix);
         }
     } catch(err) {
         document.getElementById('domain-tbody').innerHTML = `<tr class="empty-row"><td colspan="6">Error: ${err.message}</td></tr>`;
     }
 }
 
-async function loadDomainAssets(domainName) {
+async function loadDomainAssets(domainName, versionSuffix) {
     try {
         const res = await fetch(`/api/domains/${domainName}/config`);
         if (!res.ok) return;
@@ -126,19 +139,29 @@ async function loadDomainAssets(domainName) {
         const dbs = assets.dashboards || [];
         const genie = assets.genie || {};
 
+        // Append version suffix to show the actual created asset names
+        const suffix = versionSuffix || '';
+
         // Metric views
         const mvEl = document.getElementById(`mv-${domainName}`);
-        if (mvEl) mvEl.innerHTML = mvs.map(m => `<span class="asset-tag mv">${m.name}</span>`).join('') || '<span style="color:#9ca3af">-</span>';
+        if (mvEl) mvEl.innerHTML = mvs.map(m => `<span class="asset-tag mv">${m.name}${suffix}</span>`).join('') || '<span style="color:#9ca3af">-</span>';
 
         // Dashboards
         const dbEl = document.getElementById(`db-${domainName}`);
-        if (dbEl) dbEl.innerHTML = dbs.map(d => `<span class="asset-tag db">${d.name}</span>`).join('') || '<span style="color:#9ca3af">-</span>';
+        if (dbEl) dbEl.innerHTML = dbs.map(d => `<span class="asset-tag db">${d.name}${suffix}</span>`).join('') || '<span style="color:#9ca3af">-</span>';
 
         // Genie
         const genieEl = document.getElementById(`genie-${domainName}`);
-        if (genieEl) genieEl.innerHTML = genie.space_name ? `<span class="asset-tag genie">${genie.space_name}</span>` : '<span style="color:#9ca3af">-</span>';
+        if (genieEl) genieEl.innerHTML = genie.space_name ? `<span class="asset-tag genie">${genie.space_name}${suffix}</span>` : '<span style="color:#9ca3af">-</span>';
     } catch(e) {}
 }
+
+// Close tooltips when tapping outside (mobile)
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.domain-cell')) {
+        document.querySelectorAll('.domain-cell.show-tooltip').forEach(el => el.classList.remove('show-tooltip'));
+    }
+});
 
 loadDomainOverview();
 </script>

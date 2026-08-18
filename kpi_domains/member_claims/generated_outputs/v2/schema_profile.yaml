@@ -1,0 +1,2675 @@
+tables:
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_address_v1
+  name: dim_address_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: address_key
+    type: bigint
+  - name: entity_type_key
+    type: string
+  - name: entity_dimension_key
+    type: bigint
+  - name: address_type_code
+    type: string
+  - name: street_address_1
+    type: string
+  - name: street_address_2
+    type: string
+  - name: city
+    type: string
+  - name: state
+    type: string
+  - name: zip_code
+    type: string
+  - name: country_code
+    type: string
+  - name: county
+    type: string
+  - name: is_active
+    type: boolean
+  - name: valid_from_date
+    type: timestamp
+  - name: valid_to_date
+    type: timestamp
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: record_hash
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_address_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:36 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 1080419 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Address dimension table for member, provider, and service facility addresses.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/2604e49f-7b82-4be9-9812-03f91c48dcea
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-3843d143-b92c-49c6-b6ca-f007378c72c2,delta.rowTracking.materializedRowIdColumnName=_row-id-col-da250880-8c9f-4e2c-8a6d-72c1d7ee5e5f]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_address_v2
+  name: dim_address_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: address_key
+    type: bigint
+  - name: entity_type_key
+    type: string
+  - name: entity_dimension_key
+    type: bigint
+  - name: address_type_code
+    type: string
+  - name: street_address_1
+    type: string
+  - name: street_address_2
+    type: string
+  - name: city
+    type: string
+  - name: state
+    type: string
+  - name: zip_code
+    type: string
+  - name: country_code
+    type: string
+  - name: county
+    type: string
+  - name: is_active
+    type: boolean
+  - name: valid_from_date
+    type: timestamp
+  - name: valid_to_date
+    type: timestamp
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: record_hash
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_address_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:21 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 35651 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Address dimension table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/2d9f75d8-9bcb-4aab-8401-95bb3a2ee4e6
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-9b3e253f-2702-44c8-a5cf-7cf1ddce9a44,delta.rowTracking.materializedRowIdColumnName=_row-id-col-94ee68e9-8cb7-4d3b-bfb0-11d6c8a5192d]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_member_history_v1
+  name: dim_member_history_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: mbr_history_sk
+    type: bigint
+  - name: member_sk
+    type: bigint
+  - name: mbr_source_member_id
+    type: string
+  - name: mbr_member_id
+    type: int
+  - name: mbr_deers_beneficiary_id
+    type: string
+  - name: mbr_deers_family_id
+    type: string
+  - name: mbr_sponsor_ssn
+    type: string
+  - name: mbr_current_pcp_eff_date
+    type: date
+  - name: mbr_current_pcp_nbr
+    type: string
+  - name: mbr_dob
+    type: date
+  - name: mbr_race
+    type: string
+  - name: mbr_sex
+    type: string
+  - name: mbr_ethnicity
+    type: string
+  - name: mbr_first_name
+    type: string
+  - name: mbr_middle_name
+    type: string
+  - name: mbr_last_name
+    type: string
+  - name: mbr_full_name
+    type: string
+  - name: mbr_marital_status
+    type: string
+  - name: mbr_deceased_date
+    type: date
+  - name: mbr_email
+    type: string
+  - name: mbr_phone_nbr
+    type: string
+  - name: mbr_mobile_nbr
+    type: string
+  - name: mbr_work_nbr
+    type: string
+  - name: mbr_sub_group_cd
+    type: string
+  - name: mbr_idcard_issue_date
+    type: date
+  - name: mbr_line_of_business
+    type: string
+  - name: mbr_text_opt_in
+    type: string
+  - name: mbr_current_riders
+    type: string
+  - name: mbr_authorized_rep
+    type: string
+  - name: mbr_alt_sub_nbr
+    type: string
+  - name: mbr_relationship_type
+    type: string
+  - name: mbr_salary_tier
+    type: string
+  - name: mbr_pcp_auto_assigned
+    type: string
+  - name: mbr_secured_flag
+    type: string
+  - name: mbr_pharmacy_discount_flag
+    type: string
+  - name: mbr_employee_id
+    type: string
+  - name: mbr_line_of_business_name
+    type: string
+  - name: mbr_responsible_party_id
+    type: string
+  - name: mbr_responsible_party_name
+    type: string
+  - name: mbr_deceased_flag
+    type: string
+  - name: mbr_pcp_lock_in_indicator
+    type: string
+  - name: mbr_alt_person_nbr
+    type: string
+  - name: mbr_state
+    type: string
+  - name: mbr_zip_code
+    type: string
+  - name: mbr_pcp_lock_in_type
+    type: string
+  - name: mbr_provider_group_name
+    type: string
+  - name: mbr_name_suffix
+    type: string
+  - name: mbr_sub_flag
+    type: int
+  - name: mbr_sub_ssn
+    type: string
+  - name: mbr_extract_date
+    type: date
+  - name: mbr_medicaid_case_nbr
+    type: string
+  - name: mbr_relationship_ind
+    type: string
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: record_hash
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: valid_to_date
+    type: timestamp
+  - name: valid_from_date
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_member_history_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:40 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 3554513 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member history dimension table containing historical member demographic
+      and profile attributes.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/3c91ccc0-d7c2-477d-9019-e9047df2bfc4
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-11b40a56-a9d5-4a31-bacd-e96d71c914ea,delta.rowTracking.materializedRowIdColumnName=_row-id-col-87c455d7-2db4-48a3-88c4-45e57923639f]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_member_history_v2
+  name: dim_member_history_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: mbr_history_sk
+    type: bigint
+  - name: member_sk
+    type: bigint
+  - name: mbr_source_member_id
+    type: string
+  - name: mbr_member_id
+    type: int
+  - name: mbr_deers_beneficiary_id
+    type: string
+  - name: mbr_deers_family_id
+    type: string
+  - name: mbr_sponsor_ssn
+    type: string
+  - name: mbr_current_pcp_eff_date
+    type: date
+  - name: mbr_current_pcp_nbr
+    type: string
+  - name: mbr_dob
+    type: date
+  - name: mbr_race
+    type: string
+  - name: mbr_sex
+    type: string
+  - name: mbr_ethnicity
+    type: string
+  - name: mbr_first_name
+    type: string
+  - name: mbr_middle_name
+    type: string
+  - name: mbr_last_name
+    type: string
+  - name: mbr_full_name
+    type: string
+  - name: mbr_marital_status
+    type: string
+  - name: mbr_deceased_date
+    type: date
+  - name: mbr_email
+    type: string
+  - name: mbr_phone_nbr
+    type: string
+  - name: mbr_mobile_nbr
+    type: string
+  - name: mbr_work_nbr
+    type: string
+  - name: mbr_sub_group_cd
+    type: string
+  - name: mbr_idcard_issue_date
+    type: date
+  - name: mbr_line_of_business
+    type: string
+  - name: mbr_text_opt_in
+    type: string
+  - name: mbr_current_riders
+    type: string
+  - name: mbr_authorized_rep
+    type: string
+  - name: mbr_alt_sub_nbr
+    type: string
+  - name: mbr_relationship_type
+    type: string
+  - name: mbr_salary_tier
+    type: string
+  - name: mbr_pcp_auto_assigned
+    type: string
+  - name: mbr_secured_flag
+    type: string
+  - name: mbr_pharmacy_discount_flag
+    type: string
+  - name: mbr_employee_id
+    type: string
+  - name: mbr_line_of_business_name
+    type: string
+  - name: mbr_responsible_party_id
+    type: string
+  - name: mbr_responsible_party_name
+    type: string
+  - name: mbr_deceased_flag
+    type: string
+  - name: mbr_pcp_lock_in_indicator
+    type: string
+  - name: mbr_alt_person_nbr
+    type: string
+  - name: mbr_state
+    type: string
+  - name: mbr_zip_code
+    type: string
+  - name: mbr_pcp_lock_in_type
+    type: string
+  - name: mbr_provider_group_name
+    type: string
+  - name: mbr_name_suffix
+    type: string
+  - name: mbr_sub_flag
+    type: int
+  - name: mbr_sub_ssn
+    type: string
+  - name: mbr_extract_date
+    type: date
+  - name: mbr_medicaid_case_nbr
+    type: string
+  - name: mbr_relationship_ind
+    type: string
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: record_hash
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: valid_to_date
+    type: timestamp
+  - name: valid_from_date
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_member_history_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:27 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 141339 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member history dimension table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/489caab5-c8d4-45ec-9f82-b5ed8f5a1f7e
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-f4d5a2e6-d8c9-4146-87bd-66b2561c3296,delta.rowTracking.materializedRowIdColumnName=_row-id-col-91462d11-27f6-470b-b9b8-874e3d15f951]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_member_identifier_v1
+  name: dim_member_identifier_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: mbr_identifier_sk
+    type: bigint
+  - name: member_sk
+    type: bigint
+  - name: id_type
+    type: string
+  - name: id_value
+    type: string
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: valid_to_date
+    type: timestamp
+  - name: valid_from_date
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: record_hash
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_member_identifier_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:39 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 762322 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member identifier dimension table containing alternate member identifiers
+      by source system.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/496be0ed-10ad-4564-83c7-6ab68c6caa44
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-08c7fa59-1d94-4366-8fe7-610ec0ebc37c,delta.rowTracking.materializedRowIdColumnName=_row-id-col-da8fec98-0f48-4d49-a6af-19071ee58c8b]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_member_identifier_v2
+  name: dim_member_identifier_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: mbr_identifier_sk
+    type: bigint
+  - name: member_sk
+    type: bigint
+  - name: id_type
+    type: string
+  - name: id_value
+    type: string
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: valid_to_date
+    type: timestamp
+  - name: valid_from_date
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: record_hash
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_member_identifier_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:25 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 29581 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member identifier dimension table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/d9d8938c-4a6e-4c90-8e8d-b72d76fa410d
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-acb2c366-1254-4cda-a932-033a3ae2eb86,delta.rowTracking.materializedRowIdColumnName=_row-id-col-7e2dbac4-10e2-4209-aba7-74058041a016]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_member_v1
+  name: dim_member_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: member_sk
+    type: bigint
+  - name: mbr_source_member_id
+    type: string
+  - name: mbr_member_id
+    type: int
+  - name: mbr_deers_beneficiary_id
+    type: string
+  - name: mbr_deers_family_id
+    type: string
+  - name: mbr_sponsor_ssn
+    type: string
+  - name: mbr_current_pcp_eff_date
+    type: date
+  - name: mbr_current_pcp_nbr
+    type: string
+  - name: mbr_dob
+    type: date
+  - name: mbr_race
+    type: string
+  - name: mbr_sex
+    type: string
+  - name: mbr_ethnicity
+    type: string
+  - name: mbr_first_name
+    type: string
+  - name: mbr_middle_name
+    type: string
+  - name: mbr_last_name
+    type: string
+  - name: mbr_full_name
+    type: string
+  - name: mbr_marital_status
+    type: string
+  - name: mbr_deceased_date
+    type: date
+  - name: mbr_email
+    type: string
+  - name: mbr_phone_nbr
+    type: string
+  - name: mbr_mobile_nbr
+    type: string
+  - name: mbr_work_nbr
+    type: string
+  - name: mbr_sub_group_cd
+    type: string
+  - name: mbr_idcard_issue_date
+    type: date
+  - name: mbr_line_of_business
+    type: string
+  - name: mbr_text_opt_in
+    type: string
+  - name: mbr_current_riders
+    type: string
+  - name: mbr_authorized_rep
+    type: string
+  - name: mbr_alt_sub_nbr
+    type: string
+  - name: mbr_relationship_type
+    type: string
+  - name: mbr_salary_tier
+    type: string
+  - name: mbr_pcp_auto_assigned
+    type: string
+  - name: mbr_secured_flag
+    type: string
+  - name: mbr_pharmacy_discount_flag
+    type: string
+  - name: mbr_employee_id
+    type: string
+  - name: mbr_line_of_business_name
+    type: string
+  - name: mbr_responsible_party_id
+    type: string
+  - name: mbr_responsible_party_name
+    type: string
+  - name: mbr_deceased_flag
+    type: string
+  - name: mbr_pcp_lock_in_indicator
+    type: string
+  - name: mbr_alt_person_nbr
+    type: string
+  - name: mbr_state
+    type: string
+  - name: mbr_zip_code
+    type: string
+  - name: mbr_pcp_lock_in_type
+    type: string
+  - name: mbr_provider_group_name
+    type: string
+  - name: mbr_name_suffix
+    type: string
+  - name: mbr_sub_flag
+    type: int
+  - name: mbr_sub_ssn
+    type: string
+  - name: mbr_extract_date
+    type: date
+  - name: mbr_medicaid_case_nbr
+    type: string
+  - name: mbr_relationship_ind
+    type: string
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: record_hash
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: end_date
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_member_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:34 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 3448736 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member dimension table containing member demographic and profile attributes.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/8e608332-874a-42a4-b353-3550869a7474
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-e2d8ef45-c9a3-4f5e-84a8-6a4ccb661d44,delta.rowTracking.materializedRowIdColumnName=_row-id-col-75a0b61c-1e20-485d-985d-31bfd3f308a8]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_member_v2
+  name: dim_member_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: member_sk
+    type: bigint
+  - name: mbr_source_member_id
+    type: string
+  - name: mbr_member_id
+    type: int
+  - name: mbr_deers_beneficiary_id
+    type: string
+  - name: mbr_deers_family_id
+    type: string
+  - name: mbr_sponsor_ssn
+    type: string
+  - name: mbr_current_pcp_eff_date
+    type: date
+  - name: mbr_current_pcp_nbr
+    type: string
+  - name: mbr_dob
+    type: date
+  - name: mbr_race
+    type: string
+  - name: mbr_sex
+    type: string
+  - name: mbr_ethnicity
+    type: string
+  - name: mbr_first_name
+    type: string
+  - name: mbr_middle_name
+    type: string
+  - name: mbr_last_name
+    type: string
+  - name: mbr_full_name
+    type: string
+  - name: mbr_marital_status
+    type: string
+  - name: mbr_deceased_date
+    type: date
+  - name: mbr_email
+    type: string
+  - name: mbr_phone_nbr
+    type: string
+  - name: mbr_mobile_nbr
+    type: string
+  - name: mbr_work_nbr
+    type: string
+  - name: mbr_sub_group_cd
+    type: string
+  - name: mbr_idcard_issue_date
+    type: date
+  - name: mbr_line_of_business
+    type: string
+  - name: mbr_text_opt_in
+    type: string
+  - name: mbr_current_riders
+    type: string
+  - name: mbr_authorized_rep
+    type: string
+  - name: mbr_alt_sub_nbr
+    type: string
+  - name: mbr_relationship_type
+    type: string
+  - name: mbr_salary_tier
+    type: string
+  - name: mbr_pcp_auto_assigned
+    type: string
+  - name: mbr_secured_flag
+    type: string
+  - name: mbr_pharmacy_discount_flag
+    type: string
+  - name: mbr_employee_id
+    type: string
+  - name: mbr_line_of_business_name
+    type: string
+  - name: mbr_responsible_party_id
+    type: string
+  - name: mbr_responsible_party_name
+    type: string
+  - name: mbr_deceased_flag
+    type: string
+  - name: mbr_pcp_lock_in_indicator
+    type: string
+  - name: mbr_alt_person_nbr
+    type: string
+  - name: mbr_state
+    type: string
+  - name: mbr_zip_code
+    type: string
+  - name: mbr_pcp_lock_in_type
+    type: string
+  - name: mbr_provider_group_name
+    type: string
+  - name: mbr_name_suffix
+    type: string
+  - name: mbr_sub_flag
+    type: int
+  - name: mbr_sub_ssn
+    type: string
+  - name: mbr_extract_date
+    type: date
+  - name: mbr_medicaid_case_nbr
+    type: string
+  - name: mbr_relationship_ind
+    type: string
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: record_hash
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: end_date
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_member_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:20 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 137236 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member dimension table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/2dfa309b-497f-4271-baca-0d238ba228ef
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-14d878c8-cfbd-4530-9b58-b42305bb2d1b,delta.rowTracking.materializedRowIdColumnName=_row-id-col-30cd93d0-bbdb-4c83-844c-b7d11abd0e58]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_provider_v1
+  name: dim_provider_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: provider_sk
+    type: bigint
+  - name: assigned_provider_sk
+    type: bigint
+  - name: source_provider_id
+    type: string
+  - name: provider_npi
+    type: string
+  - name: provider_tax_id
+    type: string
+  - name: provider_name
+    type: string
+  - name: provider_address_sk
+    type: bigint
+  - name: pcp_flag
+    type: boolean
+  - name: affiliation_id
+    type: string
+  - name: valid_from_date
+    type: timestamp
+  - name: valid_to_date
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: source_system
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: last_update_dt
+    type: timestamp
+  - name: record_hash
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_provider_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:37 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 1043534 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Provider dimension table containing provider identity, affiliation, and
+      address attributes.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/b0b4c76c-e732-41dd-8408-eda4bda444b8
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-eadac248-24d4-4ef5-b6f9-0aaf986c5279,delta.rowTracking.materializedRowIdColumnName=_row-id-col-04544ff5-acb2-460e-b816-46a8fd5cfc37]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.dim_provider_v2
+  name: dim_provider_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: provider_sk
+    type: bigint
+  - name: assigned_provider_sk
+    type: bigint
+  - name: source_provider_id
+    type: string
+  - name: provider_npi
+    type: string
+  - name: provider_tax_id
+    type: string
+  - name: provider_name
+    type: string
+  - name: provider_address_sk
+    type: bigint
+  - name: pcp_flag
+    type: boolean
+  - name: affiliation_id
+    type: string
+  - name: valid_from_date
+    type: timestamp
+  - name: valid_to_date
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: source_system
+    type: string
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: last_update_dt
+    type: timestamp
+  - name: record_hash
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: dim_provider_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:23 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 41535 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Provider dimension table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/a4386d53-4891-4faa-989c-46e6445f276e
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-1d7446b5-bdf7-48bc-b57c-a0bd5ea89735,delta.rowTracking.materializedRowIdColumnName=_row-id-col-4698d3ea-abd8-44c6-b3cb-10395480802a]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v1
+  name: fact_claim_detail_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: clm_dtl_claim_id
+    type: string
+  - name: clm_dtl_line_nbr
+    type: string
+  - name: clm_dtl_original_source_claim_id
+    type: string
+  - name: clm_dtl_source_system
+    type: string
+  - name: clm_dtl_member_nbr_sk
+    type: string
+  - name: clmdetail_admit_dt
+    type: timestamp
+  - name: clm_dtl_specific_dos_date
+    type: date
+  - name: clm_dtl_specific_dos_thru_date
+    type: date
+  - name: clm_dtl_apl_posting_date
+    type: date
+  - name: clm_dtl_claim_receive_date
+    type: timestamp
+  - name: clm_dtl_check_date
+    type: timestamp
+  - name: clm_dtl_last_update_date
+    type: timestamp
+  - name: clm_dtl_benefit_category
+    type: string
+  - name: clm_dtl_benefit_level
+    type: string
+  - name: clm_dtl_claim_type
+    type: string
+  - name: clm_dtl_allowed_amt
+    type: decimal(18,2)
+  - name: clm_dtl_billed_amt
+    type: decimal(18,2)
+  - name: clm_dtl_deduct_amt
+    type: decimal(18,2)
+  - name: clm_dtl_net_amt
+    type: decimal(18,2)
+  - name: clm_dtl_paid_amt
+    type: decimal(18,2)
+  - name: clm_dtl_actual_paid_amt
+    type: decimal(18,2)
+  - name: clm_dtl_not_covered_amt
+    type: decimal(18,2)
+  - name: clm_dtl_co_insurance_amt
+    type: decimal(18,2)
+  - name: clm_dtl_other_adjustments_amt
+    type: decimal(18,2)
+  - name: clm_dtl_cob_savings
+    type: decimal(18,2)
+  - name: clm_dtl_oic_paid_amt
+    type: decimal(18,2)
+  - name: clm_dtl_oic_allowed_amt
+    type: decimal(18,2)
+  - name: clm_dtl_interest_amt
+    type: decimal(18,2)
+  - name: clm_dtl_prompt_pay_discount_amt
+    type: decimal(18,2)
+  - name: clm_dtl_interest_discount_amt
+    type: decimal(18,2)
+  - name: clm_dtl_interest_discount_flag
+    type: string
+  - name: clm_dtl_copay_amt
+    type: decimal(18,2)
+  - name: clm_dtl_copay_reason
+    type: string
+  - name: clm_dtl_st_cd
+    type: string
+  - name: clm_dtl_reason_code_sk
+    type: string
+  - name: clm_dtl_line_status
+    type: string
+  - name: clm_dtl_clean_claim_ind
+    type: string
+  - name: clm_dtl_place_of_service
+    type: string
+  - name: clm_dtl_fee_schedule_code
+    type: string
+  - name: clm_dtl_authorization_nbr
+    type: string
+  - name: clm_dtl_check_nbr
+    type: string
+  - name: clm_dtl_check_added_line_flag
+    type: string
+  - name: clm_dtl_check_message
+    type: string
+  - name: clm_dtl_submitting_provider
+    type: string
+  - name: clm_dtl_rendering_provider
+    type: string
+  - name: clm_dtl_rendering_provider_type
+    type: string
+  - name: clm_dtl_rendering_provider_spec
+    type: string
+  - name: clm_dtl_participating_provider
+    type: string
+  - name: clm_dtl_adjudication_status
+    type: string
+  - name: clm_dtl_procedure_code
+    type: string
+  - name: clm_dtl_procedure_modifier
+    type: string
+  - name: clm_dtl_modifier_2
+    type: string
+  - name: clm_dtl_modifier_3
+    type: string
+  - name: clm_dtl_modifier_4
+    type: string
+  - name: clm_dtl_procedure_adj
+    type: string
+  - name: clm_dtl_procedure_qty
+    type: decimal(18,2)
+  - name: clm_dtl_revenue_code
+    type: string
+  - name: clm_dtl_diagnosis_ind_1
+    type: string
+  - name: clm_dtl_diagnosis_ind_2
+    type: string
+  - name: clm_dtl_diagnosis_ind_3
+    type: string
+  - name: clm_dtl_diagnosis_ind_4
+    type: string
+  - name: clm_dtl_paid_days
+    type: decimal(18,2)
+  - name: clm_dtl_anesthesia_time_units
+    type: decimal(18,2)
+  - name: clm_dtl_cob_rule
+    type: string
+  - name: clm_dtl_wrap_network
+    type: string
+  - name: clm_dtl_returned_ntwrk_repric
+    type: string
+  - name: clm_dtl_user_id
+    type: string
+  - name: clm_dtl_extract_date
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: updated_at
+    type: timestamp
+  - name: created_at
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: fact_claim_detail_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:44 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 5865564 bytes, 5000 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Claim detail fact table containing claim-line service, provider, procedure,
+      diagnosis, adjudication, and financial measures.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/18718858-1468-40e7-b635-3fe3fa0b14dc
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-b9d447b1-98eb-4879-9cfc-69ea2b1e07fb,delta.rowTracking.materializedRowIdColumnName=_row-id-col-93bf2932-57fa-4dd9-8119-89548a715c69]'
+  row_count: 5000
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v2
+  name: fact_claim_detail_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: clm_dtl_claim_id
+    type: string
+  - name: clm_dtl_line_nbr
+    type: string
+  - name: clm_dtl_original_source_claim_id
+    type: string
+  - name: clm_dtl_source_system
+    type: string
+  - name: clm_dtl_member_nbr_sk
+    type: string
+  - name: clmdetail_admit_dt
+    type: timestamp
+  - name: clm_dtl_specific_dos_date
+    type: date
+  - name: clm_dtl_specific_dos_thru_date
+    type: date
+  - name: clm_dtl_apl_posting_date
+    type: date
+  - name: clm_dtl_claim_receive_date
+    type: timestamp
+  - name: clm_dtl_check_date
+    type: timestamp
+  - name: clm_dtl_last_update_date
+    type: timestamp
+  - name: clm_dtl_benefit_category
+    type: string
+  - name: clm_dtl_benefit_level
+    type: string
+  - name: clm_dtl_claim_type
+    type: string
+  - name: clm_dtl_allowed_amt
+    type: decimal(28,4)
+  - name: clm_dtl_billed_amt
+    type: decimal(27,4)
+  - name: clm_dtl_deduct_amt
+    type: decimal(27,4)
+  - name: clm_dtl_net_amt
+    type: decimal(28,4)
+  - name: clm_dtl_paid_amt
+    type: decimal(28,4)
+  - name: clm_dtl_actual_paid_amt
+    type: decimal(38,4)
+  - name: clm_dtl_not_covered_amt
+    type: decimal(27,4)
+  - name: clm_dtl_co_insurance_amt
+    type: decimal(27,4)
+  - name: clm_dtl_other_adjustments_amt
+    type: decimal(30,2)
+  - name: clm_dtl_cob_savings
+    type: decimal(32,4)
+  - name: clm_dtl_oic_paid_amt
+    type: decimal(19,4)
+  - name: clm_dtl_oic_allowed_amt
+    type: decimal(19,4)
+  - name: clm_dtl_interest_amt
+    type: decimal(38,6)
+  - name: clm_dtl_prompt_pay_discount_amt
+    type: decimal(20,4)
+  - name: clm_dtl_interest_discount_amt
+    type: decimal(38,6)
+  - name: clm_dtl_interest_discount_flag
+    type: string
+  - name: clm_dtl_copay_amt
+    type: decimal(27,4)
+  - name: clm_dtl_copay_reason
+    type: string
+  - name: clm_dtl_sc_cd
+    type: string
+  - name: clm_dtl_reason_code_sk
+    type: string
+  - name: clm_dtl_line_status
+    type: string
+  - name: clm_dtl_clean_claim_ind
+    type: string
+  - name: clm_dtl_place_of_service
+    type: string
+  - name: clm_dtl_fee_schedule_code
+    type: string
+  - name: clm_dtl_authorization_nbr
+    type: string
+  - name: clm_dtl_check_nbr
+    type: string
+  - name: clm_dtl_check_added_line_flag
+    type: string
+  - name: clm_dtl_check_message
+    type: string
+  - name: clm_dtl_submitting_provider
+    type: string
+  - name: clm_dtl_rendering_provider
+    type: string
+  - name: clm_dtl_rendering_provider_type
+    type: string
+  - name: clm_dtl_rendering_provider_spec
+    type: string
+  - name: clm_dtl_participating_provider
+    type: string
+  - name: clm_dtl_adjudication_status
+    type: string
+  - name: clm_dtl_procedure_code
+    type: string
+  - name: clm_dtl_procedure_modifier
+    type: string
+  - name: clm_dtl_modifier_2
+    type: string
+  - name: clm_dtl_modifier_3
+    type: string
+  - name: clm_dtl_modifier_4
+    type: string
+  - name: clm_dtl_procedure_adj
+    type: string
+  - name: clm_dtl_procedure_qty
+    type: decimal(15,3)
+  - name: clm_dtl_revenue_code
+    type: string
+  - name: clm_dtl_diagnosis_ind_1
+    type: string
+  - name: clm_dtl_diagnosis_ind_2
+    type: string
+  - name: clm_dtl_diagnosis_ind_3
+    type: string
+  - name: clm_dtl_diagnosis_ind_4
+    type: string
+  - name: clm_dtl_paid_days
+    type: decimal(36,3)
+  - name: clm_dtl_anesthesia_time_units
+    type: decimal(12,2)
+  - name: clm_dtl_cob_rule
+    type: string
+  - name: clm_dtl_wrap_network
+    type: string
+  - name: clm_dtl_returned_ntwrk_repric
+    type: string
+  - name: clm_dtl_user_id
+    type: string
+  - name: clm_dtl_extract_date
+    type: timestamp
+  - name: is_active
+    type: boolean
+  - name: updated_at
+    type: timestamp
+  - name: created_at
+    type: timestamp
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: fact_claim_detail_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:30 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 1340484 bytes, 5000 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Claim detail fact table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/b62d1a2c-f814-4801-8673-3bf5d80a61fd
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-bf2a602c-5298-45c8-8eac-8dcea385a731,delta.rowTracking.materializedRowIdColumnName=_row-id-col-e7c09abc-6f98-4e09-816b-d01aae4180a6]'
+  row_count: 5000
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_header_v1
+  name: fact_claim_header_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: clm_header_sk
+    type: bigint
+  - name: clm_id
+    type: int
+  - name: clm_claim_id
+    type: string
+  - name: clm_original_source_claim_id
+    type: string
+  - name: clm_original_batch_nbr
+    type: string
+  - name: clm_patient_control_nbr
+    type: string
+  - name: clm_document_adj_control_nbr
+    type: string
+  - name: clm_claim_type
+    type: string
+  - name: clm_bill_type
+    type: string
+  - name: clm_authorization_nbr
+    type: string
+  - name: clm_ext_authorization_nbr
+    type: string
+  - name: clm_admit_date
+    type: date
+  - name: clm_claim_thru_date
+    type: date
+  - name: clm_discharge_date
+    type: date
+  - name: clm_admission_hour
+    type: int
+  - name: clm_discharge_hour
+    type: int
+  - name: clm_admission_type
+    type: string
+  - name: clm_admission_source
+    type: string
+  - name: clm_member_nbr
+    type: string
+  - name: clm_member_name
+    type: string
+  - name: clm_member_sk
+    type: bigint
+  - name: clm_member_group_nbr
+    type: string
+  - name: clm_member_subgroup_nbr
+    type: string
+  - name: clm_plan_code
+    type: string
+  - name: clm_line_of_business
+    type: string
+  - name: clm_birth_weight
+    type: decimal(18,2)
+  - name: clm_covered_days
+    type: int
+  - name: clm_accident_st
+    type: string
+  - name: clm_attending_physician
+    type: string
+  - name: clm_attending_physician_spec
+    type: string
+  - name: clm_operating_provider_name
+    type: string
+  - name: clm_operating_provider_npi
+    type: string
+  - name: clm_submitting_provider
+    type: string
+  - name: clm_submitting_provider_spec
+    type: string
+  - name: clm_submitting_provider_type
+    type: string
+  - name: clm_billing_provider
+    type: string
+  - name: clm_referring_provider
+    type: string
+  - name: clm_referring_provider_spec
+    type: string
+  - name: clm_referring_provider_type
+    type: string
+  - name: clm_is_par_submitting_provider
+    type: string
+  - name: clm_is_par_referring_provider
+    type: boolean
+  - name: clm_is_par_rendering_provider
+    type: boolean
+  - name: clm_assigned_pcp
+    type: string
+  - name: clm_assigned_provider_site
+    type: string
+  - name: clm_insurance_id
+    type: string
+  - name: clm_member_contract_id
+    type: string
+  - name: clm_pcp_visit_flag
+    type: int
+  - name: clm_pcp_in_type
+    type: string
+  - name: clm_pcp_wthld_pct
+    type: decimal(18,2)
+  - name: clm_service_fac_npi
+    type: string
+  - name: clm_service_fac_loc_name
+    type: string
+  - name: clm_service_facility_address_sk
+    type: bigint
+  - name: clm_providers_account_no
+    type: string
+  - name: clm_onset_of_illness_date
+    type: string
+  - name: clm_admitting_diagnosis_code
+    type: string
+  - name: clm_admitting_diagnosis_method
+    type: string
+  - name: clm_diagnosis_1
+    type: string
+  - name: clm_diagnosis_1_icd_method
+    type: string
+  - name: clm_diagnosis_2
+    type: string
+  - name: clm_diagnosis_2_icd_method
+    type: string
+  - name: clm_diagnosis_3
+    type: string
+  - name: clm_diagnosis_3_icd_method
+    type: string
+  - name: clm_diagnosis_4
+    type: string
+  - name: clm_diagnosis_4_icd_method
+    type: string
+  - name: clm_diagnosis_5
+    type: string
+  - name: clm_diagnosis_5_icd_method
+    type: string
+  - name: clm_diagnosis_6
+    type: string
+  - name: clm_diagnosis_6_icd_method
+    type: string
+  - name: clm_diagnosis_7
+    type: string
+  - name: clm_diagnosis_7_icd_method
+    type: string
+  - name: clm_diagnosis_8
+    type: string
+  - name: clm_diagnosis_8_icd_method
+    type: string
+  - name: clm_diagnosis_9
+    type: string
+  - name: clm_diagnosis_9_icd_method
+    type: string
+  - name: clm_diagnosis_10
+    type: string
+  - name: clm_diagnosis_10_icd_method
+    type: string
+  - name: clm_diagnosis_11
+    type: string
+  - name: clm_diagnosis_11_icd_method
+    type: string
+  - name: clm_diagnosis_12
+    type: string
+  - name: clm_diagnosis_12_icd_method
+    type: string
+  - name: clm_diagnosis_13
+    type: string
+  - name: clm_diagnosis_13_icd_method
+    type: string
+  - name: clm_diagnosis_14
+    type: string
+  - name: clm_diagnosis_14_icd_method
+    type: string
+  - name: clm_diagnosis_15
+    type: string
+  - name: clm_diagnosis_15_icd_method
+    type: string
+  - name: clm_diagnosis_16
+    type: string
+  - name: clm_diagnosis_16_icd_method
+    type: string
+  - name: clm_diagnosis_17
+    type: string
+  - name: clm_diagnosis_17_icd_method
+    type: string
+  - name: clm_diagnosis_18
+    type: string
+  - name: clm_diagnosis_18_icd_method
+    type: string
+  - name: clm_diagnosis_19
+    type: string
+  - name: clm_diagnosis_19_icd_method
+    type: string
+  - name: clm_diagnosis_20
+    type: string
+  - name: clm_diagnosis_20_icd_method
+    type: string
+  - name: clm_diagnosis_21
+    type: string
+  - name: clm_diagnosis_21_icd_method
+    type: string
+  - name: clm_diagnosis_22
+    type: string
+  - name: clm_diagnosis_22_icd_method
+    type: string
+  - name: clm_diagnosis_23
+    type: string
+  - name: clm_diagnosis_23_icd_method
+    type: string
+  - name: clm_diagnosis_24
+    type: string
+  - name: clm_diagnosis_24_icd_method
+    type: string
+  - name: clm_diagnosis_25
+    type: string
+  - name: clm_diagnosis_25_icd_method
+    type: string
+  - name: clm_diagnosis_1_poa
+    type: string
+  - name: clm_diagnosis_2_poa
+    type: string
+  - name: clm_diagnosis_3_poa
+    type: string
+  - name: clm_diagnosis_4_poa
+    type: string
+  - name: clm_diagnosis_5_poa
+    type: string
+  - name: clm_diagnosis_6_poa
+    type: string
+  - name: clm_diagnosis_7_poa
+    type: string
+  - name: clm_diagnosis_8_poa
+    type: string
+  - name: clm_diagnosis_9_poa
+    type: string
+  - name: clm_diagnosis_10_poa
+    type: string
+  - name: clm_diagnosis_11_poa
+    type: string
+  - name: clm_diagnosis_12_poa
+    type: string
+  - name: clm_diagnosis_13_poa
+    type: string
+  - name: clm_diagnosis_14_poa
+    type: string
+  - name: clm_diagnosis_15_poa
+    type: string
+  - name: clm_diagnosis_16_poa
+    type: string
+  - name: clm_diagnosis_17_poa
+    type: string
+  - name: clm_diagnosis_18_poa
+    type: string
+  - name: clm_diagnosis_19_poa
+    type: string
+  - name: clm_diagnosis_20_poa
+    type: string
+  - name: clm_diagnosis_21_poa
+    type: string
+  - name: clm_diagnosis_22_poa
+    type: string
+  - name: clm_diagnosis_23_poa
+    type: string
+  - name: clm_diagnosis_24_poa
+    type: string
+  - name: clm_diagnosis_25_poa
+    type: string
+  - name: clm_surgical_1
+    type: string
+  - name: clm_surgical_icd_method_1
+    type: string
+  - name: clm_surgical_2
+    type: string
+  - name: clm_surgical_icd_method_2
+    type: string
+  - name: clm_surgical_3
+    type: string
+  - name: clm_surgical_icd_method_3
+    type: string
+  - name: clm_surgical_4
+    type: string
+  - name: clm_surgical_icd_method_4
+    type: string
+  - name: clm_surgical_5
+    type: string
+  - name: clm_surgical_icd_method_5
+    type: string
+  - name: clm_surgical_6
+    type: string
+  - name: clm_surgical_icd_method_6
+    type: string
+  - name: clm_drg_code
+    type: string
+  - name: clm_service_type_code
+    type: string
+  - name: clm_cob_type
+    type: string
+  - name: clm_claim_timely_filing
+    type: string
+  - name: clm_accept_assignment_indicator
+    type: string
+  - name: clm_add_date
+    type: date
+  - name: clm_add_user
+    type: string
+  - name: clm_update_date
+    type: date
+  - name: clm_update_user
+    type: string
+  - name: clm_extract_date
+    type: timestamp
+  - name: clm_last_updated_date
+    type: date
+  - name: clm_original_insert_date
+    type: date
+  - name: clm_user_id
+    type: string
+  - name: clm_orig_source
+    type: string
+  - name: is_active
+    type: boolean
+  - name: end_date
+    type: timestamp
+  - name: record_hash
+    type: string
+  - name: last_updated_date
+    type: date
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: fact_claim_header_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:42 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 9178878 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Claim header fact table containing claim-level attributes, member references,
+      facility address references, providers, diagnoses, and audit fields.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/96cec039-4f5e-4e25-aa79-fd1126541020
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-30b12b7d-e622-4f31-be3a-002c14f9cba8,delta.rowTracking.materializedRowIdColumnName=_row-id-col-a760fc91-6f0e-4687-b25c-72e30884c113]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_header_v2
+  name: fact_claim_header_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: clm_header_sk
+    type: bigint
+  - name: clm_id
+    type: int
+  - name: clm_claim_id
+    type: string
+  - name: clm_original_source_claim_id
+    type: string
+  - name: clm_original_batch_nbr
+    type: string
+  - name: clm_patient_control_nbr
+    type: string
+  - name: clm_document_adj_control_nbr
+    type: string
+  - name: clm_claim_type
+    type: string
+  - name: clm_bill_type
+    type: string
+  - name: clm_authorization_nbr
+    type: string
+  - name: clm_ext_authorization_nbr
+    type: string
+  - name: clm_admit_date
+    type: date
+  - name: clm_claim_thru_date
+    type: date
+  - name: clm_discharge_date
+    type: date
+  - name: clm_admission_hour
+    type: int
+  - name: clm_discharge_hour
+    type: int
+  - name: clm_admission_type
+    type: string
+  - name: clm_admission_source
+    type: string
+  - name: clm_member_nbr
+    type: string
+  - name: clm_member_name
+    type: string
+  - name: clm_member_sk
+    type: bigint
+  - name: clm_member_group_nbr
+    type: string
+  - name: clm_member_subgroup_nbr
+    type: string
+  - name: clm_plan_code
+    type: string
+  - name: clm_line_of_business
+    type: string
+  - name: clm_birth_weight
+    type: decimal(9,2)
+  - name: clm_covered_days
+    type: int
+  - name: clm_accident_st
+    type: string
+  - name: clm_attending_physician
+    type: string
+  - name: clm_attending_physician_spec
+    type: string
+  - name: clm_operating_provider_name
+    type: string
+  - name: clm_operating_provider_npi
+    type: string
+  - name: clm_submitting_provider
+    type: string
+  - name: clm_submitting_provider_spec
+    type: string
+  - name: clm_submitting_provider_type
+    type: string
+  - name: clm_billing_provider
+    type: string
+  - name: clm_referring_provider
+    type: string
+  - name: clm_referring_provider_spec
+    type: string
+  - name: clm_referring_provider_type
+    type: string
+  - name: clm_is_par_submitting_provider
+    type: string
+  - name: clm_is_par_referring_provider
+    type: boolean
+  - name: clm_is_par_rendering_provider
+    type: boolean
+  - name: clm_assigned_pcp
+    type: string
+  - name: clm_assigned_provider_site
+    type: string
+  - name: clm_insurance_id
+    type: string
+  - name: clm_member_contract_id
+    type: string
+  - name: clm_pcp_visit_flag
+    type: int
+  - name: clm_pcp_in_type
+    type: string
+  - name: clm_pcp_wthld_pct
+    type: decimal(9,4)
+  - name: clm_service_fac_npi
+    type: string
+  - name: clm_service_fac_loc_name
+    type: string
+  - name: clm_service_facility_address_sk
+    type: bigint
+  - name: clm_providers_account_no
+    type: string
+  - name: clm_onset_of_illness_date
+    type: string
+  - name: clm_admitting_diagnosis_code
+    type: string
+  - name: clm_admitting_diagnosis_method
+    type: string
+  - name: clm_diagnosis_1
+    type: string
+  - name: clm_diagnosis_1_icd_method
+    type: string
+  - name: clm_diagnosis_2
+    type: string
+  - name: clm_diagnosis_2_icd_method
+    type: string
+  - name: clm_diagnosis_3
+    type: string
+  - name: clm_diagnosis_3_icd_method
+    type: string
+  - name: clm_diagnosis_4
+    type: string
+  - name: clm_diagnosis_4_icd_method
+    type: string
+  - name: clm_diagnosis_5
+    type: string
+  - name: clm_diagnosis_5_icd_method
+    type: string
+  - name: clm_diagnosis_6
+    type: string
+  - name: clm_diagnosis_6_icd_method
+    type: string
+  - name: clm_diagnosis_7
+    type: string
+  - name: clm_diagnosis_7_icd_method
+    type: string
+  - name: clm_diagnosis_8
+    type: string
+  - name: clm_diagnosis_8_icd_method
+    type: string
+  - name: clm_diagnosis_9
+    type: string
+  - name: clm_diagnosis_9_icd_method
+    type: string
+  - name: clm_diagnosis_10
+    type: string
+  - name: clm_diagnosis_10_icd_method
+    type: string
+  - name: clm_diagnosis_11
+    type: string
+  - name: clm_diagnosis_11_icd_method
+    type: string
+  - name: clm_diagnosis_12
+    type: string
+  - name: clm_diagnosis_12_icd_method
+    type: string
+  - name: clm_diagnosis_13
+    type: string
+  - name: clm_diagnosis_13_icd_method
+    type: string
+  - name: clm_diagnosis_14
+    type: string
+  - name: clm_diagnosis_14_icd_method
+    type: string
+  - name: clm_diagnosis_15
+    type: string
+  - name: clm_diagnosis_15_icd_method
+    type: string
+  - name: clm_diagnosis_16
+    type: string
+  - name: clm_diagnosis_16_icd_method
+    type: string
+  - name: clm_diagnosis_17
+    type: string
+  - name: clm_diagnosis_17_icd_method
+    type: string
+  - name: clm_diagnosis_18
+    type: string
+  - name: clm_diagnosis_18_icd_method
+    type: string
+  - name: clm_diagnosis_19
+    type: string
+  - name: clm_diagnosis_19_icd_method
+    type: string
+  - name: clm_diagnosis_20
+    type: string
+  - name: clm_diagnosis_20_icd_method
+    type: string
+  - name: clm_diagnosis_21
+    type: string
+  - name: clm_diagnosis_21_icd_method
+    type: string
+  - name: clm_diagnosis_22
+    type: string
+  - name: clm_diagnosis_22_icd_method
+    type: string
+  - name: clm_diagnosis_23
+    type: string
+  - name: clm_diagnosis_23_icd_method
+    type: string
+  - name: clm_diagnosis_24
+    type: string
+  - name: clm_diagnosis_24_icd_method
+    type: string
+  - name: clm_diagnosis_25
+    type: string
+  - name: clm_diagnosis_25_icd_method
+    type: string
+  - name: clm_diagnosis_1_poa
+    type: string
+  - name: clm_diagnosis_2_poa
+    type: string
+  - name: clm_diagnosis_3_poa
+    type: string
+  - name: clm_diagnosis_4_poa
+    type: string
+  - name: clm_diagnosis_5_poa
+    type: string
+  - name: clm_diagnosis_6_poa
+    type: string
+  - name: clm_diagnosis_7_poa
+    type: string
+  - name: clm_diagnosis_8_poa
+    type: string
+  - name: clm_diagnosis_9_poa
+    type: string
+  - name: clm_diagnosis_10_poa
+    type: string
+  - name: clm_diagnosis_11_poa
+    type: string
+  - name: clm_diagnosis_12_poa
+    type: string
+  - name: clm_diagnosis_13_poa
+    type: string
+  - name: clm_diagnosis_14_poa
+    type: string
+  - name: clm_diagnosis_15_poa
+    type: string
+  - name: clm_diagnosis_16_poa
+    type: string
+  - name: clm_diagnosis_17_poa
+    type: string
+  - name: clm_diagnosis_18_poa
+    type: string
+  - name: clm_diagnosis_19_poa
+    type: string
+  - name: clm_diagnosis_20_poa
+    type: string
+  - name: clm_diagnosis_21_poa
+    type: string
+  - name: clm_diagnosis_22_poa
+    type: string
+  - name: clm_diagnosis_23_poa
+    type: string
+  - name: clm_diagnosis_24_poa
+    type: string
+  - name: clm_diagnosis_25_poa
+    type: string
+  - name: clm_surgical_1
+    type: string
+  - name: clm_surgical_icd_method_1
+    type: string
+  - name: clm_surgical_2
+    type: string
+  - name: clm_surgical_icd_method_2
+    type: string
+  - name: clm_surgical_3
+    type: string
+  - name: clm_surgical_icd_method_3
+    type: string
+  - name: clm_surgical_4
+    type: string
+  - name: clm_surgical_icd_method_4
+    type: string
+  - name: clm_surgical_5
+    type: string
+  - name: clm_surgical_icd_method_5
+    type: string
+  - name: clm_surgical_6
+    type: string
+  - name: clm_surgical_icd_method_6
+    type: string
+  - name: clm_drg_code
+    type: string
+  - name: clm_service_type_code
+    type: string
+  - name: clm_cob_type
+    type: string
+  - name: clm_claim_timely_filing
+    type: string
+  - name: clm_accept_assignment_indicator
+    type: string
+  - name: clm_add_date
+    type: date
+  - name: clm_add_user
+    type: string
+  - name: clm_update_date
+    type: date
+  - name: clm_update_user
+    type: string
+  - name: clm_extract_date
+    type: timestamp
+  - name: clm_last_updated_date
+    type: date
+  - name: clm_original_insert_date
+    type: date
+  - name: clm_user_id
+    type: string
+  - name: clm_orig_source
+    type: string
+  - name: is_active
+    type: boolean
+  - name: end_date
+    type: timestamp
+  - name: record_hash
+    type: string
+  - name: last_updated_date
+    type: date
+  - name: created_at
+    type: timestamp
+  - name: updated_at
+    type: timestamp
+  - name: source_system_code
+    type: string
+  - name: source_system_name
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: fact_claim_header_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:28 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 394233 bytes, 500 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Claim header fact table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/f741af5c-3f7c-4fb5-873c-971588963a6b
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-569fdf85-3cd3-4dd3-a5f8-3bc9d45ecbc4,delta.rowTracking.materializedRowIdColumnName=_row-id-col-b76e021a-2e0c-4999-bf7f-2082e30057d1]'
+  row_count: 500
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_v1
+  name: fact_member_enrollment_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: src_member_business_id
+    type: int
+  - name: source_system
+    type: string
+  - name: mbr_enr_source_member_id
+    type: string
+  - name: mbr_enr_insured_id
+    type: string
+  - name: mbr_enr_contract_id
+    type: string
+  - name: mbr_enr_insured_code
+    type: string
+  - name: mbr_enr_insured_add_date
+    type: timestamp
+  - name: mbr_enr_insured_event_date
+    type: timestamp
+  - name: mbr_enr_insured_event_id
+    type: string
+  - name: mbr_enr_insured_event_code
+    type: string
+  - name: mbr_enr_status
+    type: string
+  - name: mbr_enr_insured_event_add_date
+    type: timestamp
+  - name: mbr_enr_plan_id
+    type: string
+  - name: mbr_enr_line_of_business
+    type: string
+  - name: mbr_enr_line_of_business_id
+    type: string
+  - name: mbr_enr_group_name
+    type: string
+  - name: mbr_enr_subgroup_name
+    type: string
+  - name: mbr_enr_effective_date
+    type: date
+  - name: mbr_enr_termination_date
+    type: date
+  - name: mbr_enr_termination_event_date
+    type: date
+  - name: mbr_enr_termination_reason
+    type: string
+  - name: mbr_enr_product_id
+    type: string
+  - name: mbr_enr_group_ck
+    type: string
+  - name: mbr_enr_group_code
+    type: string
+  - name: mbr_enr_subgroup_ck
+    type: string
+  - name: mbr_enr_subgroup_code
+    type: string
+  - name: is_active
+    type: boolean
+  - name: id_value
+    type: string
+  - name: id_type
+    type: string
+  - name: member_sk
+    type: bigint
+  - name: enrollment_sk
+    type: string
+  - name: payload_hash
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: fact_member_enrollment_v1
+  - name: Created Time
+    type: Tue Aug 18 21:14:46 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 2987315 bytes, 5000 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member enrollment fact table containing enrollment, plan, group, subgroup,
+      and membership status attributes.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/4505eb13-a4cf-4dd2-adc6-dbdf4db5874a
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-2cf75460-992b-4b3d-97b5-6a5195701c0f,delta.rowTracking.materializedRowIdColumnName=_row-id-col-d8328781-3100-4697-b65e-38fa9de17e2c]'
+  row_count: 5000
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_v2
+  name: fact_member_enrollment_v2
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: enrollment_sk
+    type: string
+  - name: source_system
+    type: string
+  - name: src_member_business_id
+    type: int
+  - name: mbr_enr_source_member_id
+    type: string
+  - name: mbr_enr_insured_id
+    type: string
+  - name: mbr_enr_contract_id
+    type: string
+  - name: mbr_enr_insured_code
+    type: string
+  - name: mbr_enr_insured_add_date
+    type: timestamp
+  - name: mbr_enr_insured_event_date
+    type: timestamp
+  - name: mbr_enr_insured_event_id
+    type: string
+  - name: mbr_enr_insured_event_code
+    type: string
+  - name: mbr_enr_status
+    type: string
+  - name: mbr_enr_insured_event_add_date
+    type: timestamp
+  - name: mbr_enr_plan_id
+    type: string
+  - name: mbr_enr_line_of_business
+    type: string
+  - name: mbr_enr_line_of_business_id
+    type: string
+  - name: mbr_enr_group_name
+    type: string
+  - name: mbr_enr_subgroup_name
+    type: string
+  - name: mbr_enr_effective_date
+    type: date
+  - name: mbr_enr_termination_date
+    type: date
+  - name: mbr_enr_termination_event_date
+    type: date
+  - name: mbr_enr_termination_reason
+    type: string
+  - name: mbr_enr_product_id
+    type: string
+  - name: mbr_enr_group_ck
+    type: string
+  - name: mbr_enr_group_code
+    type: string
+  - name: mbr_enr_subgroup_ck
+    type: string
+  - name: mbr_enr_subgroup_code
+    type: string
+  - name: is_active
+    type: boolean
+  - name: id_value
+    type: string
+  - name: id_type
+    type: string
+  - name: member_sk
+    type: bigint
+  - name: payload_hash
+    type: string
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: fact_member_enrollment_v2
+  - name: Created Time
+    type: Tue Aug 18 21:50:31 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Statistics
+    type: 656174 bytes, 5000 rows
+  - name: Type
+    type: MANAGED
+  - name: Comment
+    type: Member enrollment fact table.
+  - name: Location
+    type: s3://aw-serverless-stable-ext-s3-049629455384-s42i1j/__unitystorage/catalogs/817c2373-ddf2-418e-b66c-4b3c19f1ce41/tables/e05da508-2f26-4bec-927f-b0731e9f8224
+  - name: Provider
+    type: delta
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Is_managed_location
+    type: 'true'
+  - name: Predictive Optimization
+    type: ENABLE (inherited from METASTORE metastore_aws_us_east_1)
+  - name: Table Properties
+    type: '[delta.checkpoint.writeStatsAsJson=false,delta.checkpoint.writeStatsAsStruct=true,delta.enableDeletionVectors=true,delta.enableRowTracking=true,delta.feature.appendOnly=supported,delta.feature.deletionVectors=supported,delta.feature.domainMetadata=supported,delta.feature.invariants=supported,delta.feature.rowTracking=supported,delta.minReaderVersion=3,delta.minWriterVersion=7,delta.parquet.compression.codec=zstd,delta.rowTracking.materializedRowCommitVersionColumnName=_row-commit-version-col-6776fc6c-76c7-4eaa-bd1b-22502677f706,delta.rowTracking.materializedRowIdColumnName=_row-id-col-dd47a932-0d29-4bed-8e5f-21e4f0bcf16e]'
+  row_count: 5000
+- fqn: aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1
+  name: member_claims_metric_view_v1
+  schema: aw_serverless_stable_catalog.aibi_member_claims
+  columns:
+  - name: service_date
+    type: date
+  - name: service_month
+    type: timestamp
+  - name: claim_receive_date
+    type: date
+  - name: paid_date
+    type: date
+  - name: claim_type
+    type: string
+  - name: benefit_category
+    type: string
+  - name: benefit_level
+    type: string
+  - name: line_status
+    type: string
+  - name: adjudication_status
+    type: string
+  - name: clean_claim_indicator
+    type: string
+  - name: place_of_service
+    type: string
+  - name: procedure_code
+    type: string
+  - name: revenue_code
+    type: string
+  - name: rendering_provider
+    type: string
+  - name: rendering_provider_type
+    type: string
+  - name: rendering_provider_specialty
+    type: string
+  - name: submitting_provider
+    type: string
+  - name: source_system
+    type: string
+  - name: claim_header_line_of_business
+    type: string
+  - name: plan_code
+    type: string
+  - name: member_group_number
+    type: string
+  - name: member_subgroup_number
+    type: string
+  - name: primary_diagnosis_code
+    type: string
+  - name: drg_code
+    type: string
+  - name: service_type_code
+    type: string
+  - name: member_key
+    type: string
+  - name: member_line_of_business
+    type: string
+  - name: member_line_of_business_name
+    type: string
+  - name: member_state
+    type: string
+  - name: member_zip_code
+    type: string
+  - name: member_sex
+    type: string
+  - name: member_race
+    type: string
+  - name: member_ethnicity
+    type: string
+  - name: member_age
+    type: decimal(13,0)
+  - name: member_age_band
+    type: string
+  - name: enrollment_start_date
+    type: date
+  - name: enrollment_start_month
+    type: timestamp
+  - name: enrollment_status
+    type: string
+  - name: enrollment_line_of_business
+    type: string
+  - name: enrollment_plan_id
+    type: string
+  - name: new_member_enrollment
+    type: bigint measure
+  - name: active_members
+    type: bigint measure
+  - name: active_members_by_lob
+    type: bigint measure
+  - name: active_members_by_geography
+    type: bigint measure
+  - name: total_claims
+    type: bigint measure
+  - name: total_claim_lines
+    type: bigint measure
+  - name: total_paid
+    type: decimal(28,2) measure
+  - name: average_paid_per_claim
+    type: decimal(38,12) measure
+  - name: member_months
+    type: bigint measure
+  - name: pmpm
+    type: decimal(38,12) measure
+  - name: claims_per_1000_members
+    type: double measure
+  - name: members_with_claims
+    type: bigint measure
+  - name: active_enrolled_members
+    type: bigint measure
+  - name: utilization_rate
+    type: double measure
+  - name: denied_lines
+    type: bigint measure
+  - name: denial_rate
+    type: double measure
+  - name: clean_lines
+    type: bigint measure
+  - name: clean_claim_rate
+    type: double measure
+  - name: total_billed
+    type: decimal(28,2) measure
+  - name: total_allowed
+    type: decimal(28,2) measure
+  - name: payment_to_billed_ratio
+    type: decimal(38,10) measure
+  - name: payment_to_allowed_ratio
+    type: decimal(38,10) measure
+  - name: unique_members
+    type: bigint measure
+  - name: average_paid_per_member
+    type: decimal(38,12) measure
+  - name: claims_per_member
+    type: double measure
+  - name: lines_per_claim
+    type: double measure
+  - name: inpatient_paid_amount
+    type: decimal(28,2) measure
+  - name: outpatient_paid_amount
+    type: decimal(28,2) measure
+  - name: par_paid
+    type: decimal(28,2) measure
+  - name: participating_provider_rate
+    type: decimal(38,10) measure
+  - name: total_net_amount
+    type: decimal(28,2) measure
+  - name: total_deductible_amount
+    type: decimal(28,2) measure
+  - name: total_copay_amount
+    type: decimal(28,2) measure
+  - name: total_coinsurance_amount
+    type: decimal(28,2) measure
+  - name: total_not_covered_amount
+    type: decimal(28,2) measure
+  - name: total_cob_savings
+    type: decimal(28,2) measure
+  - name: total_interest_amount
+    type: decimal(28,2) measure
+  - name: procedure_units
+    type: decimal(28,2) measure
+  - name: paid_days
+    type: decimal(28,2) measure
+  - name: trailing_3m_paid
+    type: decimal(28,2) measure
+  - name: trailing_3m_member_months
+    type: bigint measure
+  - name: rolling_3m_pmpm
+    type: decimal(38,12) measure
+  - name: Catalog
+    type: aw_serverless_stable_catalog
+  - name: Database
+    type: aibi_member_claims
+  - name: Table
+    type: member_claims_metric_view_v1
+  - name: Owner
+    type: 5b7305db-234c-4359-8cf7-8b8b5c1315fc
+  - name: Created Time
+    type: Tue Aug 18 21:36:55 UTC 2026
+  - name: Last Access
+    type: UNKNOWN
+  - name: Created By
+    type: Spark
+  - name: Type
+    type: METRIC_VIEW
+  - name: Comment
+    type: 'Member Claims metric view v1. Claim and member-claim KPIs are sourced at
+      claim-line grain. Skipped KPI: MC-4 High-Cost Member Count because member-level
+      paid threshold logic requires pre-aggregation/HAVING that is not safely expressible
+      as a single metric-view aggregate at claim-line grain. Skipped KPI: W-2 MoM
+      Active Member Growth because offset/LAG over prior month is not supported directly
+      by metric-view window syntax and should be implemented in dashboard SQL.'
+  - name: View Text
+    type: "version: 1.1\n\nsource: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v1\n\
+      \njoins:\n  - name: claim_header\n    source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_header_v1\n\
+      \    \"on\": source.clm_dtl_claim_id = claim_header.clm_claim_id\n    cardinality:\
+      \ many_to_one\n  - name: member\n    source: aw_serverless_stable_catalog.aibi_member_claims.dim_member_v1\n\
+      \    \"on\": source.clm_dtl_member_nbr_sk = CAST(member.member_sk AS STRING)\n\
+      \    cardinality: many_to_one\n  - name: member_history\n    source: aw_serverless_stable_catalog.aibi_member_claims.dim_member_history_v1\n\
+      \    \"on\": source.clm_dtl_member_nbr_sk = CAST(member_history.member_sk AS\
+      \ STRING)\n    cardinality: many_to_one\n  - name: enrollment\n    source: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_v1\n\
+      \    \"on\": source.clm_dtl_member_nbr_sk = CAST(enrollment.member_sk AS STRING)\n\
+      \    cardinality: many_to_one\n\ncomment: \"Member Claims metric view v1. Claim\
+      \ and member-claim KPIs are sourced at\\\n  \\ claim-line grain. Skipped KPI:\
+      \ MC-4 High-Cost Member Count because member-level\\\n  \\ paid threshold logic\
+      \ requires pre-aggregation/HAVING that is not safely expressible\\\n  \\ as\
+      \ a single metric-view aggregate at claim-line grain. Skipped KPI: W-2 MoM Active\\\
+      \n  \\ Member Growth because offset/LAG over prior month is not supported directly\
+      \ by\\\n  \\ metric-view window syntax and should be implemented in dashboard\
+      \ SQL.\"\n\ndimensions:\n  - name: service_date\n    expr: clm_dtl_specific_dos_date\n\
+      \    comment: Claim line specific date of service.\n    display_name: Service\
+      \ Date\n\n  - name: service_month\n    expr: \"DATE_TRUNC('MONTH', clm_dtl_specific_dos_date)\"\
+      \n    comment: \"Month of claim line service, used for trends and window measures.\"\
+      \n    display_name: Service Month\n\n  - name: claim_receive_date\n    expr:\
+      \ CAST(clm_dtl_claim_receive_date AS DATE)\n    display_name: Claim Receive\
+      \ Date\n\n  - name: paid_date\n    expr: CAST(clm_dtl_check_date AS DATE)\n\
+      \    display_name: Paid Date\n\n  - name: claim_type\n    expr: clm_dtl_claim_type\n\
+      \    display_name: Claim Type\n\n  - name: benefit_category\n    expr: clm_dtl_benefit_category\n\
+      \    display_name: Benefit Category\n\n  - name: benefit_level\n    expr: clm_dtl_benefit_level\n\
+      \    display_name: Benefit Level\n\n  - name: line_status\n    expr: clm_dtl_line_status\n\
+      \    display_name: Claim Line Status\n\n  - name: adjudication_status\n    expr:\
+      \ clm_dtl_adjudication_status\n    display_name: Adjudication Status\n\n  -\
+      \ name: clean_claim_indicator\n    expr: clm_dtl_clean_claim_ind\n    display_name:\
+      \ Clean Claim Indicator\n\n  - name: place_of_service\n    expr: clm_dtl_place_of_service\n\
+      \    display_name: Place of Service\n\n  - name: procedure_code\n    expr: clm_dtl_procedure_code\n\
+      \    display_name: Procedure Code\n\n  - name: revenue_code\n    expr: clm_dtl_revenue_code\n\
+      \    display_name: Revenue Code\n\n  - name: rendering_provider\n    expr: clm_dtl_rendering_provider\n\
+      \    display_name: Rendering Provider\n\n  - name: rendering_provider_type\n\
+      \    expr: clm_dtl_rendering_provider_type\n    display_name: Rendering Provider\
+      \ Type\n\n  - name: rendering_provider_specialty\n    expr: clm_dtl_rendering_provider_spec\n\
+      \    display_name: Rendering Provider Specialty\n\n  - name: submitting_provider\n\
+      \    expr: clm_dtl_submitting_provider\n    display_name: Submitting Provider\n\
+      \n  - name: source_system\n    expr: clm_dtl_source_system\n    display_name:\
+      \ Source System\n\n  - name: claim_header_line_of_business\n    expr: claim_header.clm_line_of_business\n\
+      \    display_name: Claim Line of Business\n\n  - name: plan_code\n    expr:\
+      \ claim_header.clm_plan_code\n    display_name: Plan Code\n\n  - name: member_group_number\n\
+      \    expr: claim_header.clm_member_group_nbr\n    display_name: Member Group\
+      \ Number\n\n  - name: member_subgroup_number\n    expr: claim_header.clm_member_subgroup_nbr\n\
+      \    display_name: Member Subgroup Number\n\n  - name: primary_diagnosis_code\n\
+      \    expr: claim_header.clm_diagnosis_1\n    display_name: Primary Diagnosis\
+      \ Code\n\n  - name: drg_code\n    expr: claim_header.clm_drg_code\n    display_name:\
+      \ DRG Code\n\n  - name: service_type_code\n    expr: claim_header.clm_service_type_code\n\
+      \    display_name: Service Type Code\n\n  - name: member_key\n    expr: clm_dtl_member_nbr_sk\n\
+      \    display_name: Member Key\n\n  - name: member_line_of_business\n    expr:\
+      \ member.mbr_line_of_business\n    display_name: Member Line of Business\n\n\
+      \  - name: member_line_of_business_name\n    expr: member.mbr_line_of_business_name\n\
+      \    display_name: Member Line of Business Name\n\n  - name: member_state\n\
+      \    expr: member.mbr_state\n    display_name: Member State\n\n  - name: member_zip_code\n\
+      \    expr: member.mbr_zip_code\n    display_name: Member ZIP Code\n\n  - name:\
+      \ member_sex\n    expr: member.mbr_sex\n    display_name: Member Sex\n\n  -\
+      \ name: member_race\n    expr: member.mbr_race\n    display_name: Member Race\n\
+      \n  - name: member_ethnicity\n    expr: member.mbr_ethnicity\n    display_name:\
+      \ Member Ethnicity\n\n  - name: member_age\n    expr: \"FLOOR(DATEDIFF(CURRENT_DATE(),\
+      \ member.mbr_dob) / 365.25)\"\n    display_name: Member Age\n\n  - name: member_age_band\n\
+      \    expr: \"CASE WHEN member.mbr_dob IS NULL THEN 'Unknown' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+      \n      \\ member.mbr_dob) / 365.25) < 18 THEN '0-17' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+      \n      \\ member.mbr_dob) / 365.25) < 35 THEN '18-34' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+      \n      \\ member.mbr_dob) / 365.25) < 50 THEN '35-49' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+      \n      \\ member.mbr_dob) / 365.25) < 65 THEN '50-64' ELSE '65+' END\"\n  \
+      \  display_name: Member Age Band\n\n  - name: enrollment_start_date\n    expr:\
+      \ CAST(member_history.valid_from_date AS DATE)\n    display_name: Enrollment\
+      \ Start Date\n\n  - name: enrollment_start_month\n    expr: \"DATE_TRUNC('MONTH',\
+      \ CAST(member_history.valid_from_date AS DATE))\"\n    display_name: Enrollment\
+      \ Start Month\n\n  - name: enrollment_status\n    expr: enrollment.mbr_enr_status\n\
+      \    display_name: Enrollment Status\n\n  - name: enrollment_line_of_business\n\
+      \    expr: enrollment.mbr_enr_line_of_business\n    display_name: Enrollment\
+      \ Line of Business\n\n  - name: enrollment_plan_id\n    expr: enrollment.mbr_enr_plan_id\n\
+      \    display_name: Enrollment Plan ID\n\nmeasures:\n  - name: new_member_enrollment\n\
+      \    expr: COUNT(DISTINCT member_history.member_sk) FILTER (WHERE member_history.valid_from_date\n\
+      \      IS NOT NULL)\n    comment: M-1. Count of distinct members with a history\
+      \ valid_from_date in the\n      queried period.\n    display_name: New Member\
+      \ Enrollment\n\n  - name: active_members\n    expr: COUNT(DISTINCT member.member_sk)\
+      \ FILTER (WHERE member.is_active = TRUE)\n    comment: M-2/M-3 base measure.\
+      \ Slice by line of business or geography fields;\n      do not sum across time.\n\
+      \    display_name: Active Members\n\n  - name: active_members_by_lob\n    expr:\
+      \ COUNT(DISTINCT member.member_sk) FILTER (WHERE member.is_active = TRUE)\n\
+      \    comment: \"M-2. Use with member_line_of_business, member_line_of_business_name,\\\
+      \n      \\ claim_header_line_of_business, or enrollment_line_of_business.\"\n\
+      \    display_name: Members by Line of Business\n\n  - name: active_members_by_geography\n\
+      \    expr: COUNT(DISTINCT member.member_sk) FILTER (WHERE member.is_active =\
+      \ TRUE)\n    comment: M-3. Use with member_state and member_zip_code.\n    display_name:\
+      \ Members by Geography\n\n  - name: total_claims\n    expr: COUNT(DISTINCT clm_dtl_claim_id)\n\
+      \    comment: C-1. Distinct claim count.\n    display_name: Total Claims\n\n\
+      \  - name: total_claim_lines\n    expr: COUNT(clm_dtl_line_nbr)\n    comment:\
+      \ C-2. Claim service line count.\n    display_name: Total Claim Lines\n\n  -\
+      \ name: total_paid\n    expr: SUM(clm_dtl_paid_amt)\n    comment: C-3. Sum of\
+      \ paid amount across claim lines.\n    display_name: Total Paid Amount\n\n \
+      \ - name: average_paid_per_claim\n    expr: \"MEASURE(total_paid) / NULLIF(MEASURE(total_claims),\
+      \ 0)\"\n    comment: C-4. Paid amount divided by distinct claims.\n    display_name:\
+      \ Average Paid per Claim\n\n  - name: member_months\n    expr: \"COUNT(DISTINCT\
+      \ CONCAT(CAST(clm_dtl_member_nbr_sk AS STRING), '-', CAST(DATE_TRUNC('MONTH',\\\
+      \n      \\ clm_dtl_specific_dos_date) AS STRING)))\"\n    comment: Distinct\
+      \ member-service-month exposure observed at claim-line grain.\n    display_name:\
+      \ Member Months\n\n  - name: pmpm\n    expr: \"MEASURE(total_paid) / NULLIF(MEASURE(member_months),\
+      \ 0)\"\n    comment: MC-1. Total paid divided by member-months.\n    display_name:\
+      \ PMPM\n\n  - name: claims_per_1000_members\n    expr: \"(MEASURE(total_claims)\
+      \ / NULLIF(MEASURE(member_months), 0)) * 1000\"\n    comment: \"MC-2. Distinct\
+      \ claims normalized by member-months and scaled by 1,000.\"\n    display_name:\
+      \ \"Claims per 1,000 Members\"\n\n  - name: members_with_claims\n    expr: COUNT(DISTINCT\
+      \ clm_dtl_member_nbr_sk)\n    display_name: Members with Claims\n\n  - name:\
+      \ active_enrolled_members\n    expr: COUNT(DISTINCT enrollment.member_sk) FILTER\
+      \ (WHERE enrollment.is_active\n      = TRUE)\n    comment: Enrollment-based\
+      \ denominator available through enrollment member_sk.\n    display_name: Active\
+      \ Enrolled Members\n\n  - name: utilization_rate\n    expr: \"MEASURE(members_with_claims)\
+      \ / NULLIF(MEASURE(active_enrolled_members),\\\n      \\ 0)\"\n    comment:\
+      \ MC-3. Members with claims divided by active enrolled members.\n    display_name:\
+      \ Utilization Rate\n\n  - name: denied_lines\n    expr: COUNT(clm_dtl_line_nbr)\
+      \ FILTER (WHERE UPPER(clm_dtl_adjudication_status)\n      = 'DENIED' OR UPPER(clm_dtl_line_status)\
+      \ = 'DENIED')\n    display_name: Denied Lines\n\n  - name: denial_rate\n   \
+      \ expr: \"MEASURE(denied_lines) / NULLIF(MEASURE(total_claim_lines), 0)\"\n\
+      \    display_name: Denial Rate\n\n  - name: clean_lines\n    expr: \"COUNT(clm_dtl_line_nbr)\
+      \ FILTER (WHERE UPPER(clm_dtl_clean_claim_ind) IN\\\n      \\ ('Y', 'YES', 'TRUE',\
+      \ '1'))\"\n    display_name: Clean Lines\n\n  - name: clean_claim_rate\n   \
+      \ expr: \"MEASURE(clean_lines) / NULLIF(MEASURE(total_claim_lines), 0)\"\n \
+      \   display_name: Clean Claim Rate\n\n  - name: total_billed\n    expr: SUM(clm_dtl_billed_amt)\n\
+      \    display_name: Total Billed Amount\n\n  - name: total_allowed\n    expr:\
+      \ SUM(clm_dtl_allowed_amt)\n    display_name: Total Allowed Amount\n\n  - name:\
+      \ payment_to_billed_ratio\n    expr: \"MEASURE(total_paid) / NULLIF(MEASURE(total_billed),\
+      \ 0)\"\n    display_name: Payment-to-Billed Ratio\n\n  - name: payment_to_allowed_ratio\n\
+      \    expr: \"MEASURE(total_paid) / NULLIF(MEASURE(total_allowed), 0)\"\n   \
+      \ display_name: Payment-to-Allowed Ratio\n\n  - name: unique_members\n    expr:\
+      \ COUNT(DISTINCT clm_dtl_member_nbr_sk)\n    display_name: Unique Members\n\n\
+      \  - name: average_paid_per_member\n    expr: \"MEASURE(total_paid) / NULLIF(MEASURE(unique_members),\
+      \ 0)\"\n    display_name: Average Paid per Member\n\n  - name: claims_per_member\n\
+      \    expr: \"MEASURE(total_claims) / NULLIF(MEASURE(unique_members), 0)\"\n\
+      \    display_name: Claims per Member\n\n  - name: lines_per_claim\n    expr:\
+      \ \"MEASURE(total_claim_lines) / NULLIF(MEASURE(total_claims), 0)\"\n    display_name:\
+      \ Lines per Claim\n\n  - name: inpatient_paid_amount\n    expr: SUM(clm_dtl_paid_amt)\
+      \ FILTER (WHERE UPPER(clm_dtl_claim_type) = 'INSTITUTIONAL')\n    display_name:\
+      \ Inpatient Paid Amount\n\n  - name: outpatient_paid_amount\n    expr: SUM(clm_dtl_paid_amt)\
+      \ FILTER (WHERE UPPER(clm_dtl_claim_type) = 'PROFESSIONAL')\n    display_name:\
+      \ Outpatient Paid Amount\n\n  - name: par_paid\n    expr: \"SUM(clm_dtl_paid_amt)\
+      \ FILTER (WHERE claim_header.clm_is_par_rendering_provider\\\n      \\ = TRUE\
+      \ OR claim_header.clm_is_par_referring_provider = TRUE OR UPPER(claim_header.clm_is_par_submitting_provider)\\\
+      \n      \\ IN ('Y', 'YES', 'TRUE', '1'))\"\n    display_name: Participating\
+      \ Provider Paid Amount\n\n  - name: participating_provider_rate\n    expr: \"\
+      MEASURE(par_paid) / NULLIF(MEASURE(total_paid), 0)\"\n    display_name: Participating\
+      \ Provider Rate\n\n  - name: total_net_amount\n    expr: SUM(clm_dtl_net_amt)\n\
+      \    display_name: Total Net Amount\n\n  - name: total_deductible_amount\n \
+      \   expr: SUM(clm_dtl_deduct_amt)\n    display_name: Total Deductible Amount\n\
+      \n  - name: total_copay_amount\n    expr: SUM(clm_dtl_copay_amt)\n    display_name:\
+      \ Total Copay Amount\n\n  - name: total_coinsurance_amount\n    expr: SUM(clm_dtl_co_insurance_amt)\n\
+      \    display_name: Total Coinsurance Amount\n\n  - name: total_not_covered_amount\n\
+      \    expr: SUM(clm_dtl_not_covered_amt)\n    display_name: Total Not Covered\
+      \ Amount\n\n  - name: total_cob_savings\n    expr: SUM(clm_dtl_cob_savings)\n\
+      \    display_name: Total COB Savings\n\n  - name: total_interest_amount\n  \
+      \  expr: SUM(clm_dtl_interest_amt)\n    display_name: Total Interest Amount\n\
+      \n  - name: procedure_units\n    expr: SUM(clm_dtl_procedure_qty)\n    display_name:\
+      \ Procedure Units\n\n  - name: paid_days\n    expr: SUM(clm_dtl_paid_days)\n\
+      \    display_name: Paid Days\n\n  - name: trailing_3m_paid\n    expr: SUM(clm_dtl_paid_amt)\n\
+      \    window:\n      - order: service_month\n        semiadditive: last\n   \
+      \     range: trailing 3 month\n    comment: W-1 numerator component.\n    display_name:\
+      \ Trailing 3-Month Paid Amount\n\n  - name: trailing_3m_member_months\n    expr:\
+      \ \"COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk AS STRING), '-', CAST(DATE_TRUNC('MONTH',\\\
+      \n      \\ clm_dtl_specific_dos_date) AS STRING)))\"\n    window:\n      - order:\
+      \ service_month\n        semiadditive: last\n        range: trailing 3 month\n\
+      \    comment: W-1 denominator component.\n    display_name: Trailing 3-Month\
+      \ Member Months\n\n  - name: rolling_3m_pmpm\n    expr: \"SUM(clm_dtl_paid_amt)\
+      \ / NULLIF(COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk\\\n      \\ AS STRING),\
+      \ '-', CAST(DATE_TRUNC('MONTH', clm_dtl_specific_dos_date) AS STRING))),\\\n\
+      \      \\ 0)\"\n    window:\n      - order: service_month\n        semiadditive:\
+      \ last\n        range: trailing 3 month\n    comment: \"W-1. Windowed ratio\
+      \ computed from paid numerator and member-month denominator,\\\n      \\ not\
+      \ by averaging PMPM.\"\n    display_name: Rolling 3-Month PMPM"
+  - name: Language
+    type: YAML
+  - name: Table Properties
+    type: '[metric_view.from.name=aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v1,
+      metric_view.from.type=ASSET, metric_view.joins=[{"name":"claim_header","cardinality":"many_to_one"},{"name":"member","cardinality":"many_to_one"},{"name":"member_history","cardinality":"many_to_one"},{"name":"enrollment","cardinality":"many_to_one"}],
+      metric_view.materialization.enabled=false]'
+  row_count: 5000
+schemas:
+- aw_serverless_stable_catalog.aibi_member_claims

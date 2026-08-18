@@ -113,21 +113,39 @@
   /* Step panels */
   .step-panel { display: none; }
   .step-panel.active { display: block; }
+  #step-2.active { display: flex; }
 
   /* Domain cards */
   .domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .domain-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s; }
-  .domain-card:hover { border-color: #1a73e8; box-shadow: 0 2px 8px rgba(26,115,232,0.15); }
-  .domain-card h3 { margin: 0 0 8px; font-size: 16px; }
-  .domain-card p { margin: 0 0 12px; font-size: 0.82rem; color: #555; line-height: 1.5; }
-  .domain-card .version { font-size: 12px; color: #888; background: #f5f5f5; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+  .domain-card { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; cursor: pointer; transition: box-shadow 0.2s, transform 0.15s, border-color 0.2s; background: #fff; }
+  .domain-card:hover { border-color: transparent; box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-2px); }
+  .domain-card-header { padding: 14px 18px; color: #fff; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 10px; }
+  .domain-card-header .domain-icon { width: 28px; height: 28px; background: rgba(255,255,255,0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .domain-card-header .domain-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .domain-card-header .domain-title { flex: 1; }
+  .domain-card-header .domain-version { font-size: 0.72rem; font-weight: 500; background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 10px; margin-left: auto; }
+  .domain-card-body { padding: 16px 18px; }
+  .domain-card-body p { margin: 0; font-size: 0.82rem; color: #555; line-height: 1.5; }
+  /* Color palette for domain cards */
+  .domain-card[data-color="0"] .domain-card-header { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
+  .domain-card[data-color="1"] .domain-card-header { background: linear-gradient(135deg, #0891b2, #06b6d4); }
+  .domain-card[data-color="2"] .domain-card-header { background: linear-gradient(135deg, #059669, #10b981); }
+  .domain-card[data-color="3"] .domain-card-header { background: linear-gradient(135deg, #d97706, #f59e0b); }
+  .domain-card[data-color="4"] .domain-card-header { background: linear-gradient(135deg, #dc2626, #f43f5e); }
+  .domain-card[data-color="5"] .domain-card-header { background: linear-gradient(135deg, #7c3aed, #a78bfa); }
+  .domain-card[data-color="6"] .domain-card-header { background: linear-gradient(135deg, #0284c7, #38bdf8); }
+  .domain-card[data-color="7"] .domain-card-header { background: linear-gradient(135deg, #b45309, #fbbf24); }
 
-  /* Sub-nav */
-  .sub-nav { display: flex; gap: 0; border-bottom: 2px solid #e0e0e0; margin-bottom: 20px; }
-  .sub-nav-item { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: 14px; color: #666; }
+  /* Step 2 layout — fixed height with scrollable content */
+  #step-2.active { flex-direction: column; max-height: calc(100vh - 180px); }
+  .sub-nav { display: flex; gap: 0; border-bottom: 2px solid #e0e0e0; margin-bottom: 0; flex-shrink: 0; }
+  .sub-nav-item { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: 14px; color: #666; display: flex; align-items: center; gap: 6px; }
   .sub-nav-item.active { color: #1a73e8; border-bottom-color: #1a73e8; font-weight: 600; }
-  .sub-panel { display: none; }
+  .sub-nav-badge { font-size: 0.65rem; font-weight: 600; background: #e5e7eb; color: #6b7280; padding: 1px 7px; border-radius: 10px; min-width: 18px; text-align: center; }
+  .sub-nav-item.active .sub-nav-badge { background: #dbeafe; color: #1a73e8; }
+  .sub-panel { display: none; overflow-y: auto; flex: 1; padding: 20px 0; min-height: 0; }
   .sub-panel.active { display: block; }
+  #step-2 .bottom-nav { flex-shrink: 0; position: sticky; bottom: 0; background: #fff; z-index: 5; }
 
   /* Config form — card-based modern layout */
   .config-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
@@ -174,11 +192,16 @@
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
   /* KPI Matrix — card-based editable UI */
-  .kpi-section { margin-bottom: 28px; }
-  .kpi-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f3f4f6; }
-  .kpi-section-title { font-size: 0.85rem; font-weight: 700; color: #1f2937; }
-  .kpi-section-count { font-size: 0.7rem; background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 10px; }
-  .kpi-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .kpi-section { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
+  .kpi-section-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #f9fafb; cursor: pointer; user-select: none; transition: background 0.15s; }
+  .kpi-section-header:hover { background: #f3f4f6; }
+  .kpi-section-header .collapse-icon { font-size: 0.7rem; color: #9ca3af; transition: transform 0.2s; }
+  .kpi-section.collapsed .collapse-icon { transform: rotate(-90deg); }
+  .kpi-section.collapsed .kpi-grid { display: none; }
+  .kpi-section-title { font-size: 0.82rem; font-weight: 700; color: #1f2937; flex: 1; }
+  .kpi-section-count { font-size: 0.7rem; background: #e5e7eb; color: #6b7280; padding: 2px 8px; border-radius: 10px; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 10px; padding: 12px 16px; }
+  @media (max-width: 860px) { .kpi-grid { grid-template-columns: 1fr; } }
   .kpi-item { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; transition: box-shadow 0.15s, border-color 0.15s; }
   .kpi-item:hover { border-color: #d1d5db; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
   .kpi-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
@@ -225,7 +248,7 @@
   .kpi-info-panel p { margin: 4px 0; color: #6b7280; font-style: italic; }
 
   /* Best practices */
-  #practices-content { font-size: 0.82rem; line-height: 1.7; }
+  #practices-content { font-size: 0.82rem; line-height: 1.7; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 24px; background: #fafbff; }
   .bp-editor { width: 100%; min-height: 300px; font-family: 'SF Mono', Menlo, monospace; font-size: 0.75rem; padding: 14px; border: 1px solid #e5e7eb; border-radius: 6px; color: #374151; background: #fafafa; }
   .bp-rendered { padding: 4px 0; }
   .bp-rendered h1 { font-size: 1.2rem; font-weight: 700; color: #111827; margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #f3f4f6; }
@@ -265,6 +288,9 @@
   .step-node.running .step-circle { border-color: #2563eb; background: #fff; color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
   .step-node.running .step-circle::after { content: ''; width: 10px; height: 10px; background: #2563eb; border-radius: 50%; }
   .step-node.failed .step-circle { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
+  .step-node.skipped .step-circle { border-color: #d1d5db; background: #f9fafb; color: #9ca3af; }
+  .step-node.skipped .step-label { color: #9ca3af; text-decoration: line-through; }
+  .step-node.skipped .step-dur { color: #d1d5db; }
   .step-node .step-label { margin-top: 6px; font-size: 0.72rem; font-weight: 500; color: #6b7280; white-space: nowrap; }
   .step-node.running .step-label { color: #111827; font-weight: 600; }
   .step-node.completed .step-label { color: #374151; }
@@ -400,16 +426,37 @@
       return;
     }
     empty.style.display = 'none';
-    container.innerHTML = data.domains.map(d => `
-      <div class="domain-card" data-domain="${d.name}">
-        <h3>${d.display_name}</h3>
-        <p>${d.description || 'No description'}</p>
-        <span class="version">${d.version || d.version_suffix || 'v1'}</span>
+    const icons = [
+      '<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg>',
+      '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
+      '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+      '<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
+      '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
+      '<svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>',
+      '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>',
+      '<svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>',
+    ];
+    container.innerHTML = data.domains.map((d, i) => `
+      <div class="domain-card" data-domain="${d.name}" data-color="${i % 8}">
+        <div class="domain-card-header">
+          <span class="domain-icon">${icons[i % 8]}</span>
+          <span class="domain-title">${d.display_name}</span>
+          <span class="domain-version">${d.version || d.version_suffix || 'v1'}</span>
+        </div>
+        <div class="domain-card-body">
+          <p>${d.description || 'No description'}</p>
+        </div>
       </div>
     `).join('');
     container.querySelectorAll('.domain-card').forEach(card => {
       card.addEventListener('click', () => selectDomain(card.dataset.domain));
     });
+  }
+
+  // --- Badge counts for sub-nav tabs ---
+  function updateBadge(id, count) {
+    const badge = document.getElementById(id);
+    if (badge) badge.textContent = count > 0 ? count : '';
   }
 
   // --- Select Domain & Load Config ---
@@ -631,6 +678,8 @@
         setTimeout(() => { replaceBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Replace'; }, 2500);
       });
     }
+    // Update config badge — count of config cards rendered
+    updateBadge('badge-config', document.querySelectorAll('.config-card').length);
   }
 
   // --- Step 2: Load KPI Matrix ---
@@ -753,7 +802,8 @@
 
     kpiOnly.forEach((sec, si) => {
       html += `<div class="kpi-section" data-section="${si}">
-        <div class="kpi-section-header">
+        <div class="kpi-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="collapse-icon">&#x25BC;</span>
           <span class="kpi-section-title">${escapeHtml(sec.title)}</span>
           <span class="kpi-section-count">${sec.items.length}</span>
         </div>
@@ -793,6 +843,9 @@
     });
 
     container.innerHTML = html;
+
+    // Update KPI badge with total count
+    updateBadge('badge-kpi', kpiOnly.reduce((s, sec) => s + sec.items.length, 0));
 
     // Info panel toggle
     const infoBtn = document.getElementById('kpi-info-btn');
@@ -878,6 +931,9 @@
     }
     bpRawContent = data.content;
     renderBestPractices(container);
+    // Count h2 sections in best practices markdown
+    const bpSections = (bpRawContent.match(/^## /gm) || []).length;
+    updateBadge('badge-practices', bpSections);
   }
 
   function renderBestPractices(container) {
@@ -983,19 +1039,38 @@
   let stepLogs = {};
   let evtSource = null;
 
+  function _getSkippedSteps() {
+    // Steps disabled by the user in the Configuration tab checkboxes
+    const skipped = new Set();
+    document.querySelectorAll('.checkbox-group input[data-step]').forEach(cb => {
+      if (!cb.checked) skipped.add(cb.dataset.step);
+    });
+    return skipped;
+  }
+
   function buildStepsTrack() {
+    const skipped = _getSkippedSteps();
     let html = '';
     PIPE_STEPS.forEach((step, i) => {
+      const isSkipped = skipped.has(step.key);
+      const state = isSkipped ? 'skipped' : 'pending';
+      const icon = isSkipped ? '&#x2014;' : '';
+      const dur = isSkipped ? 'Skipped' : '&mdash;';
       if (i > 0) html += `<div class="step-connector" id="conn-${i}"></div>`;
-      html += `<div class="step-node pending" id="node-${step.key}"><div class="step-circle"><span class="circle-content"></span></div><div class="step-label">${step.label}</div><div class="step-dur" id="dur-${step.key}">&mdash;</div></div>`;
+      html += `<div class="step-node ${state}" id="node-${step.key}"><div class="step-circle"><span class="circle-content">${icon}</span></div><div class="step-label">${step.label}</div><div class="step-dur" id="dur-${step.key}">${dur}</div></div>`;
     });
     document.getElementById('steps-track').innerHTML = html;
   }
 
   function buildTimeline() {
+    const skipped = _getSkippedSteps();
     let html = '';
     PIPE_STEPS.forEach(step => {
-      html += `<div class="step-entry pending" id="entry-${step.key}"><div class="step-entry-header"><span class="step-entry-icon">&#x2B24;</span><span class="step-entry-title">${step.label}</span><span class="step-entry-dur" id="entry-dur-${step.key}"></span><span class="step-entry-badge" id="entry-badge-${step.key}"></span><button class="step-logs-btn" id="logbtn-${step.key}" onclick="window._toggleLogs('${step.key}')">Logs</button></div><div class="phase-list" id="phases-${step.key}"></div><div class="step-log-panel" id="logpanel-${step.key}"><pre id="logpre-${step.key}">Waiting for logs...</pre></div></div>`;
+      const isSkipped = skipped.has(step.key);
+      const state = isSkipped ? 'skipped' : 'pending';
+      const icon = isSkipped ? '&#x2014;' : '&#x2B24;';
+      const badge = isSkipped ? 'Skipped' : '';
+      html += `<div class="step-entry ${state}" id="entry-${step.key}"><div class="step-entry-header"><span class="step-entry-icon">${icon}</span><span class="step-entry-title">${step.label}</span><span class="step-entry-dur" id="entry-dur-${step.key}"></span><span class="step-entry-badge" id="entry-badge-${step.key}">${badge}</span><button class="step-logs-btn" id="logbtn-${step.key}" onclick="window._toggleLogs('${step.key}')">Logs</button></div><div class="phase-list" id="phases-${step.key}"></div><div class="step-log-panel" id="logpanel-${step.key}"><pre id="logpre-${step.key}">Waiting for logs...</pre></div></div>`;
     });
     document.getElementById('step-timeline').innerHTML = '<div class="timeline-progress" id="timeline-progress"></div>' + html;
   }
@@ -1041,9 +1116,11 @@
     const circle = node.querySelector('.circle-content');
     if (status === 'completed') circle.innerHTML = '&#x2713;';
     else if (status === 'failed') circle.innerHTML = '&#x2717;';
+    else if (status === 'skipped') circle.innerHTML = '&#x2014;';
     else circle.innerHTML = '';
     const durEl = document.getElementById(`dur-${stepKey}`);
-    if (duration != null) durEl.textContent = duration < 60 ? `${Math.round(duration)}s` : `${(duration/60).toFixed(1)}m`;
+    if (status === 'skipped') durEl.textContent = 'Skipped';
+    else if (duration != null) durEl.textContent = duration < 60 ? `${Math.round(duration)}s` : `${(duration/60).toFixed(1)}m`;
     const stepIdx = PIPE_STEPS.findIndex(s => s.key === stepKey);
     if (status === 'completed' && stepIdx < PIPE_STEPS.length - 1) {
       const conn = document.getElementById(`conn-${stepIdx + 1}`);
@@ -1139,12 +1216,32 @@
     }
   }
 
+  let _pollRetries = 0;
+  const _POLL_MAX_RETRIES = 5;
+
   async function pollStatus() {
     try {
       let res = await fetch(`/api/pipeline/status/${runId}`);
       let data;
-      if (res.ok) { data = await res.json(); }
-      else { res = await fetch(`/api/pipeline/runs/${runId}`); if (!res.ok) return; data = await res.json(); }
+      if (res.ok) {
+        data = await res.json();
+        _pollRetries = 0; // Reset on success
+      } else {
+        // Try fallback endpoint
+        res = await fetch(`/api/pipeline/runs/${runId}`);
+        if (!res.ok) {
+          // Run not found (404) — stop polling, don't retry forever
+          _pollRetries++;
+          if (_pollRetries >= _POLL_MAX_RETRIES) {
+            console.warn('pollStatus: run not found after max retries, stopping.');
+            return;
+          }
+          setTimeout(pollStatus, 3000);
+          return;
+        }
+        data = await res.json();
+        _pollRetries = 0;
+      }
       const status = data.status || 'unknown';
       if (status === 'started' || status === 'running') {
         document.getElementById('cancel-btn').style.display = 'inline-block';
@@ -1160,10 +1257,93 @@
         showError(data.error, data.error_detail);
         if (data.steps) data.steps.forEach(s => { const key = s.step_name || s.name; updateStepNode(key, s.status, s.duration_s); updateStepEntry(key, s.status, s.duration_s); });
       }
-    } catch(err) { setTimeout(pollStatus, 3000); }
+      // Any other status (cancelled, unknown) — stop polling
+    } catch(err) {
+      _pollRetries++;
+      if (_pollRetries >= _POLL_MAX_RETRIES) {
+        console.warn('pollStatus: max retries reached, stopping.', err);
+        return;
+      }
+      setTimeout(pollStatus, 3000);
+    }
+  }
+
+  function getSelectedSteps() {
+    // Collect checked steps from the Configuration tab checkboxes
+    const stepFlags = {};
+    document.querySelectorAll('.checkbox-group input[data-step]').forEach(cb => {
+      stepFlags[cb.dataset.step] = cb.checked;
+    });
+    return stepFlags;
+  }
+
+  function getCleanStart() {
+    const sel = document.getElementById('cfg-clean');
+    return sel ? sel.value === 'true' : true;
+  }
+
+  async function saveConfigBeforeRun() {
+    // Build config overrides from UI selections and save to accelerator.yaml
+    const stepFlags = getSelectedSteps();
+    const cleanStart = getCleanStart();
+
+    const overrides = {
+      pipeline: {
+        clean_start: cleanStart,
+        steps: stepFlags
+      }
+    };
+
+    // Map pending editable field IDs to nested config paths
+    if (pendingEdits && Object.keys(pendingEdits).length > 0) {
+      const fieldMap = {
+        target_catalog: ['catalog', 'target', 'catalog'],
+        target_schema: ['catalog', 'target', 'schema'],
+        source_catalog: ['catalog', 'source', 'catalog'],
+        source_schema: ['catalog', 'source', 'schema'],
+        mv_name: ['assets', 'metric_views', 0, 'name'],
+        genie_name: ['assets', 'genie', 'space_name'],
+      };
+      for (const [fieldId, val] of Object.entries(pendingEdits)) {
+        const path = fieldMap[fieldId];
+        if (path) {
+          let target = overrides;
+          for (let i = 0; i < path.length - 1; i++) {
+            const key = path[i];
+            if (typeof path[i + 1] === 'number') {
+              if (!target[key]) target[key] = [];
+            } else {
+              if (!target[key]) target[key] = {};
+            }
+            target = target[key];
+          }
+          target[path[path.length - 1]] = val;
+        }
+      }
+    }
+
+    const resp = await fetch(`/api/domains/${selectedDomain}/config`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(overrides)
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Failed to save config');
+    }
+    return await resp.json();
   }
 
   async function startPipeline() {
+    // Save config overrides to accelerator.yaml BEFORE starting the run.
+    // The master prompt reads accelerator.yaml to decide which steps to execute.
+    try {
+      await saveConfigBeforeRun();
+    } catch (e) {
+      alert(`Failed to save configuration: ${e.message}`);
+      return;
+    }
+
     goToStep(3);
     // Reset UI
     stepLogs = {};
@@ -1176,7 +1356,7 @@
     document.getElementById('run-subtitle').textContent = 'We\'re analyzing the information and putting everything together.';
     buildStepsTrack();
     buildTimeline();
-    // Trigger run
+    // Trigger run — config is already saved, pipeline reads it from accelerator.yaml
     const resp = await fetch('/api/pipeline/run', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},

@@ -3,11 +3,11 @@
 All environment variables and application constants are managed here.
 See docs/design_phase2.md Section 6 for full reference.
 
-Config resolution (prompt-driven architecture):
-  1. Environment variables (set in app.yaml) — fast path
-  2. SDK discovery from setup job params + databricks.yml — when env vars
-     don't reach the container (known platform issue with env_vars=[]).
-  Fails loudly if critical values can't be resolved.
+Config resolution:
+  SQL_WAREHOUSE_ID: injected via valueFrom (app resource in aibi.app.yml).
+  CATALOG_NAME: set directly in app.yaml env section.
+  WORKSPACE_ROOT: auto-derived from app's source_code_path (SDK discovery).
+                  Can be overridden via env var for local dev.
 """
 
 import os
@@ -16,107 +16,97 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _discover_config() -> dict:
-    """Single discovery pass: resolve all config values from env vars or SDK.
+# ---------------------------------------------------------------------------
+# Required environment variables
+# ---------------------------------------------------------------------------
+_REQUIRED_ENV_VARS = {
+    'SQL_WAREHOUSE_ID': 'Injected via valueFrom in app.yaml (app resource declared in aibi.app.yml)',
+    'CATALOG_NAME': 'Hardcoded in app.yaml env section (no DABs interpolation available)',
+}
 
-    Returns dict with keys: workspace_root, sql_warehouse_id, catalog_name,
-    lakebase_project_id, setup_job_id.
+
+def _discover_workspace_root() -> str:
+    """Derive the project workspace root from the app's own source_code_path.
+
+    The platform injects DATABRICKS_CLIENT_ID (the app SP's UUID). We find
+    our own app object and read its default_source_code_path, then strip
+    the '/app' suffix to get the project root.
+
+    This eliminates the need to pass WORKSPACE_ROOT as an env var.
     """
+    from databricks.sdk import WorkspaceClient
+
+    client_id = os.environ.get('DATABRICKS_CLIENT_ID', '')
+    if not client_id:
+        raise RuntimeError(
+            "Cannot derive WORKSPACE_ROOT: DATABRICKS_CLIENT_ID not set. "
+            "Set WORKSPACE_ROOT env var explicitly or run inside a Databricks App."
+        )
+
+    w = WorkspaceClient()
+    for app in w.apps.list():
+        if app.service_principal_client_id == client_id:
+            source_path = app.default_source_code_path or ''
+            # source_code_path points to the app/ subfolder; project root is parent
+            if source_path.endswith('/app'):
+                root = source_path[:-4]
+            else:
+                root = source_path
+            logger.info(f"Derived WORKSPACE_ROOT from app source_code_path: {root}")
+            return root
+
+    raise RuntimeError(
+        f"Cannot derive WORKSPACE_ROOT: no app found with client_id={client_id}. "
+        "Set WORKSPACE_ROOT env var explicitly."
+    )
+
+
+def _load_config() -> dict:
+    """Load all config values from environment variables.
+
+    All required values are injected by DABs at deploy time.
+    Raises RuntimeError immediately if any required value is missing.
+
+    Returns dict with keys: sql_warehouse_id, catalog_name, workspace_root.
+    """
+    # Check all required env vars are present
+    missing = []
+    for var_name, description in _REQUIRED_ENV_VARS.items():
+        if not os.environ.get(var_name):
+            missing.append(f"  - {var_name}: {description}")
+
+    if missing:
+        raise RuntimeError(
+            "Missing required environment variables. These must be injected by DABs "
+            "config.env (see resources/aibi.app.yml). Run 'databricks bundle deploy' "
+            "to set them.\n\nMissing:\n" + "\n".join(missing)
+        )
+
     config = {
-        'workspace_root': os.environ.get('WORKSPACE_ROOT', ''),
-        'sql_warehouse_id': os.environ.get('SQL_WAREHOUSE_ID', ''),
-        'catalog_name': os.environ.get('CATALOG_NAME', ''),
-        'lakebase_project_id': os.environ.get('LAKEBASE_PROJECT_ID', 'aibi-studio'),
-        'setup_job_id': os.environ.get('SETUP_JOB_ID', ''),
+        'sql_warehouse_id': os.environ['SQL_WAREHOUSE_ID'],
+        'catalog_name': os.environ['CATALOG_NAME'],
+        'workspace_root': os.environ.get('WORKSPACE_ROOT') or _discover_workspace_root(),
     }
 
-    # If all critical values are set via env vars, skip SDK discovery
-    if config['workspace_root'] and config['sql_warehouse_id']:
-        return config
-
-    # SDK discovery: read from setup job params + databricks.yml
-    try:
-        from databricks.sdk import WorkspaceClient
-        w = WorkspaceClient()
-
-        # Find setup job
-        full_job = None
-        job_id = config['setup_job_id']
-        if job_id:
-            full_job = w.jobs.get(int(job_id))
-        else:
-            for job in w.jobs.list():
-                if 'aibi-studio-setup-infrastructure' in (job.settings.name or ''):
-                    full_job = w.jobs.get(job.job_id)
-                    config['setup_job_id'] = str(job.job_id)
-                    break
-
-        # Extract job params
-        if full_job:
-            for param in (full_job.settings.parameters or []):
-                if param.name == 'project_folder' and param.default and not config['workspace_root']:
-                    config['workspace_root'] = param.default
-                elif param.name == 'catalog_name' and param.default and not config['catalog_name']:
-                    config['catalog_name'] = param.default
-                elif param.name == 'lakebase_project_id' and param.default:
-                    config['lakebase_project_id'] = param.default
-
-        # sql_warehouse_id: read from databricks.yml at workspace root
-        if not config['sql_warehouse_id'] and config['workspace_root']:
-            try:
-                import yaml
-                from databricks.sdk.service.workspace import ExportFormat
-                resp = w.workspace.export(
-                    path=f"{config['workspace_root']}/databricks.yml",
-                    format=ExportFormat.AUTO,
-                )
-                if resp.content:
-                    import base64
-                    yml_content = base64.b64decode(resp.content).decode('utf-8')
-                    bundle_yml = yaml.safe_load(yml_content)
-                    variables = bundle_yml.get('variables', {})
-                    wh_var = variables.get('sql_warehouse_id', {})
-                    config['sql_warehouse_id'] = wh_var.get('default', '')
-                    logger.info(f"Resolved sql_warehouse_id from databricks.yml: {config['sql_warehouse_id']}")
-            except Exception as e:
-                logger.warning(f"Failed to read sql_warehouse_id from databricks.yml: {e}")
-
-    except Exception as e:
-        logger.error(f"SDK config discovery failed: {e}")
-
-    # Validate critical values
-    if not config['workspace_root']:
-        raise RuntimeError(
-            "Cannot resolve WORKSPACE_ROOT. Set WORKSPACE_ROOT env var or ensure "
-            "the setup job 'aibi-studio-setup-infrastructure' has a 'project_folder' parameter."
-        )
-    if not config['sql_warehouse_id']:
-        raise RuntimeError(
-            "Cannot resolve SQL_WAREHOUSE_ID. Set SQL_WAREHOUSE_ID env var or ensure "
-            "databricks.yml at workspace root has variables.sql_warehouse_id.default set."
-        )
-
+    logger.info(
+        f"Config loaded: workspace_root={config['workspace_root']}, "
+        f"catalog={config['catalog_name']}, warehouse={config['sql_warehouse_id']}"
+    )
     return config
 
 
-# Single discovery at module load
-_config = _discover_config()
+# Load config at module import (fail-fast if env vars missing)
+_config = _load_config()
 
 
 class Config:
-    """Base configuration — reads from environment variables or SDK discovery."""
+    """Base configuration — reads from environment variables."""
 
     # --- App Identity ---
     APP_NAME = 'AI/BI Studio'
-    APP_SUBTITLE = 'Design-First Semantic Layer, Metric Views, Dashboards & Genie'
 
     # --- Paths ---
-    # WORKSPACE_ROOT: /Workspace/... path to project source root.
-    # WorkspaceService.read_file() uses the Workspace REST API for these paths.
     WORKSPACE_ROOT = _config['workspace_root']
-    LOCAL_ROOT = WORKSPACE_ROOT  # alias (all reads go through Workspace API)
-    DEPLOY_ROOT = WORKSPACE_ROOT  # legacy alias
-
     DATABRICKS_HOST = os.environ.get('DATABRICKS_HOST', '')
 
     # --- SQL Warehouse ---
@@ -125,38 +115,33 @@ class Config:
     # --- Catalog ---
     CATALOG_NAME = _config['catalog_name']
 
-    # --- Lakebase ---
-    LAKEBASE_PROJECT_ID = _config['lakebase_project_id']
-    SETUP_JOB_ID = _config['setup_job_id']
-
     # --- LLM Configuration ---
     LLM_ENDPOINT_NAME = os.environ.get('LLM_ENDPOINT_NAME', 'databricks-gpt-5-5')
     VISION_ENDPOINT_NAME = os.environ.get('VISION_ENDPOINT_NAME', 'databricks-gpt-5-5')
     LLM_TEMPERATURE = float(os.environ.get('LLM_TEMPERATURE', '1'))
     LLM_MAX_RETRIES = int(os.environ.get('LLM_MAX_RETRIES', '3'))
 
-    # --- Domain ---
-    DEFAULT_EXAMPLE_DOMAIN = os.environ.get('DEFAULT_EXAMPLE_DOMAIN', 'member_claims')
 
     # --- Auth & Session ---
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-prod')
+    # Random per-instance key is fine — sessions are just cached identity from
+    # platform headers and re-populate automatically on container restart.
+    SECRET_KEY = os.urandom(32).hex()
 
     # --- Derived Paths ---
     @property
     def framework_root(self):
         """Absolute workspace path to framework/ directory."""
-        return f"{self.DEPLOY_ROOT}/framework"
+        return f"{self.WORKSPACE_ROOT}/framework"
 
     @property
     def kpi_domains_root(self):
         """Absolute workspace path to kpi_domains/ directory."""
-        return f"{self.DEPLOY_ROOT}/kpi_domains"
+        return f"{self.WORKSPACE_ROOT}/kpi_domains"
 
 
 class DevelopmentConfig(Config):
     """Development overrides."""
     DEBUG = True
-    SECRET_KEY = 'dev-secret-key-local'
 
 
 class ProductionConfig(Config):

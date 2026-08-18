@@ -214,6 +214,51 @@ def save_best_practices(domain_name):
 
 
 
+
+def _save_yaml_to_workspace(ws_path, data):
+    """Serialize dict to YAML and save to workspace (same pattern as save_best_practices)."""
+    import base64
+    from databricks.sdk.service.workspace import ImportFormat
+    w = _get_client()
+    raw = yaml.dump(data, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    content_b64 = base64.b64encode(raw.encode('utf-8')).decode('utf-8')
+    w.workspace.import_(path=ws_path, content=content_b64, format=ImportFormat.AUTO, overwrite=True)
+
+
+@domain_bp.route('/<domain_name>/config', methods=['PATCH'])
+def patch_domain_config(domain_name):
+    """Patch fields in the domain accelerator.yaml (step toggles, clean_start, etc).
+
+    Called by the UI before pipeline run so master prompt sees updated config.
+    """
+    overrides = request.get_json()
+    if not overrides:
+        return jsonify({'error': 'No overrides provided'}), 400
+
+    config_ws_path = f"{_get_examples_path()}/{domain_name}/accelerator.yaml"
+    try:
+        config = _load_yaml_from_workspace(config_ws_path)
+    except Exception as e:
+        return jsonify({'error': f'Domain not found: {e}'}), 404
+
+    def _deep_merge(base, patch):
+        for key, val in patch.items():
+            if isinstance(val, dict) and isinstance(base.get(key), dict):
+                _deep_merge(base[key], val)
+            else:
+                base[key] = val
+
+    _deep_merge(config, overrides)
+
+    try:
+        _save_yaml_to_workspace(config_ws_path, config)
+        logger.info(f"Config patched for '{domain_name}': {list(overrides.keys())}")
+        return jsonify({'success': True, 'patched_keys': list(overrides.keys())})
+    except Exception as e:
+        logger.warning(f"Config patch failed: {e}")
+        return jsonify({'error': f'Save failed: {e}'}), 500
+
+
 @domain_bp.route('/<domain_name>/erd-image', methods=['GET'])
 def get_erd_image(domain_name):
     """Serve the ERD image for a domain as binary (for inline preview or new window)."""

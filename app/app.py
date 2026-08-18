@@ -29,15 +29,11 @@ def create_app():
     # --- Register Blueprints ---
     from routes.auth_routes import auth_bp
     from routes.pipeline_routes import pipeline_bp
-    from routes.config_routes import config_bp
-    from routes.results_routes import results_bp
     from routes.admin_routes import admin_bp
     from routes.domain_routes import domain_bp
 
     application.register_blueprint(auth_bp)
     application.register_blueprint(pipeline_bp)
-    application.register_blueprint(config_bp)
-    application.register_blueprint(results_bp)
     application.register_blueprint(admin_bp)
     application.register_blueprint(domain_bp)
 

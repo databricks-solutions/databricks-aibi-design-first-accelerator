@@ -1,10 +1,25 @@
+# AI/BI Studio — Python dependencies
+# Installed in the Databricks App container at deploy time.
+
+# Web framework
 flask>=3.0.0
 gunicorn>=21.2.0
-databricks-sdk>=0.118.0
-pg8000>=1.30
-pyyaml>=6.0
-pydantic>=2.0.0
-requests>=2.31.0
-python-dotenv>=1.0.0
 werkzeug>=3.0.0
+
+# Databricks SDK (workspace API, SQL statements, serving endpoints)
+databricks-sdk>=0.118.0
+
+# LLM structured output validation
+pydantic>=2.0.0
+
+# Lakebase state store (pipeline run persistence)
+pg8000>=1.30
+
+# Config parsing
+pyyaml>=6.0
+
+# HTTP client (service calls)
+requests>=2.31.0
+
+# ERD image processing for vision model
 Pillow>=10.0.0

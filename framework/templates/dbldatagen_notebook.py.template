@@ -16,11 +16,23 @@ dbutils.library.restartPython()
 import dbldatagen as dg
 from pyspark.sql.types import *
 
-# --- Safety patch: auto-fix timestamp format issues ---
-# dbldatagen raises ValueError if TimestampType columns get date-only strings.
-# This patch ensures ALL withColumn calls auto-append time component when needed.
+# --- Safety: disable ANSI mode to prevent DIVIDE_BY_ZERO in dbldatagen ---
+# dbldatagen internally performs arithmetic (weight/distribution calculations)
+# that can intermittently produce division-by-zero with small row counts.
+# Disabling ANSI mode converts these to NULL instead of throwing.
+spark.conf.set("spark.sql.ansi.enabled", "false")
+
+# --- Safety patch: auto-fix known dbldatagen issues ---
+# 1. BooleanType + values=[True,False] causes DATATYPE_MISMATCH in CASE expression
+#    (dbldatagen stringifies the ELSE fallback → type mismatch). Strip values/weights.
+# 2. TimestampType + date-only strings → ValueError. Auto-append time component.
 _orig_withColumn = dg.DataGenerator.withColumn
 def _safe_withColumn(self, colName, colType, *args, **kwargs):
+    # Fix BooleanType: remove values/weights to prevent DATATYPE_MISMATCH
+    if colType == BooleanType() or colType is BooleanType:
+        kwargs.pop('values', None)
+        kwargs.pop('weights', None)
+    # Fix TimestampType: auto-append time component to date-only strings
     if colType == TimestampType() or colType is TimestampType or str(colType).lower() in ('timestamp', 'timestamp_ntz'):
         for key in ('begin', 'end'):
             if key in kwargs and isinstance(kwargs[key], str) and len(kwargs[key]) == 10:
@@ -113,7 +125,9 @@ def base_generator(table_name: str, rows: int) -> dg.DataGenerator:
         elif ptype == TimestampType():
             gen = gen.withColumn(col_name, TimestampType(), begin="2020-01-01 00:00:00", end="2024-12-31 23:59:59", percentNulls=0.0)
         elif ptype == BooleanType():
-            gen = gen.withColumn(col_name, BooleanType(), values=[True, False], percentNulls=0.0)
+            # NEVER use values=[True, False] for BooleanType — dbldatagen's internal
+            # CASE expression stringifies the ELSE fallback causing DATATYPE_MISMATCH.
+            gen = gen.withColumn(col_name, BooleanType(), percentNulls=0.0)
         elif ptype == DoubleType():
             gen = gen.withColumn(col_name, DoubleType(), minValue=0.0, maxValue=10000.0, percentNulls=0.0)
         elif isinstance(ptype, str) and 'decimal' in ptype:
