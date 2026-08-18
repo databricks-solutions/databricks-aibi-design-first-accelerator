@@ -24,7 +24,7 @@ class CleanupService:
 
     def load_domain_config(self, domain: str) -> dict:
         """Load accelerator.yaml for the domain."""
-        config_path = f"{self.workspace_root}/examples/{domain}/accelerator.yaml"
+        config_path = f"{self.workspace_root}/kpi_domains/{domain}/accelerator.yaml"
         resp = self.w.workspace.export(path=config_path, format=ExportFormat.AUTO)
         content = base64.b64decode(resp.content).decode('utf-8')
         return yaml.safe_load(content) or {}
@@ -126,7 +126,7 @@ class CleanupService:
         """Remove the output folder for this version."""
         result = {'removed': False, 'errors': []}
         version_num = suffix.replace('_v', '')
-        output_path = f"{self.workspace_root}/examples/{domain}/output/v{version_num}"
+        output_path = f"{self.workspace_root}/kpi_domains/{domain}/generated_outputs/v{version_num}"
         try:
             self.w.workspace.delete(path=output_path, recursive=True)
             result['removed'] = True

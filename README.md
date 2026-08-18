@@ -42,7 +42,7 @@ targets:
 
 `deploy_root` uses `${workspace.current_user.userName}` — no hardcoded email.
 
-**[`examples/member_claims/accelerator.yaml`](examples/member_claims/accelerator.yaml)** — catalogs and schemas (adjust for your UC):
+**[`kpi_domains/member_claims/accelerator.yaml`](kpi_domains/member_claims/accelerator.yaml)** — catalogs and schemas (adjust for your UC):
 
 ```yaml
 catalog:
@@ -57,7 +57,7 @@ catalog:
 Validate locally:
 
 ```bash
-python3 scripts/validate_dab_config.py examples/member_claims
+python3 scripts/validate_dab_config.py kpi_domains/member_claims
 ```
 
 ### 2. Deploy
@@ -79,14 +79,14 @@ Files sync to:
 Open **Databricks Genie** (agent) and paste:
 
 ```
-Execute the master prompt at /Workspace/Users/<you>/aibi-design-first-accelerator/framework/prompts/00_master_prompt.md with EXAMPLE_DIR /Workspace/Users/<you>/aibi-design-first-accelerator/examples/member_claims — run end to end.
+Execute the master prompt at /Workspace/Users/<you>/aibi-design-first-accelerator/framework/prompts/00_master_prompt.md with EXAMPLE_DIR /Workspace/Users/<you>/aibi-design-first-accelerator/kpi_domains/member_claims — run end to end.
 ```
 
 Replace `<you>` with your workspace user name. The master prompt loads `accelerator.yaml` from **EXAMPLE_DIR** and runs the full pipeline.
 
 **Agentic execution:** Genie should resolve paths from config, follow step prompts, and finish with minimal manual intervention.
 
-Generated assets land under `examples/member_claims/output/` on the workspace (not in git).
+Generated assets land under `kpi_domains/member_claims/generated_outputs/` on the workspace (not in git).
 
 ---
 
@@ -122,7 +122,7 @@ flowchart LR
 | Step | Tool | What happens |
 |------|------|----------------|
 | 1 | You | KPI spec + ERD (+ optional existing schema) |
-| 2 | DAB | Sync `framework/` + `examples/<domain>/` to workspace |
+| 2 | DAB | Sync `framework/` + `kpi_domains/<domain>/` to workspace |
 | 3 | Genie | Orchestrated prompts → data, semantic layer, consumption |
 
 ---
@@ -141,7 +141,7 @@ flowchart LR
 
 | Input | Greenfield | Brownfield |
 |-------|------------|------------|
-| KPI specification | `examples/<domain>/inputs/kpi_spec.md` | Same |
+| KPI specification | `kpi_domains/<domain>/inputs/kpi_spec.md` | Same |
 | Best practices | `framework/inputs/best_practices.md` | Same |
 | Data model | `inputs/erd.png` | `data_source.live_schemas[]` or `live_schema` pointing at existing UC tables (no ERD) |
 
@@ -154,19 +154,19 @@ flowchart LR
 Reference module with a star-schema ERD and KPI catalog. **Inputs only in git** — Genie generates tables, metric views, dashboards, and Genie under `output/`.
 
 ```
-examples/member_claims/
+kpi_domains/member_claims/
 ├── accelerator.yaml
 └── inputs/
     ├── erd.png
     └── kpi_spec.md
 ```
 
-Use the [3-step flow above](#get-started-in-3-steps) with `examples/member_claims`.
+Use the [3-step flow above](#get-started-in-3-steps) with `kpi_domains/member_claims`.
 
 **After a successful run:**
 
 ```
-.../examples/member_claims/output/
+.../kpi_domains/member_claims/generated_outputs/
 ├── erd_parsed.yaml
 ├── notebooks/
 ├── metric_views/
@@ -178,7 +178,7 @@ Use the [3-step flow above](#get-started-in-3-steps) with `examples/member_claim
 ### Your own domain
 
 ```bash
-cp -r examples/member_claims examples/<your_domain>
+cp -r kpi_domains/member_claims kpi_domains/<your_domain>
 ```
 
 | Task | Action |
@@ -186,8 +186,8 @@ cp -r examples/member_claims examples/<your_domain>
 | KPIs | Edit from [`framework/inputs/kpi_spec.template.md`](framework/inputs/kpi_spec.template.md) |
 | ERD | Replace `inputs/erd.png` |
 | Config | Update `accelerator.yaml` — `domain.name` must match folder name |
-| DAB | Set `variables.example_domain` and add `examples/<your_domain>` to `sync.paths` in [`databricks.yml`](databricks.yml) — see [Deploy](docs/design.md#deploy) |
-| Run | `validate_dab_config.py` → `bundle deploy` → execute the same master prompt (new `examples/<domain>/`) |
+| DAB | Set `variables.example_domain` and add `kpi_domains/<your_domain>` to `sync.paths` in [`databricks.yml`](databricks.yml) — see [Deploy](docs/design.md#deploy) |
+| Run | `validate_dab_config.py` → `bundle deploy` → execute the same master prompt (new `kpi_domains/<domain>/`) |
 
 | Mode | `data_source.type` | Behavior |
 |------|-------------------|----------|
@@ -235,7 +235,7 @@ See [Design guide → Troubleshooting](docs/design.md#troubleshooting).
 aibi-design-first-accelerator/
 ├── databricks.yml           # Workspace + DAB deploy
 ├── framework/               # Prompts, templates, shared inputs (immutable)
-├── examples/
+├── kpi_domains/
 │   └── member_claims/       # Reference example (inputs + config)
 ├── docs/                    # Design guide (single doc)
 ├── scripts/                 # validate_dab_config.py

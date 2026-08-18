@@ -48,7 +48,7 @@ workspace:
     type: string
     required: false
     default: output
-    description: "Relative segment under deploy_root/examples/<domain>/; absolute output_folder resolved from databricks.yml"
+    description: "Relative segment under deploy_root/kpi_domains/<domain>/; absolute output_folder resolved from databricks.yml"
 
 catalog:
   source:

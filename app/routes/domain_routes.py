@@ -1,6 +1,7 @@
 """Domain management routes - list, configure, and run KPI domains."""
 
 import os
+import posixpath
 import base64
 import logging
 
@@ -20,8 +21,8 @@ def _get_workspace_root():
 
 
 def _get_examples_path():
-    """Workspace path to examples/ folder."""
-    return _get_workspace_root() + '/examples'
+    """Workspace path to kpi_domains/ folder."""
+    return _get_workspace_root() + '/kpi_domains'
 
 
 def _get_client():
@@ -46,7 +47,7 @@ def _load_yaml_from_workspace(ws_path):
 
 @domain_bp.route('', methods=['GET'])
 def list_domains():
-    """List all available domains under examples/."""
+    """List all available domains under kpi_domains/."""
     examples_path = _get_examples_path()
     domains = []
     w = _get_client()
@@ -112,7 +113,7 @@ def get_kpi_matrix(domain_name):
         return jsonify({'error': f'Domain {domain_name} not found: {e}'}), 404
     inputs = config.get('inputs', {})
     kpi_spec_rel = inputs.get('kpi_spec', 'inputs/kpi_spec.yaml')
-    kpi_ws_path = f"{domain_ws_path}/{kpi_spec_rel}"
+    kpi_ws_path = posixpath.normpath(f"{domain_ws_path}/{kpi_spec_rel}")
     try:
         raw = _read_workspace_file(kpi_ws_path)
     except Exception:
@@ -123,6 +124,41 @@ def get_kpi_matrix(domain_name):
     except Exception:
         return jsonify({'domain': domain_name, 'kpi_matrix': [], 'raw': raw, 'path': kpi_spec_rel})
 
+
+
+
+@domain_bp.route('/<domain_name>/kpi-matrix', methods=['PUT'])
+def save_kpi_matrix(domain_name):
+    """Save updated KPI spec content back to workspace."""
+    import base64
+    from flask import request
+    from databricks.sdk.service.workspace import ImportFormat
+
+    data = request.get_json()
+    new_content = data.get('content', '')
+    if not new_content:
+        return jsonify({'error': 'No content provided'}), 400
+
+    domain_ws_path = f"{_get_examples_path()}/{domain_name}"
+    config_ws_path = f"{domain_ws_path}/accelerator.yaml"
+    try:
+        config = _load_yaml_from_workspace(config_ws_path)
+    except Exception as e:
+        return jsonify({'error': f'Domain not found: {e}'}), 404
+
+    inputs = config.get('inputs', {})
+    kpi_spec_rel = inputs.get('kpi_spec', 'inputs/kpi_spec.md')
+    kpi_ws_path = posixpath.normpath(f"{domain_ws_path}/{kpi_spec_rel}")
+
+    try:
+        w = _get_client()
+        content_b64 = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
+        w.workspace.import_(path=kpi_ws_path, content=content_b64, format=ImportFormat.AUTO, overwrite=True)
+        logger.info(f"KPI spec saved at {kpi_ws_path}")
+        return jsonify({'success': True, 'path': kpi_spec_rel})
+    except Exception as e:
+        logger.warning(f"KPI spec save failed for {kpi_ws_path}: {e}")
+        return jsonify({'error': f'Save failed: {e}'}), 500
 
 @domain_bp.route('/<domain_name>/best-practices', methods=['GET'])
 def get_best_practices(domain_name):
@@ -135,12 +171,116 @@ def get_best_practices(domain_name):
         return jsonify({'error': f'Domain {domain_name} not found: {e}'}), 404
     inputs = config.get('inputs', {})
     bp_rel = inputs.get('best_practices', 'inputs/best_practices.md')
-    bp_ws_path = f"{domain_ws_path}/{bp_rel}"
+    bp_ws_path = posixpath.normpath(f"{domain_ws_path}/{bp_rel}")
     try:
         content = _read_workspace_file(bp_ws_path)
     except Exception:
         content = ''
     return jsonify({'domain': domain_name, 'content': content, 'path': bp_rel})
+
+
+@domain_bp.route('/<domain_name>/best-practices', methods=['PUT'])
+def save_best_practices(domain_name):
+    """Save updated best practices content back to workspace."""
+    import base64
+    from databricks.sdk.service.workspace import ImportFormat
+
+    data = request.get_json()
+    new_content = data.get('content', '')
+    if not new_content:
+        return jsonify({'error': 'No content provided'}), 400
+
+    domain_ws_path = f"{_get_examples_path()}/{domain_name}"
+    config_ws_path = f"{domain_ws_path}/accelerator.yaml"
+    try:
+        config = _load_yaml_from_workspace(config_ws_path)
+    except Exception as e:
+        return jsonify({'error': f'Domain not found: {e}'}), 404
+
+    inputs = config.get('inputs', {})
+    bp_rel = inputs.get('best_practices', 'inputs/best_practices.md')
+    bp_ws_path = posixpath.normpath(f"{domain_ws_path}/{bp_rel}")
+
+    try:
+        w = _get_client()
+        content_b64 = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
+        w.workspace.import_(path=bp_ws_path, content=content_b64, format=ImportFormat.AUTO, overwrite=True)
+        logger.info(f"Best practices saved at {bp_ws_path}")
+        return jsonify({'success': True, 'path': bp_rel})
+    except Exception as e:
+        logger.warning(f"Best practices save failed for {bp_ws_path}: {e}")
+        return jsonify({'error': f'Save failed: {e}'}), 500
+
+
+
+
+@domain_bp.route('/<domain_name>/erd-image', methods=['GET'])
+def get_erd_image(domain_name):
+    """Serve the ERD image for a domain as binary (for inline preview or new window)."""
+    import base64
+    from flask import Response
+    from databricks.sdk.service.workspace import ExportFormat
+
+    domain_ws_path = f"{_get_examples_path()}/{domain_name}"
+    config_ws_path = f"{domain_ws_path}/accelerator.yaml"
+    try:
+        config = _load_yaml_from_workspace(config_ws_path)
+    except Exception as e:
+        return Response(f"Domain not found: {e}", status=404, mimetype='text/plain')
+
+    ds = config.get('data_source', {})
+    erd_rel = ds.get('erd', {}).get('image', '')
+    if not erd_rel:
+        return Response("No ERD image configured", status=404, mimetype='text/plain')
+
+    erd_ws_path = posixpath.normpath(f"{domain_ws_path}/{erd_rel}")
+    try:
+        w = _get_client()
+        resp = w.workspace.export(path=erd_ws_path, format=ExportFormat.AUTO)
+        image_bytes = base64.b64decode(resp.content)
+        # Determine content type from extension
+        ext = erd_rel.rsplit('.', 1)[-1].lower() if '.' in erd_rel else 'png'
+        mime = {'png': 'image/png', 'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'svg': 'image/svg+xml', 'gif': 'image/gif'}.get(ext, 'image/png')
+        return Response(image_bytes, status=200, mimetype=mime, headers={'Cache-Control': 'public, max-age=3600'})
+    except Exception as e:
+        logger.warning(f"ERD image export failed for {erd_ws_path}: {e}")
+        return Response(f"Failed to load ERD: {e}", status=500, mimetype='text/plain')
+
+
+@domain_bp.route('/<domain_name>/erd-image', methods=['POST'])
+def upload_erd_image(domain_name):
+    """Upload/replace the ERD image for a domain."""
+    import base64
+    from flask import Response, request
+    from databricks.sdk.service.workspace import ImportFormat
+
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'error': 'Empty filename'}), 400
+
+    domain_ws_path = f"{_get_examples_path()}/{domain_name}"
+    config_ws_path = f"{domain_ws_path}/accelerator.yaml"
+    try:
+        config = _load_yaml_from_workspace(config_ws_path)
+    except Exception as e:
+        return jsonify({'error': f'Domain not found: {e}'}), 404
+
+    ds = config.get('data_source', {})
+    erd_rel = ds.get('erd', {}).get('image', 'inputs/erd.png')
+    erd_ws_path = posixpath.normpath(f"{domain_ws_path}/{erd_rel}")
+
+    try:
+        w = _get_client()
+        file_bytes = file.read()
+        content_b64 = base64.b64encode(file_bytes).decode('utf-8')
+        w.workspace.import_(path=erd_ws_path, content=content_b64, format=ImportFormat.AUTO, overwrite=True)
+        logger.info(f"ERD image replaced at {erd_ws_path}")
+        return jsonify({'success': True, 'path': erd_rel})
+    except Exception as e:
+        logger.warning(f"ERD upload failed for {erd_ws_path}: {e}")
+        return jsonify({'error': f'Upload failed: {e}'}), 500
 
 
 @domain_bp.route('/<domain_name>/summary/<run_id>', methods=['GET'])
@@ -154,7 +294,7 @@ def get_run_summary(domain_name, run_id):
         return jsonify({'error': f'Domain {domain_name} not found: {e}'}), 404
     workspace = config.get('workspace', {})
     version = workspace.get('version_suffix', '_v1').lstrip('_')
-    output_subpath = workspace.get('output_subpath', 'output')
+    output_subpath = workspace.get('output_subpath', 'generated_outputs')
     output_ws_path = f"{domain_ws_path}/{output_subpath}/{version}"
     # List manifests
     w = _get_client()

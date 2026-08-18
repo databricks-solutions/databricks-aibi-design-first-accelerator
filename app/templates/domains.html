@@ -19,7 +19,7 @@
   <section id="step-1" class="step-panel active">
     <h2>Select a KPI Domain</h2>
     <div id="domain-cards" class="domain-grid"></div>
-    <div id="domain-empty" class="empty-state" style="display:none;">No domains found. Create an <code>examples/&lt;domain&gt;/accelerator.yaml</code> to get started.</div>
+    <div id="domain-empty" class="empty-state" style="display:none;">No domains found. Create an <code>kpi_domains/&lt;domain&gt;/accelerator.yaml</code> to get started.</div>
   </section>
 
   <!-- Step 2: Review Inputs -->
@@ -119,7 +119,7 @@
   .domain-card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; cursor: pointer; transition: box-shadow 0.2s, border-color 0.2s; }
   .domain-card:hover { border-color: #1a73e8; box-shadow: 0 2px 8px rgba(26,115,232,0.15); }
   .domain-card h3 { margin: 0 0 8px; font-size: 16px; }
-  .domain-card p { margin: 0 0 12px; font-size: 13px; color: #666; }
+  .domain-card p { margin: 0 0 12px; font-size: 0.82rem; color: #555; line-height: 1.5; }
   .domain-card .version { font-size: 12px; color: #888; background: #f5f5f5; padding: 2px 8px; border-radius: 10px; display: inline-block; }
 
   /* Sub-nav */
@@ -129,30 +129,123 @@
   .sub-panel { display: none; }
   .sub-panel.active { display: block; }
 
-  /* Config form */
-  .config-form { }
-  .config-section { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; }
-  .config-section:last-child { border-bottom: none; }
-  .config-section-title { font-size: 14px; font-weight: 600; color: #333; margin: 0 0 12px; }
-  .config-grid { display: grid; grid-template-columns: 140px 1fr; gap: 10px 16px; align-items: center; }
-  .config-grid label { font-size: 13px; font-weight: 500; color: #555; }
-  .config-grid input, .config-grid select { padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; }
-  .config-grid input[disabled] { background: #f8f9fa; color: #666; }
-  .config-value { font-size: 13px; color: #444; }
-  .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
-  .checkbox-group label { font-weight: 400; font-size: 13px; display: flex; align-items: center; gap: 4px; }
-  .erd-preview { margin-top: 12px; }
-  .btn-sm { padding: 4px 12px; font-size: 12px; }
+  /* Config form — card-based modern layout */
+  .config-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 900px) { .config-form { grid-template-columns: 1fr; } }
+  .config-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 22px; }
+  .config-card.full-width { grid-column: 1 / -1; }
+  .config-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f3f4f6; }
+  .config-card-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
+  .config-card-icon.catalog { background: #eff6ff; color: #2563eb; }
+  .config-card-icon.data { background: #ecfdf5; color: #059669; }
+  .config-card-icon.assets { background: #fef3c7; color: #92400e; }
+  .config-card-icon.pipeline { background: #f3e8ff; color: #7c3aed; }
+  .config-card-title { font-size: 0.8rem; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.4px; }
+  .config-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid #f9fafb; }
+  .config-row:last-child { border-bottom: none; }
+  .config-row-label { font-size: 0.8rem; color: #6b7280; min-width: 100px; flex-shrink: 0; }
+  .config-row-value { font-size: 0.8rem; color: #1f2937; font-weight: 500; text-align: right; word-break: break-all; }
+  .config-row-editable { display: flex; align-items: center; gap: 6px; }
+  .config-row-editable .cfg-text { font-size: 0.8rem; color: #1f2937; font-weight: 500; }
+  .config-row-editable .cfg-edit-btn { background: none; border: none; color: #9ca3af; cursor: pointer; padding: 2px; border-radius: 3px; font-size: 0.75rem; line-height: 1; transition: color 0.15s; }
+  .config-row-editable .cfg-edit-btn:hover { color: #2563eb; }
+  .config-row-editable input.cfg-input { font-size: 0.78rem; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 5px; width: 100%; max-width: 220px; color: #1f2937; outline: none; transition: border-color 0.15s; }
+  .config-row-editable input.cfg-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
+  .config-row-value select { padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.78rem; background: #fff; color: #1f2937; cursor: pointer; }
+  .config-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.2px; }
+  .config-badge.green { background: #ecfdf5; color: #059669; }
+  .config-badge.blue { background: #eff6ff; color: #2563eb; }
+  .config-badge.amber { background: #fef3c7; color: #92400e; }
+  .config-badge.gray { background: #f3f4f6; color: #6b7280; }
+  .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  .checkbox-group label { font-weight: 400; font-size: 0.78rem; display: flex; align-items: center; gap: 5px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 5px 12px; cursor: pointer; transition: all 0.15s; }
+  .checkbox-group label:hover { border-color: #bfdbfe; }
+  .checkbox-group label:has(input:checked) { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+  .erd-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 2px; }
+  .erd-file-info { display: flex; align-items: center; justify-content: space-between; }
+  .erd-filename { font-size: 0.75rem; color: #6b7280; background: #f9fafb; padding: 3px 10px; border-radius: 4px; border: 1px solid #f3f4f6; }
+  .erd-actions { display: flex; gap: 6px; align-items: center; }
+  .btn-erd { padding: 5px 12px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; font-size: 0.73rem; font-weight: 500; color: #374151; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
+  .btn-erd:hover { background: #f3f4f6; border-color: #d1d5db; }
+  .btn-erd svg { width: 12px; height: 12px; }
+  .erd-inline { margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; max-height: 320px; background: #fafafa; }
+  .erd-inline img { width: 100%; object-fit: contain; display: block; }
+  .btn-erd .spin { animation: spin 1s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-  /* KPI table */
-  .kpi-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .kpi-table th, .kpi-table td { padding: 8px 12px; border: 1px solid #e0e0e0; text-align: left; }
-  .kpi-table th { background: #f8f9fa; font-weight: 600; }
+  /* KPI Matrix — card-based editable UI */
+  .kpi-section { margin-bottom: 28px; }
+  .kpi-section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 2px solid #f3f4f6; }
+  .kpi-section-title { font-size: 0.85rem; font-weight: 700; color: #1f2937; }
+  .kpi-section-count { font-size: 0.7rem; background: #f3f4f6; color: #6b7280; padding: 2px 8px; border-radius: 10px; }
+  .kpi-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .kpi-item { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; transition: box-shadow 0.15s, border-color 0.15s; }
+  .kpi-item:hover { border-color: #d1d5db; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .kpi-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .kpi-id { font-size: 0.68rem; font-weight: 700; color: #fff; background: #6366f1; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap; }
+  .kpi-name { font-size: 0.82rem; font-weight: 600; color: #111827; flex: 1; }
+  .kpi-name-input { font-size: 0.82rem; font-weight: 600; color: #111827; border: 1px solid #d1d5db; border-radius: 4px; padding: 3px 8px; flex: 1; outline: none; }
+  .kpi-name-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.1); }
+  .kpi-type { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
+  .kpi-type.additive { background: #ecfdf5; color: #059669; }
+  .kpi-type.ratio { background: #fef3c7; color: #92400e; }
+  .kpi-type.filtered { background: #eff6ff; color: #2563eb; }
+  .kpi-type.semi-additive { background: #f3e8ff; color: #7c3aed; }
+  .kpi-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
+  @media (max-width: 700px) { .kpi-body { grid-template-columns: 1fr; } }
+  .kpi-field { display: flex; flex-direction: column; gap: 2px; }
+  .kpi-field-label { font-size: 0.68rem; font-weight: 500; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.3px; }
+  .kpi-field-value { font-size: 0.78rem; color: #374151; line-height: 1.4; }
+  .kpi-field-value code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 0.72rem; color: #6366f1; }
+  .kpi-field-input { font-size: 0.78rem; color: #374151; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px 8px; outline: none; width: 100%; }
+  .kpi-field-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.08); }
+  .kpi-edit-toggle { background: none; border: none; color: #9ca3af; cursor: pointer; padding: 4px; border-radius: 4px; font-size: 0.75rem; transition: color 0.15s; }
+  .kpi-edit-toggle:hover { color: #6366f1; }
+  .kpi-actions { display: flex; gap: 6px; align-items: center; }
+  .kpi-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .kpi-toolbar-left { display: flex; gap: 8px; align-items: center; }
+  .kpi-toolbar-right { display: flex; gap: 8px; }
+  .kpi-search { padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.78rem; width: 200px; outline: none; }
+  .kpi-search:focus { border-color: #6366f1; }
+  .kpi-save-btn { padding: 6px 14px; border: none; border-radius: 6px; background: #6366f1; color: #fff; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+  .kpi-save-btn:hover { background: #4f46e5; }
+  .kpi-save-btn:disabled { background: #c7d2fe; cursor: default; }
+  .kpi-raw-toggle { padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; font-size: 0.73rem; color: #6b7280; cursor: pointer; }
+  .kpi-raw-toggle:hover { background: #f9fafb; }
+  .kpi-info-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 1px solid #e0e7ff; border-radius: 6px; background: #eef2ff; font-size: 0.73rem; color: #4f46e5; cursor: pointer; font-weight: 500; transition: all 0.15s; }
+  .kpi-info-toggle:hover { background: #e0e7ff; }
+  .kpi-info-toggle svg { width: 13px; height: 13px; }
+  .kpi-info-panel { display: none; margin-bottom: 20px; border: 1px solid #e0e7ff; border-radius: 8px; background: #fafbff; padding: 16px 20px; font-size: 0.78rem; line-height: 1.6; color: #374151; }
+  .kpi-info-panel.visible { display: block; }
+  .kpi-info-panel h4 { font-size: 0.75rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.3px; margin: 14px 0 6px; }
+  .kpi-info-panel h4:first-child { margin-top: 0; }
+  .kpi-info-panel table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 0.75rem; }
+  .kpi-info-panel th { text-align: left; padding: 5px 10px; background: #e8ecff; color: #3730a3; font-size: 0.7rem; font-weight: 600; border-bottom: 1px solid #c7d2fe; }
+  .kpi-info-panel td { padding: 5px 10px; border-bottom: 1px solid #eef2ff; color: #4b5563; }
+  .kpi-info-panel p { margin: 4px 0; color: #6b7280; font-style: italic; }
 
   /* Best practices */
-  #practices-content { font-size: 13px; line-height: 1.6; }
-  #practices-content pre { background: #f5f5f5; padding: 12px; border-radius: 4px; overflow-x: auto; }
-  .bp-editor { width: 100%; min-height: 300px; font-family: monospace; font-size: 12px; padding: 12px; border: 1px solid #ddd; border-radius: 4px; }
+  #practices-content { font-size: 0.82rem; line-height: 1.7; }
+  .bp-editor { width: 100%; min-height: 300px; font-family: 'SF Mono', Menlo, monospace; font-size: 0.75rem; padding: 14px; border: 1px solid #e5e7eb; border-radius: 6px; color: #374151; background: #fafafa; }
+  .bp-rendered { padding: 4px 0; }
+  .bp-rendered h1 { font-size: 1.2rem; font-weight: 700; color: #111827; margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #f3f4f6; }
+  .bp-rendered h2 { font-size: 1rem; font-weight: 700; color: #1f2937; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #f3f4f6; }
+  .bp-rendered h3 { font-size: 0.88rem; font-weight: 600; color: #374151; margin: 14px 0 6px; }
+  .bp-rendered h4 { font-size: 0.82rem; font-weight: 600; color: #4b5563; margin: 12px 0 4px; }
+  .bp-rendered p { margin: 6px 0; color: #374151; }
+  .bp-rendered strong { font-weight: 600; color: #111827; }
+  .bp-rendered code { background: #f3f4f6; padding: 1px 6px; border-radius: 3px; font-size: 0.75rem; color: #6366f1; font-family: 'SF Mono', Menlo, monospace; }
+  .bp-rendered pre { background: #1f2937; color: #e5e7eb; padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+  .bp-rendered pre code { background: none; color: inherit; padding: 0; font-size: 0.73rem; }
+  .bp-rendered blockquote { border-left: 3px solid #6366f1; margin: 10px 0; padding: 8px 14px; background: #eef2ff; border-radius: 0 6px 6px 0; color: #4338ca; font-style: italic; }
+  .bp-rendered ul { margin: 6px 0; padding-left: 20px; }
+  .bp-rendered li { margin: 3px 0; color: #374151; }
+  .bp-rendered li::marker { color: #6366f1; }
+  .bp-rendered hr { border: none; border-top: 1px solid #e5e7eb; margin: 16px 0; }
+  .bp-rendered table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.78rem; }
+  .bp-rendered th { text-align: left; padding: 7px 12px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #374151; }
+  .bp-rendered td { padding: 6px 12px; border-bottom: 1px solid #f3f4f6; color: #4b5563; }
+  .bp-rendered tr:hover td { background: #f9fafb; }
 
   /* Bottom nav */
   .bottom-nav { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee; }
@@ -332,6 +425,33 @@
   }
 
   // --- Step 2: Render Configuration ---
+  function editableField(id, value, placeholder) {
+    return `<div class="config-row-editable" id="field-${id}">
+      <span class="cfg-text">${value || '<em style="color:#9ca3af">' + (placeholder||'Not set') + '</em>'}</span>
+      <button class="cfg-edit-btn" title="Edit" onclick="toggleEdit('${id}', '${(value||'').replace(/'/g, "\\'")}')">&#x270E;</button>
+    </div>`;
+  }
+
+  function toggleEdit(id, currentVal) {
+    const container = document.getElementById('field-' + id);
+    const isEditing = container.querySelector('input.cfg-input');
+    if (isEditing) return;
+    container.innerHTML = `<input class="cfg-input" type="text" value="${currentVal}" id="input-${id}" onblur="finishEdit('${id}')" onkeydown="if(event.key==='Enter')this.blur()">`;
+    container.querySelector('input').focus();
+  }
+
+  function finishEdit(id) {
+    const input = document.getElementById('input-' + id);
+    if (!input) return;
+    const newVal = input.value;
+    const container = document.getElementById('field-' + id);
+    container.innerHTML = `<span class="cfg-text">${newVal || '<em style="color:#9ca3af">Not set</em>'}</span><button class="cfg-edit-btn" title="Edit" onclick="toggleEdit('${id}', '${newVal.replace(/'/g, "\\'")}')">&#x270E;</button>`;
+    // Store edit in domainConfig for pipeline run
+    pendingEdits[id] = newVal;
+  }
+
+  let pendingEdits = {};
+
   function renderConfig() {
     const c = domainConfig;
     const domain = c.domain || {};
@@ -351,68 +471,112 @@
 
     const form = document.getElementById('config-form');
     form.innerHTML = `
-      <div class="config-section">
-        <h3 class="config-section-title">Domain &amp; Catalog</h3>
-        <div class="config-grid">
-          <label>Domain</label><input type="text" value="${domain.name || selectedDomain}" disabled>
-          <label>Display Name</label><input type="text" value="${domain.display_name || ''}" disabled>
-          <label>Target Catalog</label><input type="text" value="${target.catalog || ''}" disabled>
-          <label>Target Schema</label><input type="text" value="${target.schema || ''}" disabled>
-          <label>Source Catalog</label><input type="text" value="${source.catalog || ''}" disabled>
-          <label>Source Schema</label><input type="text" value="${source.schema || ''}" disabled>
+      <!-- Catalog Card -->
+      <div class="config-card">
+        <div class="config-card-header">
+          <div class="config-card-icon catalog">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+          </div>
+          <span class="config-card-title">Catalog</span>
+        </div>
+        <div class="config-row">
+          <span class="config-row-label">Target Catalog</span>
+          ${editableField('target_catalog', target.catalog, 'catalog_name')}
+        </div>
+        <div class="config-row">
+          <span class="config-row-label">Target Schema</span>
+          ${editableField('target_schema', target.schema, 'schema_name')}
+        </div>
+        <div class="config-row">
+          <span class="config-row-label">Source Catalog</span>
+          ${editableField('source_catalog', source.catalog, 'catalog_name')}
+        </div>
+        <div class="config-row">
+          <span class="config-row-label">Source Schema</span>
+          ${editableField('source_schema', source.schema, 'schema_name')}
         </div>
       </div>
 
-      <div class="config-section">
-        <h3 class="config-section-title">Data Source</h3>
-        <div class="config-grid">
-          <label>Type</label><input type="text" value="${ds.type || ''}" disabled>
-          <label>Greenfield</label><input type="text" value="${gf.enabled ? 'Enabled' : 'Disabled'}" disabled>
-          <label>Synthetic Data</label><input type="text" value="${gf.synthetic_data ? 'Yes' : 'No'}" disabled>
-          <label>Volume</label><select id="cfg-volume">
+      <!-- Data Source Card -->
+      <div class="config-card">
+        <div class="config-card-header">
+          <div class="config-card-icon data">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg>
+          </div>
+          <span class="config-card-title">Data Source</span>
+        </div>
+        <div class="config-row"><span class="config-row-label">Type</span><span class="config-badge blue">${ds.type || 'N/A'}</span></div>
+        <div class="config-row"><span class="config-row-label">Greenfield</span><span class="config-badge ${gf.enabled ? 'green' : 'gray'}">${gf.enabled ? 'Enabled' : 'Disabled'}</span></div>
+        <div class="config-row"><span class="config-row-label">Synthetic Data</span><span class="config-badge ${gf.synthetic_data ? 'green' : 'gray'}">${gf.synthetic_data ? 'Yes' : 'No'}</span></div>
+        <div class="config-row"><span class="config-row-label">Volume</span>
+          <select id="cfg-volume">
             <option value="low" ${gf.volume === 'low' ? 'selected' : ''}>Low</option>
             <option value="medium" ${gf.volume === 'medium' ? 'selected' : ''}>Medium</option>
             <option value="large" ${gf.volume === 'large' ? 'selected' : ''}>Large</option>
           </select>
-          <label>ERD Image</label><span class="config-value">${erdImage || 'None'}</span>
         </div>
-        ${erdImage ? `
-        <div class="erd-preview">
-          <button class="btn btn-secondary btn-sm" id="btn-toggle-erd">View ERD Diagram</button>
-          <div id="erd-container" style="display:none; margin-top:12px;">
-            <img id="erd-img" src="" alt="ERD Diagram" style="max-width:100%; border:1px solid #ddd; border-radius:4px;">
+        <div class="erd-row">
+          <div class="erd-file-info">
+            <span class="config-row-label">ERD Diagram</span>
+            ${erdImage ? `<span class="erd-filename">${erdImage}</span>` : '<span class="erd-filename" style="color:#9ca3af;">No file</span>'}
           </div>
-        </div>` : ''}
+          <div class="erd-actions">
+            ${erdImage ? `<button class="btn-erd" id="btn-toggle-erd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>` : ''}
+            ${erdImage ? `<button class="btn-erd" id="btn-open-erd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Open</button>` : ''}
+            <button class="btn-erd" id="btn-replace-erd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Replace</button>
+            <input type="file" id="erd-file-input" accept="image/*" style="display:none;">
+          </div>
+        </div>
+        ${erdImage ? `<div id="erd-container" class="erd-inline" style="display:none;"><img id="erd-img" src="" alt="ERD Diagram"></div>` : ''}
       </div>
 
-      <div class="config-section">
-        <h3 class="config-section-title">Assets</h3>
-        <div class="config-grid">
-          <label>Metric View</label><input type="text" value="${mv.name || ''}" disabled>
-          <label>Dashboards</label><span class="config-value">${dashboards.map(d => d.name).join(', ') || 'None'}</span>
-          <label>Genie Space</label><input type="text" value="${genie.space_name || ''}" disabled>
+      <!-- Assets Card -->
+      <div class="config-card">
+        <div class="config-card-header">
+          <div class="config-card-icon assets">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <span class="config-card-title">Assets</span>
+        </div>
+        <div class="config-row">
+          <span class="config-row-label">Metric View</span>
+          ${editableField('mv_name', mv.name, 'metric_view_name')}
+        </div>
+        ${dashboards.map((d, i) => `<div class="config-row"><span class="config-row-label">Dashboard ${dashboards.length > 1 ? (i+1) : ''}</span>${editableField('dash_'+i, d.name, 'dashboard_name')}</div>`).join('')}
+        <div class="config-row">
+          <span class="config-row-label">Genie Space</span>
+          ${editableField('genie_name', genie.space_name, 'genie_space_name')}
         </div>
       </div>
 
-      <div class="config-section">
-        <h3 class="config-section-title">Pipeline Steps</h3>
-        <div class="config-grid">
-          <label>Clean Start</label><select id="cfg-clean"><option value="true" ${pipeline.clean_start ? 'selected' : ''}>Yes</option><option value="false" ${!pipeline.clean_start ? 'selected' : ''}>No</option></select>
-          <label>Steps</label>
+      <!-- Pipeline Card -->
+      <div class="config-card">
+        <div class="config-card-header">
+          <div class="config-card-icon pipeline">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <span class="config-card-title">Pipeline</span>
+        </div>
+        <div class="config-row"><span class="config-row-label">Clean Start</span>
+          <select id="cfg-clean">
+            <option value="true" ${pipeline.clean_start ? 'selected' : ''}>Yes</option>
+            <option value="false" ${!pipeline.clean_start ? 'selected' : ''}>No</option>
+          </select>
+        </div>
+        <div style="padding-top: 10px;">
+          <span class="config-row-label">Steps</span>
           <div class="checkbox-group">
             <label><input type="checkbox" data-step="create_data_layer" ${steps.create_data_layer !== false ? 'checked' : ''}> Data Layer</label>
             <label><input type="checkbox" data-step="create_metric_views" ${steps.create_metric_views !== false ? 'checked' : ''}> Metric Views</label>
             <label><input type="checkbox" data-step="create_dashboards" ${steps.create_dashboards !== false ? 'checked' : ''}> Dashboards</label>
             <label><input type="checkbox" data-step="create_genie_space" ${steps.create_genie_space !== false ? 'checked' : ''}> Genie Space</label>
-            <label><input type="checkbox" data-step="generate_documentation" ${steps.generate_documentation !== false ? 'checked' : ''}> Documentation</label>
+            <label><input type="checkbox" data-step="generate_documentation" ${steps.generate_documentation !== false ? 'checked' : ''}> Docs</label>
           </div>
         </div>
       </div>
-
-
     `;
 
-    // ERD toggle handler
+    // ERD Preview toggle handler
     const toggleBtn = document.getElementById('btn-toggle-erd');
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
@@ -420,41 +584,390 @@
         const img = document.getElementById('erd-img');
         if (container.style.display === 'none') {
           container.style.display = 'block';
-          toggleBtn.textContent = 'Hide ERD Diagram';
-          // Load ERD image via API
+          toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><line x1="1" y1="1" x2="23" y2="23"/></svg> Hide';
           if (!img.src || img.src === window.location.href) {
             img.src = `/api/domains/${selectedDomain}/erd-image`;
           }
         } else {
           container.style.display = 'none';
-          toggleBtn.textContent = 'View ERD Diagram';
+          toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview';
         }
+      });
+    }
+    // ERD Open in new window
+    const openBtn = document.getElementById('btn-open-erd');
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        window.open(`/api/domains/${selectedDomain}/erd-image`, '_blank');
+      });
+    }
+    // ERD Replace (upload new file)
+    const replaceBtn = document.getElementById('btn-replace-erd');
+    const fileInput = document.getElementById('erd-file-input');
+    if (replaceBtn && fileInput) {
+      replaceBtn.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        replaceBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Uploading...';
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const resp = await fetch(`/api/domains/${selectedDomain}/erd-image`, { method: 'POST', body: formData });
+          if (resp.ok) {
+            replaceBtn.innerHTML = '&#x2713; Replaced';
+            // Refresh preview if visible
+            const img = document.getElementById('erd-img');
+            if (img) img.src = `/api/domains/${selectedDomain}/erd-image?t=${Date.now()}`;
+            // Update filename display
+            const fnEl = document.querySelector('.erd-filename');
+            if (fnEl) fnEl.textContent = file.name;
+          } else {
+            replaceBtn.innerHTML = '&#x2717; Failed';
+          }
+        } catch(err) {
+          replaceBtn.innerHTML = '&#x2717; Error';
+        }
+        setTimeout(() => { replaceBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Replace'; }, 2500);
       });
     }
   }
 
   // --- Step 2: Load KPI Matrix ---
+  let kpiRawContent = '';
+  let kpiSections = [];
+  let kpiEditSections = [];  // KPI-only sections (excludes Reference)
+  let kpiShowRaw = false;
+
   async function loadKpiMatrix() {
     const resp = await fetch(`/api/domains/${selectedDomain}/kpi-matrix`);
     const data = await resp.json();
     const container = document.getElementById('kpi-content');
-    if (data.raw) {
-      container.innerHTML = `<textarea class="bp-editor" id="kpi-editor">${escapeHtml(data.raw)}</textarea>`;
-    } else {
+    if (!data.raw) {
       container.innerHTML = '<p class="empty-state">No KPI spec file found.</p>';
+      return;
+    }
+    kpiRawContent = data.raw;
+    kpiSections = parseKpiMarkdown(kpiRawContent);
+    renderKpiUI(container);
+  }
+
+  function parseKpiMarkdown(md) {
+    const sections = [];
+    const lines = md.split('\n');
+    let currentSection = null;
+    let inTable = false;
+    let headers = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line.startsWith('## ')) {
+        if (currentSection && currentSection.items.length > 0) sections.push(currentSection);
+        currentSection = { title: line.replace(/^#+\s*/, ''), items: [], headers: [] };
+        inTable = false;
+        headers = [];
+        continue;
+      }
+      if (line.startsWith('|') && line.includes('|') && !inTable) {
+        const cells = line.split('|').map(c => c.trim()).filter(c => c);
+        const next = (lines[i + 1] || '').trim();
+        if (next.startsWith('|') && next.includes('---')) {
+          headers = cells;
+          if (currentSection) currentSection.headers = headers;
+          inTable = true;
+          i++;
+          continue;
+        }
+      }
+      if (inTable && line.startsWith('|')) {
+        const cells = line.split('|').map(c => c.trim()).filter(c => c);
+        if (cells.length >= 2 && currentSection) {
+          const item = {};
+          headers.forEach((h, idx) => { item[h.toLowerCase().replace(/\s+/g, '_')] = cells[idx] || ''; });
+          currentSection.items.push(item);
+        }
+        continue;
+      }
+      if (inTable && !line.startsWith('|')) { inTable = false; }
+    }
+    if (currentSection && currentSection.items.length > 0) sections.push(currentSection);
+    return sections;
+  }
+
+  function getKpiType(item) {
+    const t = (item.type || '').toLowerCase();
+    if (t.includes('ratio')) return 'ratio';
+    if (t.includes('filtered')) return 'filtered';
+    if (t.includes('semi')) return 'semi-additive';
+    if (t.includes('additive')) return 'additive';
+    return '';
+  }
+
+  function renderKpiUI(container) {
+    if (kpiShowRaw) {
+      container.innerHTML = `
+        <div class="kpi-toolbar">
+          <div class="kpi-toolbar-left"><span style="font-size:0.8rem;font-weight:600;color:#374151;">Raw Markdown</span></div>
+          <div class="kpi-toolbar-right">
+            <button class="kpi-raw-toggle" onclick="kpiShowRaw=false;renderKpiUI(document.getElementById('kpi-content'))">Card View</button>
+            <button class="kpi-save-btn" id="kpi-save-raw">Save</button>
+          </div>
+        </div>
+        <textarea class="bp-editor" id="kpi-editor" style="min-height:400px;">${escapeHtml(kpiRawContent)}</textarea>`;
+      document.getElementById('kpi-save-raw').addEventListener('click', saveKpiRaw);
+      return;
+    }
+
+    // Separate reference sections from KPI sections
+    const refSections = kpiSections.filter(s => s.title.toLowerCase().startsWith('reference'));
+    const kpiOnly = kpiSections.filter(s => !s.title.toLowerCase().startsWith('reference'));
+    kpiEditSections = kpiOnly;
+
+    // Build reference info panel HTML
+    let refHtml = '';
+    refSections.forEach(sec => {
+      const label = sec.title.replace(/^Reference\s*[\u2014\-]+\s*/i, '');
+      refHtml += `<h4>${escapeHtml(label)}</h4>`;
+      if (sec.headers && sec.headers.length && sec.items.length) {
+        refHtml += '<table><thead><tr>' + sec.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody>';
+        sec.items.forEach(item => {
+          refHtml += '<tr>' + sec.headers.map(h => `<td>${escapeHtml(item[h.toLowerCase().replace(/\s+/g, '_')] || '')}</td>`).join('') + '</tr>';
+        });
+        refHtml += '</tbody></table>';
+      }
+    });
+
+    let html = `
+      <div class="kpi-toolbar">
+        <div class="kpi-toolbar-left">
+          <input class="kpi-search" type="text" placeholder="Search KPIs..." id="kpi-search-input" oninput="filterKpis(this.value)">
+          <span style="font-size:0.72rem;color:#9ca3af;">${kpiOnly.reduce((s, sec) => s + sec.items.length, 0)} KPIs</span>
+        </div>
+        <div class="kpi-toolbar-right">
+          ${refHtml ? '<button class="kpi-info-toggle" id="kpi-info-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Reference</button>' : ''}
+          <button class="kpi-raw-toggle" onclick="kpiShowRaw=true;renderKpiUI(document.getElementById('kpi-content'))">Raw Editor</button>
+          <button class="kpi-save-btn" id="kpi-save-btn" disabled>Save Changes</button>
+        </div>
+      </div>
+      ${refHtml ? '<div class="kpi-info-panel" id="kpi-info-panel">' + refHtml + '</div>' : ''}`;
+
+    kpiOnly.forEach((sec, si) => {
+      html += `<div class="kpi-section" data-section="${si}">
+        <div class="kpi-section-header">
+          <span class="kpi-section-title">${escapeHtml(sec.title)}</span>
+          <span class="kpi-section-count">${sec.items.length}</span>
+        </div>
+        <div class="kpi-grid">`;
+
+      sec.items.forEach((item, ki) => {
+        const id = item.id || '';
+        const name = item.kpi_name || item.name || '';
+        const purpose = item.purpose || '';
+        const formula = item.formula || '';
+        const type = item.type || '';
+        const format = item.format || '';
+        const pitfalls = item.pitfalls || '';
+        const kpiWindow = item.window || '';
+        const typeClass = getKpiType(item);
+        const dataIdx = `${si}-${ki}`;
+
+        html += `<div class="kpi-item" data-kpi="${dataIdx}" data-searchtext="${escapeHtml((id + ' ' + name + ' ' + purpose + ' ' + formula).toLowerCase())}">
+          <div class="kpi-item-header">
+            ${id ? `<span class="kpi-id">${escapeHtml(id)}</span>` : ''}
+            <span class="kpi-name" data-idx="${dataIdx}">${escapeHtml(name)}</span>
+            ${typeClass ? `<span class="kpi-type ${typeClass}">${escapeHtml(type)}</span>` : (type ? `<span class="kpi-type">${escapeHtml(type)}</span>` : '')}
+            <div class="kpi-actions">
+              <button class="kpi-edit-toggle" title="Edit this KPI" onclick="toggleKpiEdit('${dataIdx}')">&#x270E;</button>
+            </div>
+          </div>
+          <div class="kpi-body" id="kpi-body-${dataIdx}">
+            <div class="kpi-field"><span class="kpi-field-label">Purpose</span><span class="kpi-field-value">${escapeHtml(purpose)}</span></div>
+            <div class="kpi-field"><span class="kpi-field-label">Formula</span><span class="kpi-field-value"><code>${escapeHtml(formula.replace(/\`/g, ''))}</code></span></div>
+            ${format ? `<div class="kpi-field"><span class="kpi-field-label">Format</span><span class="kpi-field-value">${escapeHtml(format)}</span></div>` : ''}
+            ${kpiWindow ? `<div class="kpi-field"><span class="kpi-field-label">Window</span><span class="kpi-field-value">${escapeHtml(kpiWindow)}</span></div>` : ''}
+            ${pitfalls ? `<div class="kpi-field"><span class="kpi-field-label">Pitfalls</span><span class="kpi-field-value" style="color:#b45309;">${escapeHtml(pitfalls)}</span></div>` : ''}
+          </div>
+        </div>`;
+      });
+      html += '</div></div>';
+    });
+
+    container.innerHTML = html;
+
+    // Info panel toggle
+    const infoBtn = document.getElementById('kpi-info-btn');
+    const infoPanel = document.getElementById('kpi-info-panel');
+    if (infoBtn && infoPanel) {
+      infoBtn.addEventListener('click', () => {
+        infoPanel.classList.toggle('visible');
+        infoBtn.innerHTML = infoPanel.classList.contains('visible')
+          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Hide Reference'
+          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Reference';
+      });
     }
   }
 
+  function toggleKpiEdit(idx) {
+    const [si, ki] = idx.split('-').map(Number);
+    const item = kpiEditSections[si].items[ki];
+    const body = document.getElementById('kpi-body-' + idx);
+    const isEditing = body.querySelector('.kpi-field-input');
+    if (isEditing) {
+      body.querySelectorAll('.kpi-field-input').forEach(inp => { item[inp.dataset.key] = inp.value; });
+      renderKpiItemBody(body, item);
+      document.getElementById('kpi-save-btn').disabled = false;
+      return;
+    }
+    const fields = ['purpose', 'formula', 'format', 'pitfalls'];
+    if (item.window) fields.splice(2, 0, 'window');
+    body.innerHTML = fields.map(f => {
+      const val = (item[f] || '').replace(/\`/g, '');
+      const label = f.charAt(0).toUpperCase() + f.slice(1);
+      return `<div class="kpi-field"><span class="kpi-field-label">${label}</span><input class="kpi-field-input" data-key="${f}" value="${escapeHtml(val)}"></div>`;
+    }).join('');
+  }
+
+  function renderKpiItemBody(body, item) {
+    const formula = item.formula || '';
+    const kpiWindow = item.window || '';
+    body.innerHTML = `
+      <div class="kpi-field"><span class="kpi-field-label">Purpose</span><span class="kpi-field-value">${escapeHtml(item.purpose || '')}</span></div>
+      <div class="kpi-field"><span class="kpi-field-label">Formula</span><span class="kpi-field-value"><code>${escapeHtml(formula.replace(/\`/g, ''))}</code></span></div>
+      ${item.format ? `<div class="kpi-field"><span class="kpi-field-label">Format</span><span class="kpi-field-value">${escapeHtml(item.format)}</span></div>` : ''}
+      ${kpiWindow ? `<div class="kpi-field"><span class="kpi-field-label">Window</span><span class="kpi-field-value">${escapeHtml(kpiWindow)}</span></div>` : ''}
+      ${item.pitfalls ? `<div class="kpi-field"><span class="kpi-field-label">Pitfalls</span><span class="kpi-field-value" style="color:#b45309;">${escapeHtml(item.pitfalls)}</span></div>` : ''}`;
+  }
+
+  function filterKpis(query) {
+    const q = query.toLowerCase();
+    document.querySelectorAll('.kpi-item').forEach(el => {
+      el.style.display = el.dataset.searchtext.includes(q) ? '' : 'none';
+    });
+  }
+
+  async function saveKpiRaw() {
+    const editor = document.getElementById('kpi-editor');
+    if (!editor) return;
+    const btn = document.getElementById('kpi-save-raw');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      const resp = await fetch(`/api/domains/${selectedDomain}/kpi-matrix`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content: editor.value })
+      });
+      if (resp.ok) {
+        btn.textContent = '\u2713 Saved';
+        kpiRawContent = editor.value;
+        kpiSections = parseKpiMarkdown(kpiRawContent);
+      } else { btn.textContent = 'Error'; }
+    } catch(e) { btn.textContent = 'Error'; }
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Save'; }, 2000);
+  }
+
   // --- Step 2: Load Best Practices ---
+  let bpRawContent = '';
+  let bpShowRaw = false;
+
   async function loadBestPractices() {
     const resp = await fetch(`/api/domains/${selectedDomain}/best-practices`);
     const data = await resp.json();
     const container = document.getElementById('practices-content');
-    if (data.content) {
-      container.innerHTML = `<textarea class="bp-editor" id="bp-editor">${escapeHtml(data.content)}</textarea>`;
-    } else {
+    if (!data.content) {
       container.innerHTML = '<p class="empty-state">No best practices file found.</p>';
+      return;
     }
+    bpRawContent = data.content;
+    renderBestPractices(container);
+  }
+
+  function renderBestPractices(container) {
+    if (bpShowRaw) {
+      container.innerHTML = `
+        <div class="kpi-toolbar">
+          <div class="kpi-toolbar-left"><span style="font-size:0.8rem;font-weight:600;color:#374151;">Raw Markdown</span></div>
+          <div class="kpi-toolbar-right">
+            <button class="kpi-raw-toggle" onclick="bpShowRaw=false;renderBestPractices(document.getElementById('practices-content'))">Preview</button>
+            <button class="kpi-save-btn" id="bp-save-btn">Save</button>
+          </div>
+        </div>
+        <textarea class="bp-editor" id="bp-editor" style="min-height:400px;">${escapeHtml(bpRawContent)}</textarea>`;
+      document.getElementById('bp-save-btn').addEventListener('click', saveBestPractices);
+      return;
+    }
+    container.innerHTML = `
+      <div class="kpi-toolbar">
+        <div class="kpi-toolbar-left"><span style="font-size:0.8rem;font-weight:600;color:#374151;">Best Practices</span></div>
+        <div class="kpi-toolbar-right">
+          <button class="kpi-raw-toggle" onclick="bpShowRaw=true;renderBestPractices(document.getElementById('practices-content'))">Edit</button>
+        </div>
+      </div>
+      <div class="bp-rendered">${renderMarkdown(bpRawContent)}</div>`;
+  }
+
+  function renderMarkdown(md) {
+    let html = md
+      // Headers
+      .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      // Bold & italic
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      // Inline code
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      // Horizontal rule
+      .replace(/^---$/gm, '<hr>')
+      // Blockquotes
+      .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
+
+    // Code blocks
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+      return `<pre><code class="lang-${lang}">${escapeHtml(code.trim())}</code></pre>`;
+    });
+
+    // Tables
+    html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)*)/gm, (_, header, sep, body) => {
+      const ths = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
+      const rows = body.trim().split('\n').map(row => {
+        const tds = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
+        return `<tr>${tds}</tr>`;
+      }).join('');
+      return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
+    });
+
+    // Unordered lists
+    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`);
+
+    // Numbered lists
+    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
+
+    // Paragraphs (remaining lines)
+    html = html.replace(/^(?!<[hublotap]|<\/|<hr|$)(.+)$/gm, '<p>$1</p>');
+
+    // Cleanup double blockquotes
+    html = html.replace(/<\/blockquote>\n<blockquote>/g, '<br>');
+
+    return html;
+  }
+
+  async function saveBestPractices() {
+    const editor = document.getElementById('bp-editor');
+    if (!editor) return;
+    const btn = document.getElementById('bp-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+    try {
+      const resp = await fetch(`/api/domains/${selectedDomain}/best-practices`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ content: editor.value })
+      });
+      if (resp.ok) {
+        btn.textContent = '\u2713 Saved';
+        bpRawContent = editor.value;
+      } else { btn.textContent = 'Error'; }
+    } catch(e) { btn.textContent = 'Error'; }
+    setTimeout(() => { btn.disabled = false; btn.textContent = 'Save'; }, 2000);
   }
 
   // --- Step 3: Inline Run Details ---

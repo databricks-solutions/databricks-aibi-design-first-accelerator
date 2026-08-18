@@ -1,7 +1,7 @@
 # AIBI Design-First Accelerator — Databricks Asset Bundle
 #
 # Source of truth for workspace / Databricks settings (host, user, paths, warehouse).
-# Domain config (catalogs, KPIs, assets, ERD) lives in examples/<domain>/accelerator.yaml.
+# Domain config (catalogs, KPIs, assets, ERD) lives in kpi_domains/<domain>/accelerator.yaml.
 #
 # Deploy:  databricks bundle deploy -t dev
 # Genie:   run framework/prompts/00_master_prompt.md (reads both YAML files)
@@ -42,14 +42,14 @@ variables:
     description: Lakebase project ID for pipeline durable state store.
     default: "aibi-studio"
   example_domain:
-    description: Active example module (must match domain.name in accelerator.yaml).
+    description: Active KPI domain (must match domain.name in accelerator.yaml).
     default: member_claims
 sync:
   paths:
     - databricks.yml
     - app.yaml
     - framework
-    - examples/member_claims
+    - kpi_domains/member_claims
     - app
     - notebooks
     - resources

@@ -1,0 +1,430 @@
+fqn: aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5
+columns:
+- name: service_date
+  type: date
+- name: service_month
+  type: timestamp
+- name: paid_month
+  type: timestamp
+- name: received_month
+  type: timestamp
+- name: claim_type
+  type: string
+- name: header_claim_type
+  type: string
+- name: benefit_category
+  type: string
+- name: benefit_level
+  type: string
+- name: line_status
+  type: string
+- name: adjudication_status
+  type: string
+- name: clean_claim_indicator
+  type: string
+- name: place_of_service
+  type: string
+- name: procedure_code
+  type: string
+- name: revenue_code
+  type: string
+- name: primary_diagnosis_code
+  type: string
+- name: rendering_provider
+  type: string
+- name: rendering_provider_type
+  type: string
+- name: rendering_provider_specialty
+  type: string
+- name: submitting_provider
+  type: string
+- name: participating_provider_flag
+  type: string
+- name: line_of_business
+  type: string
+- name: plan_code
+  type: string
+- name: member_state
+  type: string
+- name: member_zip_code
+  type: string
+- name: member_sex
+  type: string
+- name: member_race
+  type: string
+- name: member_ethnicity
+  type: string
+- name: member_age_band
+  type: string
+- name: source_system
+  type: string
+- name: total_claims
+  type: bigint measure
+- name: total_claim_lines
+  type: bigint measure
+- name: total_paid_amount
+  type: decimal(28,2) measure
+- name: average_paid_per_claim
+  type: decimal(38,12) measure
+- name: total_actual_paid_amount
+  type: decimal(28,2) measure
+- name: total_billed_amount
+  type: decimal(28,2) measure
+- name: total_allowed_amount
+  type: decimal(28,2) measure
+- name: total_deductible_amount
+  type: decimal(28,2) measure
+- name: total_copay_amount
+  type: decimal(28,2) measure
+- name: total_coinsurance_amount
+  type: decimal(28,2) measure
+- name: total_not_covered_amount
+  type: decimal(28,2) measure
+- name: total_interest_amount
+  type: decimal(28,2) measure
+- name: unique_members
+  type: bigint measure
+- name: members_by_line_of_business
+  type: bigint measure
+- name: members_by_geography
+  type: bigint measure
+- name: member_months
+  type: bigint measure
+- name: pmpm
+  type: decimal(38,12) measure
+- name: claims_per_1000_members
+  type: double measure
+- name: members_with_claims
+  type: bigint measure
+- name: average_paid_per_member
+  type: decimal(38,12) measure
+- name: claims_per_member
+  type: double measure
+- name: lines_per_claim
+  type: double measure
+- name: denied_lines
+  type: bigint measure
+- name: denial_rate
+  type: double measure
+- name: clean_lines
+  type: bigint measure
+- name: clean_claim_rate
+  type: double measure
+- name: payment_to_billed_ratio
+  type: decimal(38,10) measure
+- name: payment_to_allowed_ratio
+  type: decimal(38,10) measure
+- name: inpatient_paid_amount
+  type: decimal(28,2) measure
+- name: outpatient_paid_amount
+  type: decimal(28,2) measure
+- name: par_paid_amount
+  type: decimal(28,2) measure
+- name: participating_provider_rate
+  type: decimal(38,10) measure
+- name: non_par_paid_amount
+  type: decimal(28,2) measure
+- name: pcp_visit_claims
+  type: bigint measure
+- name: pcp_visit_rate
+  type: double measure
+- name: rolling_3m_paid_amount
+  type: decimal(28,2) measure
+- name: rolling_3m_member_months
+  type: bigint measure
+- name: rolling_3m_pmpm
+  type: decimal(38,12) measure
+- name: trailing_1m_active_claim_members
+  type: bigint measure
+- name: Catalog
+  type: aw_serverless_stable_catalog
+- name: Database
+  type: aibi_member_claims
+- name: Table
+  type: member_claims_metric_view_v5
+- name: Owner
+  type: e0e73b08-ee2a-4ee2-95ec-ce11cd2609c9
+- name: Created Time
+  type: Mon Aug 17 16:07:11 UTC 2026
+- name: Last Access
+  type: UNKNOWN
+- name: Created By
+  type: Spark
+- name: Type
+  type: METRIC_VIEW
+- name: Comment
+  type: 'Member Claims metric view v5 sourced from claim detail line grain using confirmed
+    v5 physical tables and columns only. Implements claim financial/utilization KPIs
+    and supported derived measures. M-2 and M-3 are limited to distinct members with
+    claims by line of business/geography, not full active enrollment snapshots. Explicitly
+    skipped/limited KPIs: M-1 New Member Enrollment requires an enrollment/member-history
+    sourced semantic view to count all new members by valid_from/effective date without
+    excluding members who have no claims or creating one-to-many duplication at claim-line
+    grain; MC-3 true Utilization Rate requires active_enrolled_members from enrollment
+    as denominator and cannot be safely joined to claim lines without pre-aggregation;
+    MC-4 High-Cost Member Count requires member-level spend pre-aggregation before
+    applying the threshold; W-2 MoM Active Member Growth requires LAG/offset logic
+    outside a single metric-view window measure, so trailing_1m_active_claim_members
+    is exposed as the component trend measure.'
+- name: View Text
+  type: "version: 1.1\n\nsource: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v5\n\
+    \njoins:\n  - name: claim_header\n    source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_header_v5\n\
+    \    \"on\": source.clm_dtl_claim_id = claim_header.clm_claim_id\n    cardinality:\
+    \ many_to_one\n  - name: member\n    source: aw_serverless_stable_catalog.aibi_member_claims.dim_member_v5\n\
+    \    \"on\": source.clm_dtl_member_nbr_sk = CAST(member.member_sk AS STRING)\n\
+    \    cardinality: many_to_one\n\nfilter: is_active = true\n\ncomment: \"Member\
+    \ Claims metric view v5 sourced from claim detail line grain using\\\n  \\ confirmed\
+    \ v5 physical tables and columns only. Implements claim financial/utilization\\\
+    \n  \\ KPIs and supported derived measures. M-2 and M-3 are limited to distinct\
+    \ members\\\n  \\ with claims by line of business/geography, not full active enrollment\
+    \ snapshots.\\\n  \\ Explicitly skipped/limited KPIs: M-1 New Member Enrollment\
+    \ requires an enrollment/member-history\\\n  \\ sourced semantic view to count\
+    \ all new members by valid_from/effective date without\\\n  \\ excluding members\
+    \ who have no claims or creating one-to-many duplication at claim-line\\\n  \\\
+    \ grain; MC-3 true Utilization Rate requires active_enrolled_members from enrollment\\\
+    \n  \\ as denominator and cannot be safely joined to claim lines without pre-aggregation;\\\
+    \n  \\ MC-4 High-Cost Member Count requires member-level spend pre-aggregation\
+    \ before\\\n  \\ applying the threshold; W-2 MoM Active Member Growth requires\
+    \ LAG/offset logic\\\n  \\ outside a single metric-view window measure, so trailing_1m_active_claim_members\\\
+    \n  \\ is exposed as the component trend measure.\"\n\ndimensions:\n  - name:\
+    \ service_date\n    expr: clm_dtl_specific_dos_date\n    comment: Claim detail\
+    \ service from date.\n    display_name: Service Date\n\n  - name: service_month\n\
+    \    expr: \"DATE_TRUNC('MONTH', clm_dtl_specific_dos_date)\"\n    comment: Month\
+    \ bucket for service date and window measures.\n    display_name: Service Month\n\
+    \n  - name: paid_month\n    expr: \"DATE_TRUNC('MONTH', clm_dtl_check_date)\"\n\
+    \    comment: Month bucket based on claim check/payment date.\n    display_name:\
+    \ Paid Month\n\n  - name: received_month\n    expr: \"DATE_TRUNC('MONTH', clm_dtl_claim_receive_date)\"\
+    \n    comment: Month bucket based on claim received date.\n    display_name: Received\
+    \ Month\n\n  - name: claim_type\n    expr: clm_dtl_claim_type\n    display_name:\
+    \ Claim Type\n\n  - name: header_claim_type\n    expr: claim_header.clm_claim_type\n\
+    \    display_name: Header Claim Type\n\n  - name: benefit_category\n    expr:\
+    \ clm_dtl_benefit_category\n    display_name: Benefit Category\n\n  - name: benefit_level\n\
+    \    expr: clm_dtl_benefit_level\n    display_name: Benefit Level\n\n  - name:\
+    \ line_status\n    expr: clm_dtl_line_status\n    display_name: Line Status\n\n\
+    \  - name: adjudication_status\n    expr: clm_dtl_adjudication_status\n    display_name:\
+    \ Adjudication Status\n\n  - name: clean_claim_indicator\n    expr: clm_dtl_clean_claim_ind\n\
+    \    display_name: Clean Claim Indicator\n\n  - name: place_of_service\n    expr:\
+    \ clm_dtl_place_of_service\n    display_name: Place of Service\n\n  - name: procedure_code\n\
+    \    expr: clm_dtl_procedure_code\n    display_name: Procedure Code\n\n  - name:\
+    \ revenue_code\n    expr: clm_dtl_revenue_code\n    display_name: Revenue Code\n\
+    \n  - name: primary_diagnosis_code\n    expr: clm_dtl_diagnosis_ind_1\n    display_name:\
+    \ Primary Diagnosis Code\n\n  - name: rendering_provider\n    expr: clm_dtl_rendering_provider\n\
+    \    display_name: Rendering Provider\n\n  - name: rendering_provider_type\n \
+    \   expr: clm_dtl_rendering_provider_type\n    display_name: Rendering Provider\
+    \ Type\n\n  - name: rendering_provider_specialty\n    expr: clm_dtl_rendering_provider_spec\n\
+    \    display_name: Rendering Provider Specialty\n\n  - name: submitting_provider\n\
+    \    expr: clm_dtl_submitting_provider\n    display_name: Submitting Provider\n\
+    \n  - name: participating_provider_flag\n    expr: \"CASE WHEN claim_header.clm_is_par_rendering_provider\
+    \ = true OR claim_header.clm_is_par_referring_provider\\\n      \\ = true OR UPPER(claim_header.clm_is_par_submitting_provider)\
+    \ IN ('Y', 'YES',\\\n      \\ 'TRUE', '1') THEN 'Y' ELSE 'N' END\"\n    display_name:\
+    \ Participating Provider Flag\n\n  - name: line_of_business\n    expr: \"COALESCE(claim_header.clm_line_of_business,\
+    \ member.mbr_line_of_business)\"\n    display_name: Line of Business\n\n  - name:\
+    \ plan_code\n    expr: claim_header.clm_plan_code\n    display_name: Plan Code\n\
+    \n  - name: member_state\n    expr: member.mbr_state\n    display_name: Member\
+    \ State\n\n  - name: member_zip_code\n    expr: member.mbr_zip_code\n    display_name:\
+    \ Member ZIP Code\n\n  - name: member_sex\n    expr: member.mbr_sex\n    display_name:\
+    \ Member Sex\n\n  - name: member_race\n    expr: member.mbr_race\n    display_name:\
+    \ Member Race\n\n  - name: member_ethnicity\n    expr: member.mbr_ethnicity\n\
+    \    display_name: Member Ethnicity\n\n  - name: member_age_band\n    expr: \"\
+    CASE WHEN member.mbr_dob IS NULL THEN 'Unknown' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+    \n      \\ member.mbr_dob) / 365.25) < 18 THEN '0-17' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+    \n      \\ member.mbr_dob) / 365.25) BETWEEN 18 AND 34 THEN '18-34' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+    \n      \\ member.mbr_dob) / 365.25) BETWEEN 35 AND 49 THEN '35-49' WHEN FLOOR(DATEDIFF(CURRENT_DATE(),\\\
+    \n      \\ member.mbr_dob) / 365.25) BETWEEN 50 AND 64 THEN '50-64' ELSE '65+'\
+    \ END\"\n    display_name: Member Age Band\n\n  - name: source_system\n    expr:\
+    \ clm_dtl_source_system\n    display_name: Source System\n\nmeasures:\n  - name:\
+    \ total_claims\n    expr: COUNT(DISTINCT clm_dtl_claim_id)\n    comment: \"C-1:\
+    \ Count of distinct claims. Uses DISTINCT because claims can have\\\n      \\\
+    \ multiple detail lines.\"\n    display_name: Total Claims\n\n  - name: total_claim_lines\n\
+    \    expr: COUNT(clm_dtl_claim_id)\n    comment: \"C-2: Count of claim detail\
+    \ service lines.\"\n    display_name: Total Claim Lines\n\n  - name: total_paid_amount\n\
+    \    expr: SUM(clm_dtl_paid_amt)\n    comment: \"C-3: Sum of paid amount across\
+    \ claim detail lines.\"\n    display_name: Total Paid Amount\n\n  - name: average_paid_per_claim\n\
+    \    expr: \"MEASURE(total_paid_amount) / NULLIF(MEASURE(total_claims), 0)\"\n\
+    \    comment: \"C-4: Total paid divided by distinct claim count. Ratio must be\
+    \ recomputed\\\n      \\ from components.\"\n    display_name: Average Paid per\
+    \ Claim\n\n  - name: total_actual_paid_amount\n    expr: SUM(clm_dtl_actual_paid_amt)\n\
+    \    display_name: Total Actual Paid Amount\n\n  - name: total_billed_amount\n\
+    \    expr: SUM(clm_dtl_billed_amt)\n    display_name: Total Billed Amount\n\n\
+    \  - name: total_allowed_amount\n    expr: SUM(clm_dtl_allowed_amt)\n    display_name:\
+    \ Total Allowed Amount\n\n  - name: total_deductible_amount\n    expr: SUM(clm_dtl_deduct_amt)\n\
+    \    display_name: Total Deductible Amount\n\n  - name: total_copay_amount\n \
+    \   expr: SUM(clm_dtl_copay_amt)\n    display_name: Total Copay Amount\n\n  -\
+    \ name: total_coinsurance_amount\n    expr: SUM(clm_dtl_co_insurance_amt)\n  \
+    \  display_name: Total Coinsurance Amount\n\n  - name: total_not_covered_amount\n\
+    \    expr: SUM(clm_dtl_not_covered_amt)\n    display_name: Total Not Covered Amount\n\
+    \n  - name: total_interest_amount\n    expr: SUM(clm_dtl_interest_amt)\n    display_name:\
+    \ Total Interest Amount\n\n  - name: unique_members\n    expr: COUNT(DISTINCT\
+    \ clm_dtl_member_nbr_sk)\n    comment: Distinct members represented in claim detail\
+    \ rows.\n    display_name: Unique Members with Claims\n\n  - name: members_by_line_of_business\n\
+    \    expr: COUNT(DISTINCT clm_dtl_member_nbr_sk)\n    comment: \"M-2 limited implementation:\
+    \ use with line_of_business field. Counts\\\n      \\ members with claims, not\
+    \ the full active enrolled member snapshot.\"\n    display_name: Members by Line\
+    \ of Business\n\n  - name: members_by_geography\n    expr: COUNT(DISTINCT clm_dtl_member_nbr_sk)\n\
+    \    comment: \"M-3 limited implementation: use with member_state or member_zip_code\\\
+    \n      \\ fields. Counts members with claims, not the full active enrolled member\
+    \ snapshot.\"\n    display_name: Members by Geography\n\n  - name: member_months\n\
+    \    expr: \"COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk AS STRING), '-',\
+    \ DATE_FORMAT(clm_dtl_specific_dos_date,\\\n      \\ 'yyyy-MM')))\"\n    comment:\
+    \ Claim-based member-month exposure from service month. Full enrollment\n    \
+    \  member-months require an enrollment-sourced or pre-aggregated view.\n    display_name:\
+    \ Claim Member Months\n\n  - name: pmpm\n    expr: \"MEASURE(total_paid_amount)\
+    \ / NULLIF(MEASURE(member_months), 0)\"\n    comment: \"MC-1 limited implementation:\
+    \ paid amount divided by claim-based member\\\n      \\ months. Never sum this\
+    \ ratio.\"\n    display_name: PMPM\n\n  - name: claims_per_1000_members\n    expr:\
+    \ \"(MEASURE(total_claims) / NULLIF(MEASURE(member_months), 0)) * 1000\"\n   \
+    \ comment: \"MC-2: Distinct claims normalized by member months and scaled by 1,000.\"\
+    \n    display_name: \"Claims per 1,000 Members\"\n\n  - name: members_with_claims\n\
+    \    expr: COUNT(DISTINCT clm_dtl_member_nbr_sk)\n    comment: Numerator component\
+    \ for utilization-rate analysis. MC-3 utilization rate\n      denominator requires\
+    \ active enrolled members from enrollment and is skipped\n      in this claim-line-grain\
+    \ metric view.\n    display_name: Members with Claims\n\n  - name: average_paid_per_member\n\
+    \    expr: \"MEASURE(total_paid_amount) / NULLIF(MEASURE(unique_members), 0)\"\
+    \n    display_name: Average Paid per Member\n\n  - name: claims_per_member\n \
+    \   expr: \"MEASURE(total_claims) / NULLIF(MEASURE(unique_members), 0)\"\n   \
+    \ display_name: Claims per Member\n\n  - name: lines_per_claim\n    expr: \"MEASURE(total_claim_lines)\
+    \ / NULLIF(MEASURE(total_claims), 0)\"\n    display_name: Lines per Claim\n\n\
+    \  - name: denied_lines\n    expr: \"COUNT(clm_dtl_claim_id) FILTER (WHERE UPPER(clm_dtl_adjudication_status)\\\
+    \n      \\ IN ('DENIED', 'DENY', 'D') OR UPPER(clm_dtl_line_status) IN ('DENIED',\
+    \ 'DENY',\\\n      \\ 'D'))\"\n    display_name: Denied Lines\n\n  - name: denial_rate\n\
+    \    expr: \"MEASURE(denied_lines) / NULLIF(MEASURE(total_claim_lines), 0)\"\n\
+    \    display_name: Denial Rate\n\n  - name: clean_lines\n    expr: \"COUNT(clm_dtl_claim_id)\
+    \ FILTER (WHERE UPPER(clm_dtl_clean_claim_ind) IN\\\n      \\ ('Y', 'YES', 'TRUE',\
+    \ '1'))\"\n    display_name: Clean Lines\n\n  - name: clean_claim_rate\n    expr:\
+    \ \"MEASURE(clean_lines) / NULLIF(MEASURE(total_claim_lines), 0)\"\n    display_name:\
+    \ Clean Claim Rate\n\n  - name: payment_to_billed_ratio\n    expr: \"MEASURE(total_paid_amount)\
+    \ / NULLIF(MEASURE(total_billed_amount), 0)\"\n    display_name: Payment-to-Billed\
+    \ Ratio\n\n  - name: payment_to_allowed_ratio\n    expr: \"MEASURE(total_paid_amount)\
+    \ / NULLIF(MEASURE(total_allowed_amount), 0)\"\n    display_name: Payment-to-Allowed\
+    \ Ratio\n\n  - name: inpatient_paid_amount\n    expr: \"SUM(clm_dtl_paid_amt)\
+    \ FILTER (WHERE UPPER(clm_dtl_claim_type) IN ('INSTITUTIONAL',\\\n      \\ 'INPATIENT',\
+    \ 'I', 'INST'))\"\n    comment: Filtered paid amount for institutional/inpatient\
+    \ claim-type values.\n    display_name: Inpatient Paid Amount\n\n  - name: outpatient_paid_amount\n\
+    \    expr: \"SUM(clm_dtl_paid_amt) FILTER (WHERE UPPER(clm_dtl_claim_type) IN\
+    \ ('PROFESSIONAL',\\\n      \\ 'OUTPATIENT', 'P', 'PROF'))\"\n    comment: Filtered\
+    \ paid amount for professional/outpatient claim-type values.\n    display_name:\
+    \ Outpatient Paid Amount\n\n  - name: par_paid_amount\n    expr: \"SUM(clm_dtl_paid_amt)\
+    \ FILTER (WHERE claim_header.clm_is_par_rendering_provider\\\n      \\ = true\
+    \ OR claim_header.clm_is_par_referring_provider = true OR UPPER(claim_header.clm_is_par_submitting_provider)\\\
+    \n      \\ IN ('Y', 'YES', 'TRUE', '1'))\"\n    display_name: Participating Provider\
+    \ Paid Amount\n\n  - name: participating_provider_rate\n    expr: \"MEASURE(par_paid_amount)\
+    \ / NULLIF(MEASURE(total_paid_amount), 0)\"\n    display_name: Participating Provider\
+    \ Rate\n\n  - name: non_par_paid_amount\n    expr: \"SUM(clm_dtl_paid_amt) FILTER\
+    \ (WHERE COALESCE(claim_header.clm_is_par_rendering_provider,\\\n      \\ false)\
+    \ = false AND COALESCE(claim_header.clm_is_par_referring_provider, false)\\\n\
+    \      \\ = false AND COALESCE(UPPER(claim_header.clm_is_par_submitting_provider),\
+    \ 'N')\\\n      \\ NOT IN ('Y', 'YES', 'TRUE', '1'))\"\n    display_name: Non-Participating\
+    \ Provider Paid Amount\n\n  - name: pcp_visit_claims\n    expr: COUNT(DISTINCT\
+    \ clm_dtl_claim_id) FILTER (WHERE claim_header.clm_pcp_visit_flag\n      = 1)\n\
+    \    display_name: PCP Visit Claims\n\n  - name: pcp_visit_rate\n    expr: \"\
+    MEASURE(pcp_visit_claims) / NULLIF(MEASURE(total_claims), 0)\"\n    display_name:\
+    \ PCP Visit Rate\n\n  - name: rolling_3m_paid_amount\n    expr: SUM(clm_dtl_paid_amt)\n\
+    \    window:\n      - order: service_month\n        semiadditive: last\n     \
+    \   range: trailing 3 month\n    comment: Window numerator component for rolling\
+    \ PMPM.\n    display_name: Rolling 3-Month Paid Amount\n\n  - name: rolling_3m_member_months\n\
+    \    expr: \"COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk AS STRING), '-',\
+    \ DATE_FORMAT(clm_dtl_specific_dos_date,\\\n      \\ 'yyyy-MM')))\"\n    window:\n\
+    \      - order: service_month\n        semiadditive: last\n        range: trailing\
+    \ 3 month\n    comment: Window denominator component for rolling PMPM.\n    display_name:\
+    \ Rolling 3-Month Claim Member Months\n\n  - name: rolling_3m_pmpm\n    expr:\
+    \ \"SUM(clm_dtl_paid_amt) / NULLIF(COUNT(DISTINCT CONCAT(CAST(clm_dtl_member_nbr_sk\\\
+    \n      \\ AS STRING), '-', DATE_FORMAT(clm_dtl_specific_dos_date, 'yyyy-MM'))),\
+    \ 0)\"\n    window:\n      - order: service_month\n        semiadditive: last\n\
+    \        range: trailing 3 month\n    comment: \"W-1: trailing 3-month paid divided\
+    \ by trailing 3-month member months;\\\n      \\ does not average PMPM ratios.\"\
+    \n    display_name: Rolling 3-Month PMPM\n\n  - name: trailing_1m_active_claim_members\n\
+    \    expr: COUNT(DISTINCT clm_dtl_member_nbr_sk)\n    window:\n      - order:\
+    \ service_month\n        semiadditive: last\n        range: trailing 1 month\n\
+    \    comment: Component trend measure only. W-2 MoM Active Member Growth requires\
+    \ LAG/offset\n      logic outside a single metric-view measure.\n    display_name:\
+    \ Trailing 1-Month Active Claim Members"
+- name: Language
+  type: YAML
+- name: Table Properties
+  type: '[metric_view.from.name=aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v5,
+    metric_view.from.type=ASSET, metric_view.joins=[{"name":"claim_header","cardinality":"many_to_one"},{"name":"member","cardinality":"many_to_one"}],
+    metric_view.materialization.enabled=false, metric_view.where=is_active = true]'
+measures:
+- total_claims
+- total_claim_lines
+- total_paid_amount
+- average_paid_per_claim
+- total_actual_paid_amount
+- total_billed_amount
+- total_allowed_amount
+- total_deductible_amount
+- total_copay_amount
+- total_coinsurance_amount
+- total_not_covered_amount
+- total_interest_amount
+- unique_members
+- members_by_line_of_business
+- members_by_geography
+- member_months
+- pmpm
+- claims_per_1000_members
+- members_with_claims
+- average_paid_per_member
+- claims_per_member
+- lines_per_claim
+- denied_lines
+- denial_rate
+- clean_lines
+- clean_claim_rate
+- payment_to_billed_ratio
+- payment_to_allowed_ratio
+- inpatient_paid_amount
+- outpatient_paid_amount
+- par_paid_amount
+- participating_provider_rate
+- non_par_paid_amount
+- pcp_visit_claims
+- pcp_visit_rate
+- rolling_3m_paid_amount
+- rolling_3m_member_months
+- rolling_3m_pmpm
+- trailing_1m_active_claim_members
+- View Text
+dimensions:
+- service_date
+- service_month
+- paid_month
+- received_month
+- claim_type
+- header_claim_type
+- benefit_category
+- benefit_level
+- line_status
+- adjudication_status
+- clean_claim_indicator
+- place_of_service
+- procedure_code
+- revenue_code
+- primary_diagnosis_code
+- rendering_provider
+- rendering_provider_type
+- rendering_provider_specialty
+- submitting_provider
+- participating_provider_flag
+- line_of_business
+- plan_code
+- member_state
+- member_zip_code
+- member_sex
+- member_race
+- member_ethnicity
+- member_age_band
+- source_system
+- Catalog
+- Database
+- Table
+- Owner
+- Created Time
+- Last Access
+- Created By
+- Type
+- Comment
+- Language
+- Table Properties
+sample_rows: []
+row_count: -1

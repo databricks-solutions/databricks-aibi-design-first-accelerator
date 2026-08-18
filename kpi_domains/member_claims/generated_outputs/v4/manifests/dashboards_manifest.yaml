@@ -1,0 +1,11 @@
+dashboards:
+- id: kpis
+  dashboard_id: 01f19a4311c81b8fb6c5a940a3d6fd47
+  display_name: member_claims_kpis_dashboard_v4
+  path: /Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/examples/member_claims/output/v4/member_claims_kpis_dashboard_v4.lvdash.json
+  warehouse_id: 2d8e531640ffa469
+- id: utilization
+  dashboard_id: 01f19a43122b1623b4a861b22d18f96e
+  display_name: member_claims_utilization_dashboard_v4
+  path: /Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/examples/member_claims/output/v4/member_claims_utilization_dashboard_v4.lvdash.json
+  warehouse_id: 2d8e531640ffa469

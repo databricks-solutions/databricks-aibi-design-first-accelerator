@@ -148,9 +148,9 @@ class Config:
         return f"{self.DEPLOY_ROOT}/framework"
 
     @property
-    def examples_root(self):
-        """Absolute workspace path to examples/ directory."""
-        return f"{self.DEPLOY_ROOT}/examples"
+    def kpi_domains_root(self):
+        """Absolute workspace path to kpi_domains/ directory."""
+        return f"{self.DEPLOY_ROOT}/kpi_domains"
 
 
 class DevelopmentConfig(Config):

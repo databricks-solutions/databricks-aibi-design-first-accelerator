@@ -152,7 +152,7 @@ class VersionResolver:
         Also supports legacy output_v1/, output_v2/ pattern in example_dir.
 
         Args:
-            example_dir: Path to examples/<domain>/ directory.
+            example_dir: Path to kpi_domains/<domain>/ directory.
 
         Returns:
             List of version numbers found.

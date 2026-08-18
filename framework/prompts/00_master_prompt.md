@@ -4,13 +4,13 @@
 
 You are a Databricks Platform Engineer. Execute the pipeline below in sequence for the domain defined in `accelerator.yaml`.
 
-Run this prompt from an **example folder** (e.g. `examples/<domain>/`) that contains `accelerator.yaml` and `inputs/`.
+Run this prompt from an **example folder** (e.g. `kpi_domains/<domain>/`) that contains `accelerator.yaml` and `inputs/`.
 
 ---
 
 ## Step 0: Load Configuration
 
-**Path rule:** Let `EXAMPLE_DIR` = the workspace directory that contains this run’s `accelerator.yaml` (e.g. `.../examples/member_claims`). Every `paths.*` value in `accelerator.yaml` is relative to `EXAMPLE_DIR` — **not** relative to where `00_master_prompt.md` lives.
+**Path rule:** Let `EXAMPLE_DIR` = the workspace directory that contains this run’s `accelerator.yaml` (e.g. `.../kpi_domains/member_claims`). Every `paths.*` value in `accelerator.yaml` is relative to `EXAMPLE_DIR` — **not** relative to where `00_master_prompt.md` lives.
 
 1. Read `accelerator.yaml` from `EXAMPLE_DIR`. Extract domain, catalog, data source, assets, pipeline, validation, and **`paths`**.
 2. Read Databricks config from **`{EXAMPLE_DIR}/{paths.databricks_yml}`** (default `../../databricks.yml` → bundle-root `databricks.yml`).  
@@ -22,8 +22,8 @@ Run this prompt from an **example folder** (e.g. `examples/<domain>/`) that cont
    - `example_domain` — must equal `domain.name` in `accelerator.yaml`; if not, halt with a clear error
    - `workspace.host` — from `targets.<target>.workspace.host` (informational for API context)
 3. **Resolve output folder** (absolute workspace path used in all later steps as `workspace.output_folder`):
-   - Base: `{deploy_root}/examples/{domain.name}/{workspace.output_subpath}` (default subpath: `output`)
-   - If `workspace.short_name` is set (non-null, non-empty): use `{deploy_root}/examples/{domain.name}/{output_subpath}_{short_name}` instead
+   - Base: `{deploy_root}/kpi_domains/{domain.name}/{workspace.output_subpath}` (default subpath: `generated_outputs`)
+   - If `workspace.short_name` is set (non-null, non-empty): use `{deploy_root}/kpi_domains/{domain.name}/{output_subpath}_{short_name}` instead
 4. **Name suffix resolution** — apply to every asset name in `assets`:
    - If `workspace.short_name` is **null or empty**: use names as written in YAML.
    - If `workspace.short_name` is set (e.g. `jane_doe`): append `_{short_name}` to each asset name **unless** it already ends with that suffix.
@@ -33,7 +33,7 @@ Run this prompt from an **example folder** (e.g. `examples/<domain>/`) that cont
 7. If `data_source.type` is `live_schema` or `erd_and_live_schema`, read **`{EXAMPLE_DIR}/{paths.framework_root}/inputs/live_schema_discovery.md`** — resolves `live_schemas[]`, single `live_schema`, or `catalog.source`.
 8. If `data_source.erd.image` is set, note its path for Step 2 (data layer) and metric view join design.
 9. Load step prompts from **`{EXAMPLE_DIR}/{paths.framework_prompts}/`** (default `../../framework/prompts/`).
-10. `EXAMPLE_DIR` on workspace after DAB deploy: `{deploy_root}/examples/{domain.name}`. Input paths in `accelerator.yaml` are relative to `EXAMPLE_DIR`.
+10. `EXAMPLE_DIR` on workspace after DAB deploy: `{deploy_root}/kpi_domains/{domain.name}`. Input paths in `accelerator.yaml` are relative to `EXAMPLE_DIR`.
 
 **Template-first policy:** When `accelerator.yaml` defines a `templates.*` path for a step, the deliverable is a **populated artifact from that template** (notebook or YAML header), executed and validated — not a hand-built shortcut or empty UI asset. Steps with templates: DDL/dbldatagen (01), metric view YAML header (02), Genie notebook (04). Do not use `createAsset` or equivalent one-click creation when a template workflow exists.
 

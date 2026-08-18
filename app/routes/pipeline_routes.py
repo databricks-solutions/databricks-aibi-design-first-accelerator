@@ -495,12 +495,20 @@ def start_run():
 def get_status(run_id):
     """Get current pipeline execution status with structured steps array.
 
+    Only serves ACTIVE runs (running/started/cancelling). For completed/failed runs,
+    returns 404 so the client falls through to /runs/<run_id> which reads from Lakebase.
+
     Returns:
         {run_id, status, current_step, steps: [{step_name, status, duration_s, phases}], ...}
     """
     run = _runs.get(run_id)
     if not run:
         return jsonify({'error': {'type': 'NotFound', 'message': f'Run {run_id} not found'}}), 404
+
+    # For terminal-state runs, return 404 to force client to use /runs/<run_id> (Lakebase)
+    # This avoids returning stale in-memory state with large logs/internal fields
+    if run.get('status') in ('completed', 'failed', 'cancelled'):
+        return jsonify({'error': {'type': 'NotFound', 'message': 'Run completed; use /runs/<run_id>'}}), 404
 
     # Build structured steps array for the UI
     STEP_ORDER = [
@@ -617,6 +625,9 @@ def list_runs():
 def get_run_detail(run_id):
     """Get full run detail including steps and phases (for run details page).
 
+    Normalizes the steps array to include all 7 expected steps in order,
+    including load_configuration which is not persisted to Lakebase.
+
     Returns:
         {run_id, domain, status, steps: [{step_name, status, phases: [...], ...}], ...}
     """
@@ -631,6 +642,33 @@ def get_run_detail(run_id):
         if not run:
             return jsonify({'error': {'type': 'NotFound', 'message': f'Run {run_id} not found'}}), 404
 
+    # Normalize steps array to include all expected steps in order.
+    # load_configuration is handled in-memory only (not persisted to Lakebase).
+    STEP_ORDER = [
+        "load_configuration", "environment_setup", "create_data_layer",
+        "create_metric_views", "create_dashboards", "create_genie_space",
+        "generate_documentation",
+    ]
+    raw_steps = run.get('steps', [])
+    steps_by_name = {(s.get('step_name') or s.get('name')): s for s in raw_steps}
+
+    # If any step ran, load_configuration must have completed first
+    has_any_step = len(steps_by_name) > 0
+
+    normalized = []
+    for step_name in STEP_ORDER:
+        if step_name in steps_by_name:
+            entry = steps_by_name[step_name]
+            entry['step_name'] = step_name
+            if 'phases' not in entry:
+                entry['phases'] = []
+            normalized.append(entry)
+        elif step_name == 'load_configuration' and has_any_step:
+            normalized.append({'step_name': step_name, 'status': 'completed', 'phases': []})
+        else:
+            normalized.append({'step_name': step_name, 'status': 'pending', 'phases': []})
+
+    run['steps'] = normalized
     return jsonify(run)
 
 

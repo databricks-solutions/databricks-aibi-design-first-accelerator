@@ -3,6 +3,11 @@ version: "1.0"
 domain:
   name: member_claims
   display_name: Member Claims
+  description: >-
+    Healthcare member claims analytics covering claim submissions, approvals,
+    denials, provider utilization, and cost trends. Enables KPI tracking for
+    claims processing efficiency, member out-of-pocket spend, provider network
+    utilization, and denial root-cause analysis.
 
 # Workspace / warehouse: databricks.yml at paths.databricks_yml (bundle root — fixed layout after DAB deploy).
 
@@ -15,7 +20,7 @@ paths:
 
 workspace:
   short_name: null
-  output_subpath: output
+  output_subpath: generated_outputs
 
 catalog:
   source:

@@ -4,6 +4,42 @@
 
 ---
 
+## Reference — Glossary
+
+| Term | Definition |
+|------|-----------|
+| **PMPM** | Per Member Per Month — total cost ÷ member-month exposure |
+| **Member-Month** | One member active for one month (12 months = 12 member-months) |
+| **Semi-additive** | Cannot be summed across time |
+| **Ratio** | Must be recomputed from components, never summed |
+| **Window measure** | Computed over a trailing time window |
+| **LOB** | Line of Business (Commercial, Medicare, Medicaid, etc.) |
+| **SCD2** | Slowly Changing Dimension Type 2 — tracks history with valid_from/valid_to |
+
+## Reference — Aggregation Rules
+
+These are **non-negotiable**. Violating them produces incorrect business results.
+
+| Rule | Why |
+|------|-----|
+| Never SUM members across time | Same member counted in multiple months inflates totals |
+| Never SUM PMPM or any ratio | Ratios must be recomputed from numerator/denominator |
+| Never use LAST for paid amounts | Paid is transactional — always SUM |
+| Always use NULLIF(denominator, 0) | Guards against division by zero |
+
+## Reference — Dashboard Mapping
+
+| Dashboard | Page | KPIs |
+|-----------|------|------|
+| **KPIs Overview** | Financial Overview | C-1, C-3, MC-1, W-1, W-2, top-N cost drivers |
+| | Claims Analysis | C-4, Denial Rate, Clean Claim Rate, monthly trends |
+| | Member Demographics | M-2, M-3, age/sex breakdowns |
+| **Utilization & Provider** | Utilization Patterns | C-1, C-2, Inpatient/Outpatient Paid |
+| | Provider Insights | Specialty rankings, Par Provider Rate |
+| | Operational Metrics | Denial trends, Payment-to-Billed, Payment-to-Allowed |
+
+---
+
 ## KPI Catalog — Member Domain
 
 | ID | KPI Name | Purpose | Formula | Type | Format | Pitfalls |
@@ -63,43 +99,3 @@ Create these if source data supports them. All are composed from core measures u
 | Inpatient Paid Amount | `SUM(paid) FILTER (WHERE claim_type = Institutional)` | filtered | Currency USD |
 | Outpatient Paid Amount | `SUM(paid) FILTER (WHERE claim_type = Professional)` | filtered | Currency USD |
 | Participating Provider Rate | `par_paid / NULLIF(total_paid, 0)` | ratio | Percentage |
-
----
-
-## Aggregation Rules
-
-These are **non-negotiable**. Violating them produces incorrect business results.
-
-| Rule | Why |
-|------|-----|
-| Never SUM members across time | Same member counted in multiple months inflates totals |
-| Never SUM PMPM or any ratio | Ratios must be recomputed from numerator/denominator |
-| Never use LAST for paid amounts | Paid is transactional — always SUM |
-| Always use NULLIF(denominator, 0) | Guards against division by zero |
-
----
-
-## Dashboard Mapping
-
-| Dashboard | Page | KPIs |
-|-----------|------|------|
-| **KPIs Overview** | Financial Overview | C-1, C-3, MC-1, W-1, W-2, top-N cost drivers |
-| | Claims Analysis | C-4, Denial Rate, Clean Claim Rate, monthly trends |
-| | Member Demographics | M-2, M-3, age/sex breakdowns |
-| **Utilization & Provider** | Utilization Patterns | C-1, C-2, Inpatient/Outpatient Paid |
-| | Provider Insights | Specialty rankings, Par Provider Rate |
-| | Operational Metrics | Denial trends, Payment-to-Billed, Payment-to-Allowed |
-
----
-
-## Glossary
-
-| Term | Definition |
-|------|-----------|
-| **PMPM** | Per Member Per Month — total cost ÷ member-month exposure |
-| **Member-Month** | One member active for one month (12 months = 12 member-months) |
-| **Semi-additive** | Cannot be summed across time |
-| **Ratio** | Must be recomputed from components, never summed |
-| **Window measure** | Computed over a trailing time window |
-| **LOB** | Line of Business (Commercial, Medicare, Medicaid, etc.) |
-| **SCD2** | Slowly Changing Dimension Type 2 — tracks history with valid_from/valid_to |

@@ -6,7 +6,7 @@ resources:
     aibi_app:
       name: aibi-studio-${workspace.current_user.domain_friendly_name}
       description: "AI/BI Studio — Design-First Semantic Layer, Metric Views, Dashboards & Genie"
-      # Deploys entire project root (app/, framework/, examples/) to container.
+      # Deploys entire project root (app/, framework/, kpi_domains/) to container.
       # app.yaml must be at this root. gunicorn --chdir app starts Flask.
       source_code_path: ..
 

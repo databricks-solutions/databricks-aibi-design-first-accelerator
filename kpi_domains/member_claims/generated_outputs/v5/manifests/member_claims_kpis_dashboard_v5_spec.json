@@ -1,0 +1,1335 @@
+{
+  "datasets": [
+    {
+      "name": "ds_filter_values",
+      "displayName": "Filter Values",
+      "queryLines": [
+        "SELECT DISTINCT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 WHERE service_month IS NOT NULL"
+      ]
+    },
+    {
+      "name": "ds_financial_summary",
+      "displayName": "Financial Summary",
+      "queryLines": [
+        "SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, MEASURE(total_claims) AS total_claims, MEASURE(total_paid_amount) AS total_paid_amount, MEASURE(unique_members) AS unique_members FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL"
+      ]
+    },
+    {
+      "name": "ds_monthly_financial_trend",
+      "displayName": "Monthly Financial Trend",
+      "queryLines": [
+        "SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, MEASURE(total_claims) AS total_claims, MEASURE(total_paid_amount) AS total_paid_amount, MEASURE(unique_members) AS unique_members FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL ORDER BY service_month"
+      ]
+    },
+    {
+      "name": "ds_rolling_3m_pmpm",
+      "displayName": "Rolling 3 Month PMPM",
+      "queryLines": [
+        "WITH monthly AS (SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, MEASURE(total_paid_amount) AS total_paid_amount, MEASURE(unique_members) AS unique_members FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL) SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, SUM(total_paid_amount) OVER (PARTITION BY line_of_business, claim_type, member_state, member_age_band, member_sex ORDER BY service_month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling_3m_paid_amount, SUM(unique_members) OVER (PARTITION BY line_of_business, claim_type, member_state, member_age_band, member_sex ORDER BY service_month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS rolling_3m_unique_members FROM monthly"
+      ]
+    },
+    {
+      "name": "ds_mom_member_growth",
+      "displayName": "MoM Active Member Growth",
+      "queryLines": [
+        "WITH monthly AS (SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, MEASURE(unique_members) AS unique_members FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL) SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, unique_members, LAG(unique_members) OVER (PARTITION BY line_of_business, claim_type, member_state, member_age_band, member_sex ORDER BY service_month) AS prior_month_unique_members FROM monthly"
+      ]
+    },
+    {
+      "name": "ds_top_cost_drivers",
+      "displayName": "Top Cost Drivers",
+      "queryLines": [
+        "SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, benefit_category, rendering_provider_specialty, primary_diagnosis_code, MEASURE(total_claims) AS total_claims, MEASURE(total_paid_amount) AS total_paid_amount FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL"
+      ]
+    },
+    {
+      "name": "ds_claims_quality",
+      "displayName": "Claims Quality",
+      "queryLines": [
+        "SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, MEASURE(total_claims) AS total_claims, MEASURE(total_claim_lines) AS total_claim_lines, MEASURE(total_paid_amount) AS total_paid_amount, MEASURE(total_claim_lines) FILTER (WHERE LOWER(COALESCE(adjudication_status, line_status)) LIKE '%den%') AS denied_claim_lines, MEASURE(total_claim_lines) FILTER (WHERE LOWER(COALESCE(clean_claim_indicator, '')) IN ('y','yes','true','clean','1')) AS clean_claim_lines FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL"
+      ]
+    },
+    {
+      "name": "ds_claims_monthly_trend",
+      "displayName": "Claims Monthly Trend",
+      "queryLines": [
+        "SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, MEASURE(total_claims) AS total_claims, MEASURE(total_claim_lines) AS total_claim_lines, MEASURE(total_paid_amount) AS total_paid_amount, MEASURE(total_claim_lines) FILTER (WHERE LOWER(COALESCE(adjudication_status, line_status)) LIKE '%den%') AS denied_claim_lines, MEASURE(total_claim_lines) FILTER (WHERE LOWER(COALESCE(clean_claim_indicator, '')) IN ('y','yes','true','clean','1')) AS clean_claim_lines FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL ORDER BY service_month"
+      ]
+    },
+    {
+      "name": "ds_demographics",
+      "displayName": "Member Demographics",
+      "queryLines": [
+        "SELECT service_month, line_of_business, claim_type, member_state, member_age_band, member_sex, MEASURE(unique_members) AS unique_members, MEASURE(members_by_line_of_business) AS members_by_line_of_business, MEASURE(members_by_geography) AS members_by_geography FROM aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v5 GROUP BY ALL"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "filters_page",
+      "displayName": "Filters",
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layout": [
+        {
+          "widget": {
+            "name": "filter-service-month",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_filter_values",
+                  "fields": [
+                    {
+                      "name": "service_month",
+                      "expression": "`service_month`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "service_month",
+                    "displayName": "Service Month",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Service Month"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-line-of-business",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_filter_values",
+                  "fields": [
+                    {
+                      "name": "line_of_business",
+                      "expression": "`line_of_business`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "line_of_business",
+                    "displayName": "Line of Business",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Line of Business"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-claim-type",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_filter_values",
+                  "fields": [
+                    {
+                      "name": "claim_type",
+                      "expression": "`claim_type`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "claim_type",
+                    "displayName": "Claim Type",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Claim Type"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-member-state",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_filter_values",
+                  "fields": [
+                    {
+                      "name": "member_state",
+                      "expression": "`member_state`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "member_state",
+                    "displayName": "Member State",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Member State"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-member-age-band",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_filter_values",
+                  "fields": [
+                    {
+                      "name": "member_age_band",
+                      "expression": "`member_age_band`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "member_age_band",
+                    "displayName": "Member Age Band",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Member Age Band"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-member-sex",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_filter_values",
+                  "fields": [
+                    {
+                      "name": "member_sex",
+                      "expression": "`member_sex`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "member_sex",
+                    "displayName": "Member Sex",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Member Sex"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        }
+      ]
+    },
+    {
+      "name": "financial_overview",
+      "displayName": "Financial Overview",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "title-financial-overview",
+            "multilineTextboxSpec": {
+              "text": "# Financial Overview\nHeadline claims cost, PMPM proxy, rolling PMPM, member growth, and top cost drivers."
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-total-claims",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_financial_summary",
+                  "fields": [
+                    {
+                      "name": "sum(total_claims)",
+                      "expression": "SUM(`total_claims`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(total_claims)",
+                  "displayName": "Total Claims"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Total Claims"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-total-paid-amount",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_financial_summary",
+                  "fields": [
+                    {
+                      "name": "sum(total_paid_amount)",
+                      "expression": "SUM(`total_paid_amount`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(total_paid_amount)",
+                  "displayName": "Total Paid Amount"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Total Paid Amount"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-pmpm-proxy",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_financial_summary",
+                  "fields": [
+                    {
+                      "name": "pmpm",
+                      "expression": "SUM(`total_paid_amount`) / NULLIF(SUM(`unique_members`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "pmpm",
+                  "displayName": "PMPM"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "PMPM"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "line-monthly-paid-claims",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_monthly_financial_trend",
+                  "fields": [
+                    {
+                      "name": "service_month",
+                      "expression": "`service_month`"
+                    },
+                    {
+                      "name": "sum(total_paid_amount)",
+                      "expression": "SUM(`total_paid_amount`)"
+                    },
+                    {
+                      "name": "sum(total_claims)",
+                      "expression": "SUM(`total_claims`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "service_month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Service Month"
+                },
+                "y": {
+                  "fieldName": "sum(total_paid_amount)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Total Paid Amount"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Monthly Paid Trend"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "line-rolling-3m-pmpm",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_rolling_3m_pmpm",
+                  "fields": [
+                    {
+                      "name": "service_month",
+                      "expression": "`service_month`"
+                    },
+                    {
+                      "name": "rolling_3m_pmpm",
+                      "expression": "SUM(`rolling_3m_paid_amount`) / NULLIF(SUM(`rolling_3m_unique_members`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "service_month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Service Month"
+                },
+                "y": {
+                  "fieldName": "rolling_3m_pmpm",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Rolling 3M PMPM"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Rolling 3-Month PMPM"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 4,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "line-mom-member-growth",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_mom_member_growth",
+                  "fields": [
+                    {
+                      "name": "service_month",
+                      "expression": "`service_month`"
+                    },
+                    {
+                      "name": "mom_member_growth",
+                      "expression": "(SUM(`unique_members`) - SUM(`prior_month_unique_members`)) / NULLIF(SUM(`prior_month_unique_members`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "service_month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Service Month"
+                },
+                "y": {
+                  "fieldName": "mom_member_growth",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "MoM Active Member Growth"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "MoM Active Member Growth"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "table-top-cost-drivers",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_top_cost_drivers",
+                  "fields": [
+                    {
+                      "name": "benefit_category",
+                      "expression": "`benefit_category`"
+                    },
+                    {
+                      "name": "rendering_provider_specialty",
+                      "expression": "`rendering_provider_specialty`"
+                    },
+                    {
+                      "name": "primary_diagnosis_code",
+                      "expression": "`primary_diagnosis_code`"
+                    },
+                    {
+                      "name": "sum(total_paid_amount)",
+                      "expression": "SUM(`total_paid_amount`)"
+                    },
+                    {
+                      "name": "sum(total_claims)",
+                      "expression": "SUM(`total_claims`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "benefit_category",
+                    "displayName": "Benefit Category"
+                  },
+                  {
+                    "fieldName": "rendering_provider_specialty",
+                    "displayName": "Provider Specialty"
+                  },
+                  {
+                    "fieldName": "primary_diagnosis_code",
+                    "displayName": "Diagnosis Code"
+                  },
+                  {
+                    "fieldName": "sum(total_paid_amount)",
+                    "displayName": "Total Paid"
+                  },
+                  {
+                    "fieldName": "sum(total_claims)",
+                    "displayName": "Claims"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top-N Cost Drivers"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
+            "height": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "claims_analysis",
+      "displayName": "Claims Analysis",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "title-claims-analysis",
+            "multilineTextboxSpec": {
+              "text": "# Claims Analysis\nAverage paid per claim, denial rate, clean claim rate, and monthly claim trends."
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-average-paid-per-claim",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_claims_quality",
+                  "fields": [
+                    {
+                      "name": "average_paid_per_claim",
+                      "expression": "SUM(`total_paid_amount`) / NULLIF(SUM(`total_claims`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "average_paid_per_claim",
+                  "displayName": "Average Paid per Claim"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Average Paid per Claim"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-denial-rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_claims_quality",
+                  "fields": [
+                    {
+                      "name": "denial_rate",
+                      "expression": "SUM(`denied_claim_lines`) / NULLIF(SUM(`total_claim_lines`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "denial_rate",
+                  "displayName": "Denial Rate"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Denial Rate"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi-clean-claim-rate",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_claims_quality",
+                  "fields": [
+                    {
+                      "name": "clean_claim_rate",
+                      "expression": "SUM(`clean_claim_lines`) / NULLIF(SUM(`total_claim_lines`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "clean_claim_rate",
+                  "displayName": "Clean Claim Rate"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Clean Claim Rate"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "line-monthly-claims",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_claims_monthly_trend",
+                  "fields": [
+                    {
+                      "name": "service_month",
+                      "expression": "`service_month`"
+                    },
+                    {
+                      "name": "sum(total_claims)",
+                      "expression": "SUM(`total_claims`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "service_month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Service Month"
+                },
+                "y": {
+                  "fieldName": "sum(total_claims)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Total Claims"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Monthly Claims Trend"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "line-denial-rate-trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_claims_monthly_trend",
+                  "fields": [
+                    {
+                      "name": "service_month",
+                      "expression": "`service_month`"
+                    },
+                    {
+                      "name": "denial_rate",
+                      "expression": "SUM(`denied_claim_lines`) / NULLIF(SUM(`total_claim_lines`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "service_month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Service Month"
+                },
+                "y": {
+                  "fieldName": "denial_rate",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Denial Rate"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Monthly Denial Rate"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 4,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "bar-claims-by-type",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_claims_quality",
+                  "fields": [
+                    {
+                      "name": "claim_type",
+                      "expression": "`claim_type`"
+                    },
+                    {
+                      "name": "sum(total_claims)",
+                      "expression": "SUM(`total_claims`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "claim_type",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Claim Type"
+                },
+                "y": {
+                  "fieldName": "sum(total_claims)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Total Claims"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Claims by Type"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "table-claims-quality-detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_claims_quality",
+                  "fields": [
+                    {
+                      "name": "line_of_business",
+                      "expression": "`line_of_business`"
+                    },
+                    {
+                      "name": "claim_type",
+                      "expression": "`claim_type`"
+                    },
+                    {
+                      "name": "sum(total_claim_lines)",
+                      "expression": "SUM(`total_claim_lines`)"
+                    },
+                    {
+                      "name": "denial_rate",
+                      "expression": "SUM(`denied_claim_lines`) / NULLIF(SUM(`total_claim_lines`), 0)"
+                    },
+                    {
+                      "name": "clean_claim_rate",
+                      "expression": "SUM(`clean_claim_lines`) / NULLIF(SUM(`total_claim_lines`), 0)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "line_of_business",
+                    "displayName": "Line of Business"
+                  },
+                  {
+                    "fieldName": "claim_type",
+                    "displayName": "Claim Type"
+                  },
+                  {
+                    "fieldName": "sum(total_claim_lines)",
+                    "displayName": "Claim Lines"
+                  },
+                  {
+                    "fieldName": "denial_rate",
+                    "displayName": "Denial Rate"
+                  },
+                  {
+                    "fieldName": "clean_claim_rate",
+                    "displayName": "Clean Claim Rate"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Claims Quality Detail"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
+            "height": 5
+          }
+        }
+      ]
+    },
+    {
+      "name": "member_demographics",
+      "displayName": "Member Demographics",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layout": [
+        {
+          "widget": {
+            "name": "title-member-demographics",
+            "multilineTextboxSpec": {
+              "text": "# Member Demographics\nMember distribution by line of business, geography, age band, and sex."
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "bar-members-by-lob",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_demographics",
+                  "fields": [
+                    {
+                      "name": "line_of_business",
+                      "expression": "`line_of_business`"
+                    },
+                    {
+                      "name": "sum(unique_members)",
+                      "expression": "SUM(`unique_members`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "line_of_business",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Line of Business"
+                },
+                "y": {
+                  "fieldName": "sum(unique_members)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Members"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Members by Line of Business"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "bar-members-by-state",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_demographics",
+                  "fields": [
+                    {
+                      "name": "member_state",
+                      "expression": "`member_state`"
+                    },
+                    {
+                      "name": "sum(unique_members)",
+                      "expression": "SUM(`unique_members`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "member_state",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Member State"
+                },
+                "y": {
+                  "fieldName": "sum(unique_members)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Members"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Members by Geography"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 1,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "pie-members-by-age-band",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_demographics",
+                  "fields": [
+                    {
+                      "name": "member_age_band",
+                      "expression": "`member_age_band`"
+                    },
+                    {
+                      "name": "sum(unique_members)",
+                      "expression": "SUM(`unique_members`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "theta": {
+                  "fieldName": "sum(unique_members)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Members"
+                },
+                "color": {
+                  "fieldName": "member_age_band",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Age Band"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Members by Age Band"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "bar-members-by-sex",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_demographics",
+                  "fields": [
+                    {
+                      "name": "member_sex",
+                      "expression": "`member_sex`"
+                    },
+                    {
+                      "name": "sum(unique_members)",
+                      "expression": "SUM(`unique_members`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "member_sex",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Member Sex"
+                },
+                "y": {
+                  "fieldName": "sum(unique_members)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Members"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Members by Sex"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 6,
+            "width": 3,
+            "height": 5
+          }
+        }
+      ]
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

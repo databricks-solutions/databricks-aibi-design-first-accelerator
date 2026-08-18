@@ -80,7 +80,7 @@ For `.ipynb` under `workspace.output_folder/notebooks/`, use `ImportFormat.JUPYT
 | Purpose | Path |
 |---------|------|
 | Bundle root | `deploy_root` from Step 0 (e.g. `/Workspace/Users/<user>/aibi-design-first-accelerator`) |
-| Example inputs | `{deploy_root}/examples/<domain>/` = `EXAMPLE_DIR` |
+| Example inputs | `{deploy_root}/kpi_domains/<domain>/` = `EXAMPLE_DIR` |
 | Generated assets | `workspace.output_folder` (under `EXAMPLE_DIR`, default `.../output`) |
 
 Resolve paths from `accelerator.yaml` `paths.*` relative to **EXAMPLE_DIR** only.

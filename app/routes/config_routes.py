@@ -16,7 +16,7 @@ config_bp = Blueprint('config', __name__, url_prefix='/api/config')
 def list_domains():
     """List available example domains from the workspace.
 
-    Scans {DEPLOY_ROOT}/examples/ for directories containing accelerator.yaml.
+    Scans {DEPLOY_ROOT}/kpi_domains/ for directories containing accelerator.yaml.
 
     Returns:
         {domains: [{name: str, path: str, type: str}]}
@@ -25,7 +25,7 @@ def list_domains():
     default_domain = current_app.config.get('DEFAULT_EXAMPLE_DOMAIN', 'member_claims')
     return jsonify({
         'domains': [
-            {'name': default_domain, 'path': f"examples/{default_domain}", 'type': 'erd'}
+            {'name': default_domain, 'path': f"kpi_domains/{default_domain}", 'type': 'erd'}
         ]
     })
 

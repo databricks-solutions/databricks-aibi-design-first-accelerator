@@ -134,7 +134,7 @@ class ConfigLoader:
         """Load and resolve configuration for a domain.
 
         Args:
-            domain: Domain name (maps to examples/<domain>/).
+            domain: Domain name (maps to kpi_domains/<domain>/).
             deploy_root: Path to project root for READING configs (local or workspace).
             sql_warehouse_id: SQL warehouse ID from env/databricks.yml.
             workspace_root: Workspace path for WRITING outputs. If empty, uses deploy_root.
@@ -143,11 +143,11 @@ class ConfigLoader:
             Fully resolved AcceleratorConfig.
         """
         # Reading path (local filesystem or workspace)
-        example_dir = f"{deploy_root}/examples/{domain}"
+        example_dir = f"{deploy_root}/kpi_domains/{domain}"
         accel_yaml_path = f"{example_dir}/accelerator.yaml"
         # Writing path (always workspace for persistent outputs)
         ws_root = workspace_root or deploy_root
-        ws_example_dir = f"{ws_root}/examples/{domain}"
+        ws_example_dir = f"{ws_root}/kpi_domains/{domain}"
 
         try:
             raw = self._ws.read_yaml(accel_yaml_path)
@@ -162,7 +162,7 @@ class ConfigLoader:
         # Parse workspace block
         workspace_block = raw.get("workspace", {})
         short_name = workspace_block.get("short_name")
-        output_subpath = workspace_block.get("output_subpath", "output")
+        output_subpath = workspace_block.get("output_subpath", "generated_outputs")
 
         # Compute output folder (workspace path for writing)
         output_folder = f"{ws_example_dir}/{output_subpath}"
