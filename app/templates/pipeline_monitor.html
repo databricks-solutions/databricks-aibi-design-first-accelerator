@@ -1,0 +1,745 @@
+{% extends "layout.html" %}
+{% block title %}{{ domain|replace('_',' ')|title }} — Pipeline Run{% endblock %}
+
+{% block breadcrumb %}
+<a href="/domains">KPI Domains</a>
+<span class="separator">&rsaquo;</span>
+<span class="current">{{ domain|replace('_',' ')|title }}</span>
+{% endblock %}
+
+{% block top_bar_right %}
+<span class="status-badge running" id="run-status-badge">Running</span>
+<span class="timer" id="elapsed-timer">00:00:00</span>
+{% endblock %}
+
+{% block head %}
+<style>
+    /* ═══════════════════════════════════════════════
+       DARK THEME OVERRIDE for Pipeline Monitor
+       Matches the mockup's dark navy design
+       ═══════════════════════════════════════════════ */
+    .monitor-layout {
+    }
+
+    .monitor-layout {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        height: calc(100vh - 52px);
+        background: var(--bg-app);
+        color: var(--text-primary);
+    }
+
+    /* --- Pipeline Step Bar --- */
+    .pipeline-bar {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        background: var(--bg-card);
+        overflow-x: auto;
+    }
+    .steps-row { display: flex; align-items: center; gap: 0; min-width: max-content; }
+    .step-item { display: flex; align-items: center; }
+    .step-node { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 80px; }
+    .step-circle {
+        width: 32px; height: 32px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 12px; font-weight: 600;
+        border: 2px solid var(--border);
+        background: var(--bg-subtle); color: var(--text-muted);
+        transition: all 0.3s;
+    }
+    .step-circle.completed { background: var(--success); border-color: var(--success); color: #fff; }
+    .step-circle.running { background: var(--primary-soft); border: 2px solid var(--border-active); color: var(--primary); animation: pulse 2s infinite; }
+    .step-circle.failed { background: var(--danger); border-color: var(--danger); color: #fff; }
+    .step-circle.skipped { background: var(--bg-subtle); border-color: var(--border); color: var(--text-muted); opacity: 0.5; }
+    @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); } 50% { box-shadow: 0 0 0 8px rgba(59,130,246,0); } }
+    .step-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+    .step-label.active { color: var(--text-primary); font-weight: 600; }
+    .step-sublabel { font-size: 10px; color: var(--text-muted); }
+    .step-sublabel.done { color: var(--success-text); }
+    .step-sublabel.running { color: var(--primary); }
+    .step-duration-badge { font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; opacity: 0.85; }
+    .step-connector { width: 36px; height: 2px; background: var(--border); margin: 0 2px; margin-bottom: 20px; }
+    .step-connector.done { background: var(--success); }
+    .step-connector.running { background: var(--primary); }
+
+    /* --- Main Split --- */
+    .monitor-main { display: grid; grid-template-columns: 1fr 380px; overflow: hidden; }
+
+    /* --- Left Panel (Steps + Sub-steps) --- */
+    .left-panel { padding: 0; overflow-y: auto; background: var(--bg-app); }
+    .accordion-step { border-bottom: 1px solid var(--border); }
+    .accordion-header {
+        display: flex; align-items: center; gap: 12px;
+        padding: 14px 24px; cursor: pointer; transition: background 0.15s;
+    }
+    .accordion-header:hover { background: var(--bg-subtle); }
+    .accordion-header.expanded { background: var(--bg-card); }
+    .accordion-icon {
+        width: 32px; height: 32px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 13px; font-weight: 600; flex-shrink: 0;
+    }
+    .accordion-icon.done { background: var(--success); color: #fff; }
+    .accordion-icon.running { background: var(--primary); color: #fff; animation: pulse 2s infinite; }
+    .accordion-icon.pending { background: var(--bg-subtle); border: 1.5px solid var(--border); color: var(--text-muted); }
+    .accordion-icon.failed { background: var(--danger); color: #fff; }
+    .accordion-title { font-size: 0.92rem; font-weight: 500; color: var(--text-primary); }
+    .accordion-desc { font-size: 0.78rem; color: var(--text-secondary); }
+    .accordion-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .accordion-duration { font-size: 0.75rem; color: var(--text-muted); font-family: monospace; }
+    .accordion-status {
+        font-size: 11px; padding: 3px 10px; border-radius: 12px; font-weight: 500;
+    }
+    .accordion-status.completed { background: var(--success-soft); color: var(--success-text); }
+    .accordion-status.in-progress { background: var(--primary-soft); color: var(--primary); }
+    .accordion-status.waiting { background: var(--bg-subtle); color: var(--text-muted); }
+    .accordion-status.failed { background: var(--danger-soft); color: var(--danger); }
+    .accordion-status.skipped { background: var(--bg-subtle); color: var(--text-muted); font-style: italic; }
+    .accordion-body {
+        padding: 0 24px 20px 68px;
+        display: none;
+    }
+    .accordion-body.open { display: block; }
+
+    /* Sub-steps inside accordion */
+    .substep-list { margin-top: 4px; }
+    .substep { display: flex; align-items: flex-start; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border-subtle); }
+    .substep:last-child { border-bottom: none; }
+    .substep-icon {
+        width: 24px; height: 24px; border-radius: 50%;
+        display: flex; align-items: center; justify-content: center;
+        font-size: 11px; flex-shrink: 0; margin-top: 2px;
+    }
+    .substep-icon.done { background: var(--success); color: #fff; }
+    .substep-icon.running { background: var(--primary); color: #fff; animation: pulse 2s infinite; }
+    .substep-icon.pending { background: var(--bg-subtle); border: 1.5px solid var(--border); color: var(--text-muted); }
+    .substep-icon.failed { background: var(--danger); color: #fff; }
+    .substep-body { flex: 1; }
+    .substep-name { font-size: 0.88rem; font-weight: 500; color: var(--text-primary); margin-bottom: 2px; }
+    .substep-detail { font-size: 0.78rem; color: var(--text-secondary); }
+    .substep-right { text-align: right; flex-shrink: 0; }
+    .substep-duration { font-size: 0.78rem; color: var(--text-muted); font-family: monospace; }
+    .substep-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-top: 3px; display: inline-block; }
+    .substep-status.completed { background: var(--success-soft); color: var(--success-text); }
+    .substep-status.in-progress { background: var(--primary-soft); color: var(--primary); }
+    .substep-status.failed { background: var(--danger-soft); color: var(--danger); }
+    .substep-status.pending { background: var(--bg-subtle); color: var(--text-muted); }
+    .substep.clickable { cursor: pointer; border-radius: var(--radius-sm); transition: background 0.15s; }
+    .substep.clickable:hover { background: var(--bg-subtle); }
+    .substep-chevron { display: inline-block; margin-right: 4px; font-weight: 700; }
+    .phase-inline-detail { padding: 0 0 12px 36px; }
+
+    /* Phase Detail Panel (Current Task + What's happening) */
+    .phase-detail-panel{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0 8px 36px;padding:16px;background:var(--bg-app);border:1px solid var(--border);border-radius:10px;}
+    .phase-detail-left,.phase-detail-right{display:flex;flex-direction:column;gap:8px;}
+    .phase-detail-title{font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;}
+    .phase-detail-task{font-size:14px;font-weight:600;color:var(--text-primary);}
+    .phase-progress{height:6px;background:var(--border);border-radius:3px;position:relative;margin-top:4px;}
+    .phase-progress-bar{height:100%;background:var(--primary);border-radius:3px;transition:width 0.3s ease;}
+    .phase-progress-label{position:absolute;right:0;top:-18px;font-size:11px;color:var(--text-secondary);}
+    .phase-stats{display:flex;gap:16px;margin-top:8px;}
+    .phase-stat{display:flex;flex-direction:column;align-items:center;}
+    .phase-stat-value{font-size:18px;font-weight:700;color:var(--text-primary);}
+    .phase-stat-label{font-size:10px;color:var(--text-muted);text-transform:capitalize;}
+    .phase-happenings-title,.phase-findings-title{font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;margin-bottom:4px;}
+    .phase-happening-item{font-size:12px;color:var(--text-secondary);padding:2px 0;padding-left:12px;}
+    .phase-finding-item{font-size:12px;color:var(--success);padding:2px 0;padding-left:12px;}
+    .phase-findings{margin-top:8px;padding:10px;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:6px;}
+
+    /* Running detail box (expanded current task) */
+    .running-detail {
+        background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+        border: 1px solid var(--border-active);
+        border-radius: var(--radius-md); padding: 16px; margin-top: 10px;
+    }
+    [data-theme="dark"] .running-detail {
+        background: linear-gradient(180deg, #161b22 0%, #1c2128 100%);
+    }
+    .current-task-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .current-task-name { font-size: 0.85rem; font-weight: 500; color: var(--text-primary); margin-top: 2px; }
+    .progress-bar-bg { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 10px; }
+    .progress-bar-fill { height: 100%; background: var(--primary); border-radius: 3px; transition: width 0.5s; }
+    .progress-stats { display: flex; gap: 20px; font-size: 0.78rem; color: var(--text-secondary); margin-top: 8px; flex-wrap: wrap; }
+    .progress-stat-value { font-weight: 600; color: var(--text-primary); }
+    .detail-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px; }
+    .detail-column h4 { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+    .detail-item { font-size: 0.8rem; color: var(--text-secondary); padding: 3px 0; display: flex; align-items: center; gap: 6px; }
+    .detail-item .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--primary); }
+    .detail-item .check { color: var(--success); font-weight: 700; }
+
+    /* --- Right Panel --- */
+    .right-panel {
+        display: flex; flex-direction: column; overflow: hidden;
+        background: var(--bg-card); border-left: 1px solid var(--border);
+    }
+    .right-panel-header {
+        padding: 16px 20px; border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .right-panel-title { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--bg-card); }
+    .tab {
+        padding: 10px 16px; font-size: 12px; font-weight: 500; color: var(--text-muted);
+        cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s;
+    }
+    .tab:hover { color: var(--text-primary); }
+    .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .tab-content { flex: 1; overflow-y: auto; padding: 16px 20px; }
+
+    .activity-item {
+        display: flex; gap: 10px; padding: 10px 0;
+        border-left: 2px solid var(--border); margin-left: 6px; padding-left: 16px;
+        position: relative; font-size: 0.8rem;
+    }
+    .activity-item::before {
+        content: ''; position: absolute; left: -5px; top: 14px;
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--primary); border: 2px solid var(--bg-card);
+    }
+    .activity-item[style*="border-left-color"]::before { background: var(--danger); }
+    .activity-time { color: var(--text-muted); font-family: monospace; font-size: 0.72rem; white-space: nowrap; min-width: 56px; }
+    .activity-text { color: var(--text-secondary); line-height: 1.4; }
+    .activity-text strong { color: var(--text-primary); font-weight: 500; }
+
+    .decision-card {
+        background: var(--bg-subtle); border: 1px solid var(--border);
+        border-radius: 8px; padding: 12px; margin-bottom: 10px;
+    }
+    .decision-title { font-size: 0.82rem; font-weight: 500; color: var(--text-primary); margin-bottom: 4px; }
+    .decision-detail { font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 6px; }
+    .decision-confidence { font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+    .decision-confidence.high { background: var(--success-soft); color: var(--success-text); }
+    .decision-confidence.medium { background: var(--warning-soft); color: var(--warning); }
+
+    /* --- Bottom Status Bar --- */
+    .status-bar {
+        padding: 10px 24px;
+        background: var(--bg-card);
+        border-top: 1px solid var(--border);
+        display: flex; align-items: center; gap: 24px; font-size: 0.78rem;
+    }
+    .status-bar-item { display: flex; flex-direction: column; gap: 1px; }
+    .status-bar-label { color: var(--text-muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.3px; }
+    .status-bar-value { color: var(--text-primary); font-weight: 500; }
+    .status-bar-progress { flex: 1; display: flex; align-items: center; gap: 12px; }
+    .status-bar-progress .progress-bar-bg { flex: 1; height: 4px; }
+    .status-bar-progress .pct { font-weight: 600; color: var(--primary); min-width: 32px; }
+    .status-bar-actions { margin-left: auto; }
+    #cancel-btn { background: var(--danger); border: none; color: #fff; padding: 6px 16px; border-radius: 6px; cursor: pointer; font-size: 0.78rem; font-weight: 500; }
+    #cancel-btn:hover { background: #dc2626; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="monitor-layout">
+    <div class="pipeline-bar">
+        <div class="steps-row" id="steps-row"></div>
+    </div>
+    <div class="monitor-main">
+        <div class="left-panel" id="left-panel">
+            <!-- Accordion rendered dynamically -->
+        </div>
+        <div class="right-panel">
+            <div class="right-panel-header">
+                <span class="right-panel-title" id="right-panel-title">Step Details</span>
+                <span style="color:var(--text-muted);font-size:0.78rem;cursor:pointer;" onclick="document.querySelector('.right-panel').style.display='none'">&times;</span>
+            </div>
+            <div class="tabs">
+                <div class="tab active" data-tab="activity">Activity</div>
+                <div class="tab" data-tab="decisions">Decisions</div>
+                <div class="tab" data-tab="artifacts">Artifacts</div>
+                <div class="tab" data-tab="logs">Logs</div>
+            </div>
+            <div class="tab-content" id="tab-content">
+                <div id="activity-feed"></div>
+            </div>
+        </div>
+    </div>
+    <div class="status-bar">
+        <div class="status-bar-item">
+            <span class="status-bar-label">Domain</span>
+            <span class="status-bar-value">{{ domain|replace('_',' ')|title }}</span>
+        </div>
+        <div class="status-bar-item">
+            <span class="status-bar-label">Catalog / Schema</span>
+            <span class="status-bar-value" style="font-family:monospace;font-size:0.72rem;">{{ run_meta.get('catalog','\u2014') }}.{{ run_meta.get('schema','\u2014') }}</span>
+        </div>
+        <div class="status-bar-item">
+            <span class="status-bar-label">Version</span>
+            <span class="status-bar-value" id="version-label" style="font-weight:600;color:var(--primary);">{{ run_meta.get('version_info', {}).get('label', 'detecting\u2026') }}</span>
+        </div>
+        <div class="status-bar-item">
+            <span class="status-bar-label">LLM</span>
+            <span class="status-bar-value" style="font-size:0.72rem;">{{ run_meta.get('gateway_endpoint','\u2014') }}</span>
+        </div>
+        <div class="status-bar-item">
+            <span class="status-bar-label">Run ID</span>
+            <span class="status-bar-value" style="font-family:monospace;font-size:0.72rem;">{{ run_id[:8] }}</span>
+        </div>
+        <div class="status-bar-item">
+            <span class="status-bar-label">Started</span>
+            <span class="status-bar-value" id="started-time">&mdash;</span>
+        </div>
+        <div class="status-bar-progress">
+            <span class="status-bar-label">Run Progress</span>
+            <div class="progress-bar-bg"><div class="progress-bar-fill" id="global-progress" style="width:0%"></div></div>
+            <span class="pct" id="global-pct">0%</span>
+        </div>
+        <div class="status-bar-item">
+            <span class="status-bar-label">Elapsed</span>
+            <span class="status-bar-value" id="elapsed-display">00:00:00</span>
+        </div>
+        <div class="status-bar-actions">
+            <button id="cancel-btn" onclick="cancelRun()">Cancel Run</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const RUN_ID='{{ run_id }}', DOMAIN='{{ domain }}';
+const RUN_META={{ run_meta|tojson }};
+let pollIndex=0, startTime=Date.now(), currentTab='activity';
+let activities=[], decisions=[], artifacts=[], logs=[];
+const STEPS=[
+    {id:'config',label:'Config',status:'waiting',desc:'Loading pipeline configuration'},
+    {id:'setup',label:'Setup',status:'waiting',desc:'Preparing environment and schema'},
+    {id:'data_layer',label:'Data Layer',status:'waiting',desc:'Creating a governed analytical data model'},
+    {id:'metrics',label:'Metrics',status:'waiting',desc:'Building metric views and KPIs'},
+    {id:'dashboards',label:'Dashboards',status:'waiting',desc:'Generating analytical dashboards'},
+    {id:'genie',label:'Genie',status:'waiting',desc:'Creating Genie AI space'},
+    {id:'docs',label:'Docs',status:'waiting',desc:'Generating documentation'},
+];
+// Sub-steps per pipeline step, populated from report_progress events
+let substeps={};
+// Recent tool calls per step (for live "What's happening" context)
+let stepRecentTools={};
+
+// Friendly names for tool calls (shown in "What's happening" live activity)
+const TOOL_LABELS={
+    'call_vision_model':'Vision Model',
+    'read_workspace_file':'Reading',
+    'write_workspace_file':'Writing',
+    'execute_sql':'SQL',
+    'import_notebook':'Importing Notebook',
+    'execute_notebook':'Running Notebook',
+    'create_dashboard':'Creating Dashboard',
+    'publish_dashboard':'Publishing Dashboard',
+    'create_genie_space':'Creating Genie Space',
+    'describe_table':'Inspecting Table',
+    'execute_python':'Running Python',
+    'cleanup_path':'Cleanup',
+    'list_workspace_directory':'Listing Directory',
+    'report_step_complete':'Complete',
+};
+const TOOL_DESCS={
+    'call_vision_model':'Reading ERD image and extracting entities',
+    'read_workspace_file':'Loading file from workspace',
+    'write_workspace_file':'Writing output to workspace',
+    'execute_sql':'Running SQL statements',
+    'import_notebook':'Importing notebook to workspace',
+    'execute_notebook':'Running notebook via Jobs API',
+    'create_dashboard':'Building Lakeview dashboard',
+    'publish_dashboard':'Publishing dashboard',
+    'create_genie_space':'Setting up Genie AI space',
+    'describe_table':'Inspecting table schema',
+    'cleanup_path':'Removing temporary files',
+};
+
+// Map pipeline step names to UI step order (1-7)
+const STEP_ORDER_MAP={
+    'load_configuration':1,'environment_setup':2,
+    'create_data_layer':3,'create_metric_views':4,
+    'create_dashboards':5,'create_genie_space':6,
+    'generate_documentation':7,
+};
+const STEP_ID_FROM_ORDER=['','config','setup','data_layer','metrics','dashboards','genie','docs'];
+
+function renderSteps(){
+    const row=document.getElementById('steps-row');
+    row.innerHTML=STEPS.map((s,i)=>{
+        const icon=s.status==='completed'?'&#10003;':s.status==='failed'?'&#10007;':s.status==='skipped'?'&#8212;':(i+1);
+        const sublabelClass=s.status==='completed'?'done':s.status==='running'?'running':'waiting';
+        const sublabelText=s.status==='completed'?'Done':s.status==='running'?'In Progress':s.status==='failed'?'Error':s.status==='skipped'?'Skipped':'Waiting';
+        const connStatus=s.status==='completed'?'done':s.status==='running'?'running':'';
+        const conn=i<STEPS.length-1?`<div class="step-connector ${connStatus}"></div>`:'';
+        // Show duration badge under completed/failed steps
+        const durationBadge=(s.status==='completed'||s.status==='failed')&&s.duration?`<div class="step-duration-badge">${s.duration}</div>`:'';
+        return `<div class="step-item"><div class="step-node"><div class="step-circle ${s.status}">${icon}</div><div class="step-label ${s.status==='running'?'active':''}">${s.label}</div><div class="step-sublabel ${sublabelClass}">${sublabelText}</div>${durationBadge}</div>${conn}</div>`;
+    }).join('');
+}
+
+function renderAccordion(){
+    const panel=document.getElementById('left-panel');
+    panel.innerHTML=STEPS.map((s,i)=>{
+        const icon=s.status==='completed'?'&#10003;':s.status==='running'?'&#9654;':s.status==='failed'?'&#10007;':s.status==='skipped'?'&#8212;':(i+1);
+        const iconClass=s.status==='completed'?'done':s.status==='running'?'running':s.status==='failed'?'failed':'pending';
+        const statusClass=s.status==='completed'?'completed':s.status==='running'?'in-progress':s.status==='failed'?'failed':s.status==='skipped'?'skipped':'waiting';
+        const statusLabel=s.status==='completed'?'Completed':s.status==='running'?'In Progress':s.status==='failed'?'Failed':s.status==='skipped'?'Skipped':'Pending';
+        // Keep running and completed steps expanded (clickable post-completion)
+        const isOpen=(s.status==='running'||s.status==='failed'||(s.status==='completed'&&(substeps[s.id]||[]).length>0));
+
+        // Get phases for this step (driven by report_progress)
+        const stepPhases=substeps[s.id]||[];
+        let body='';
+        if(stepPhases.length>0){
+            // Render each phase as a sub-step with expandable detail
+            body=stepPhases.map((ph, phIdx)=>{
+                const phIcon=ph.status==='done'?'&#10003;':ph.status==='running'?'&#9679;':ph.status==='failed'?'&#10007;':'&#9675;';
+                const phIconCls=ph.status==='done'?'done':ph.status==='running'?'running':ph.status==='failed'?'failed':'pending';
+                const phStatusCls=ph.status==='done'?'completed':ph.status==='running'?'in-progress':ph.status==='failed'?'failed':'pending';
+                const phStatusLbl=ph.status==='done'?'Completed':ph.status==='running'?'In Progress':ph.status==='failed'?'Failed':'Pending';
+                // Show current task while running, findings summary when completed
+                const phDesc = ph.status==='done'
+                    ? (ph.findings&&ph.findings.length>0 ? ph.findings.slice(0,2).join(' \u2022 ') : ph.currentTask||'')
+                    : (ph.currentTask||ph.detail||'');
+
+                // Determine if this phase has detail worth showing
+                const hasDetail = (ph.happenings&&ph.happenings.length>0) || (ph.findings&&ph.findings.length>0) || (ph.stats&&ph.stats.length>0);
+                // Running phases are always expanded; completed/failed phases are expandable on click
+                const isExpanded = ph.status==='running';
+                const phaseDetailId = `phase-detail-${i}-${phIdx}`;
+                const clickable = hasDetail || ph.status==='running';
+                const chevron = hasDetail ? `<span class="substep-chevron" id="chevron-${i}-${phIdx}" style="font-size:10px;color:var(--text-muted);transition:transform 0.2s;${isExpanded?'transform:rotate(90deg);':''}">&rsaquo;</span>` : '';
+
+                // Build expandable detail panel for this specific phase
+                let detailPanel = '';
+                if(ph.status==='running'){
+                    detailPanel = `<div class="phase-inline-detail" id="${phaseDetailId}">${renderPhaseDetail(ph, stepRecentTools[s.id]||[])}</div>`;
+                } else if(hasDetail && ph.status!=='pending'){
+                    detailPanel = `<div class="phase-inline-detail" id="${phaseDetailId}" style="display:none;">${renderCompletedPhaseDetail(ph)}</div>`;
+                }
+
+                return `<div class="substep ${clickable?'clickable':''}" ${clickable?`onclick="togglePhaseDetail(${i},${phIdx},event)"`:'' }>
+                    <div class="substep-icon ${phIconCls}">${phIcon}</div>
+                    <div class="substep-body">
+                        <div class="substep-name">${chevron} ${ph.name}</div>
+                        <div class="substep-detail">${phDesc}</div>
+                    </div>
+                    <div class="substep-right">
+                        <div class="substep-duration">${ph.duration||''}</div>
+                        <div class="substep-status ${phStatusCls}">${phStatusLbl}</div>
+                    </div>
+                </div>${detailPanel}`;
+            }).join('');
+        }
+
+        return `<div class="accordion-step">
+            <div class="accordion-header ${isOpen?'expanded':''}" onclick="toggleAccordion(${i})">
+                <div class="accordion-icon ${iconClass}">${icon}</div>
+                <div><div class="accordion-title">${s.label}</div><div class="accordion-desc">${s.desc||''}</div></div>
+                <div class="accordion-right">
+                    <span class="accordion-duration">${s.duration||''}</span>
+                    <span class="accordion-status ${statusClass}">${statusLabel}</span>
+                </div>
+            </div>
+            <div class="accordion-body ${isOpen?'open':''}" id="accordion-body-${i}">
+                <div class="substep-list">${body}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderPhaseDetail(phase, recentTools){
+    /* Renders the "Current Task" + "What's happening" detail panel for a running phase.
+       recentTools: array of {label, detail, status} from last 5 tool calls for live context. */
+    recentTools = recentTools || [];
+
+    const progressBar=phase.progress!=null?`
+        <div class="phase-progress">
+            <div class="phase-progress-bar" style="width:${phase.progress}%"></div>
+            <span class="phase-progress-label">${phase.progress}%</span>
+        </div>`:'';
+
+    const statsHtml=(phase.stats&&phase.stats.length>0)?`
+        <div class="phase-stats">
+            ${phase.stats.map(st=>`<div class="phase-stat"><span class="phase-stat-value">${st.value}</span><span class="phase-stat-label">${st.label}</span></div>`).join('')}
+        </div>`:'';
+
+    // Combine LLM-authored happenings with live tool call context
+    let happeningItems = (phase.happenings||[]).map(h=>`<div class="phase-happening-item">&#9679; ${h}</div>`);
+    // Add recent tool calls as live activity (shows WHAT is being done right now)
+    if(recentTools.length > 0){
+        const toolItems = recentTools.map((tc, idx)=>{
+            const isFailed = tc.status==='failed';
+            const icon = tc.status==='completed' ? '\u2713' : isFailed ? '\u274c' : '\u25B8';
+            // Detect retry: same tool label failed previously in this batch
+            const isRetry = isFailed && recentTools.slice(0, idx).some(prev => prev.label===tc.label && prev.status==='failed');
+            const retryTag = isRetry ? '<span style="color:var(--danger);font-size:10px;font-weight:600;margin-left:6px;">RETRY</span>' : '';
+            // Cap detail at 60 chars to prevent overflow from long SQL
+            let detail = tc.detail || '';
+            if(detail.length > 60) detail = detail.slice(0, 57) + '\u2026';
+            // Red styling for failed/retry items
+            const failStyle = isFailed ? 'color:var(--danger);' : '';
+            const detailHtml = detail ? ` \u2014 <span style="color:${isFailed?'var(--danger)':'var(--text-muted)'};font-style:italic;">${detail}</span>` : '';
+            const errorHtml = isFailed && tc.error ? `<div style="font-size:11px;color:var(--danger);opacity:0.9;padding-left:16px;margin-top:2px;">${(tc.error||'').slice(0,80)}</div>` : '';
+            return `<div class="phase-happening-item" style="opacity:0.85;${failStyle}">${icon} ${tc.label}${retryTag}${detailHtml}</div>${errorHtml}`;
+        });
+        happeningItems = happeningItems.concat(toolItems);
+    }
+    const happeningsHtml = happeningItems.length>0 ? `
+        <div class="phase-happenings">
+            <div class="phase-happenings-title">What's happening</div>
+            ${happeningItems.join('')}
+        </div>` : '';
+
+    const findingsHtml=(phase.findings&&phase.findings.length>0)?`
+        <div class="phase-findings">
+            <div class="phase-findings-title">Latest Findings</div>
+            ${phase.findings.map(f=>`<div class="phase-finding-item">&#10003; ${f}</div>`).join('')}
+        </div>`:'';
+
+    return `<div class="phase-detail-panel">
+        <div class="phase-detail-left">
+            <div class="phase-detail-title">Current Task</div>
+            <div class="phase-detail-task">${phase.currentTask||phase.name||''}</div>
+            ${progressBar}
+            ${statsHtml}
+        </div>
+        <div class="phase-detail-right">
+            ${happeningsHtml}
+            ${findingsHtml}
+        </div>
+    </div>`;
+}
+
+function renderCompletedPhaseDetail(phase){
+    /* Renders a review panel for completed/failed phases — shows what happened, findings, and stats. */
+    const statsHtml=(phase.stats&&phase.stats.length>0)?`
+        <div class="phase-stats" style="margin-bottom:8px;">
+            ${phase.stats.map(st=>`<div class="phase-stat"><span class="phase-stat-value">${st.value}</span><span class="phase-stat-label">${st.label}</span></div>`).join('')}
+        </div>`:'';
+
+    const happeningsHtml=(phase.happenings&&phase.happenings.length>0)?`
+        <div class="phase-happenings">
+            <div class="phase-happenings-title">What happened</div>
+            ${phase.happenings.map(h=>`<div class="phase-happening-item">&#9679; ${h}</div>`).join('')}
+        </div>`:'';
+
+    const findingsHtml=(phase.findings&&phase.findings.length>0)?`
+        <div class="phase-findings">
+            <div class="phase-findings-title">Findings</div>
+            ${phase.findings.map(f=>`<div class="phase-finding-item">&#10003; ${f}</div>`).join('')}
+        </div>`:'';
+
+    const taskHtml = phase.currentTask ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Last task: ${phase.currentTask}</div>` : '';
+
+    return `<div class="phase-detail-panel" style="border-color:var(--border);background:var(--bg-subtle);">
+        <div class="phase-detail-left">
+            ${taskHtml}
+            ${statsHtml}
+        </div>
+        <div class="phase-detail-right">
+            ${happeningsHtml}
+            ${findingsHtml}
+        </div>
+    </div>`;
+}
+
+function togglePhaseDetail(stepIdx, phaseIdx, evt){
+    if(evt) evt.stopPropagation(); // Prevent bubbling to accordion toggle
+    const el = document.getElementById(`phase-detail-${stepIdx}-${phaseIdx}`);
+    const chevron = document.getElementById(`chevron-${stepIdx}-${phaseIdx}`);
+    if(!el) return;
+    const isHidden = el.style.display === 'none';
+    el.style.display = isHidden ? 'block' : 'none';
+    if(chevron){
+        chevron.style.transform = isHidden ? 'rotate(90deg)' : '';
+    }
+}
+
+function toggleAccordion(idx){
+    const body=document.getElementById('accordion-body-'+idx);
+    if(body) body.classList.toggle('open');
+}
+
+function renderTab(){
+    const feed=document.getElementById('activity-feed');
+    if(currentTab==='activity'){
+        feed.innerHTML=activities.map(a=>{
+            const failedStyle = a.failed ? 'border-left-color:var(--danger);' : '';
+            const baseStyle = a.milestone ? '' : 'opacity:0.7;font-size:0.72rem;';
+            return `<div class="activity-item" style="${baseStyle}${failedStyle}"><span class="activity-time">${a.time}</span><span class="activity-text">${a.text}</span></div>`;
+        }).join('')||'<div style="color:var(--text-muted);font-size:0.85rem;padding:20px 0;">Waiting for events...</div>';
+    } else if(currentTab==='decisions'){
+        feed.innerHTML=decisions.map(d=>`<div class="decision-card"><div class="decision-title">${d.title}</div><div class="decision-detail">${d.detail}</div><span class="decision-confidence ${d.confidence}">${d.confidence} confidence</span></div>`).join('')||'<div style="color:var(--text-muted);padding:20px 0;">No decisions yet</div>';
+    } else if(currentTab==='artifacts'){
+        feed.innerHTML=artifacts.map(a=>`<div class="activity-item"><span class="activity-text">${a}</span></div>`).join('')||'<div style="color:var(--text-muted);padding:20px 0;">No artifacts yet</div>';
+    } else {
+        feed.innerHTML=logs.slice(0,50).map(l=>`<div class="activity-item" style="font-family:monospace;font-size:0.72rem;"><span class="activity-time">${l.time}</span><span class="activity-text">${l.text}</span></div>`).join('')||'<div style="color:var(--text-muted);padding:20px 0;">No logs yet</div>';
+    }
+}
+
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active'); currentTab=t.dataset.tab; renderTab();
+}));
+
+function updateTimer(){
+    const s=Math.floor((Date.now()-startTime)/1000);
+    const str=`${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor((s%3600)/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+    document.getElementById('elapsed-timer').textContent=str;
+    document.getElementById('elapsed-display').textContent=str;
+}
+setInterval(updateTimer,1000);
+
+function formatDuration(s){
+    if(s==null) return '';
+    s=Math.round(s);
+    if(s<60) return s+'s';
+    if(s<3600) return Math.floor(s/60)+'m '+s%60+'s';
+    return Math.floor(s/3600)+'h '+Math.floor((s%3600)/60)+'m';
+}
+
+function updateStepStatus(order, status){
+    if(order<1||order>STEPS.length) return;
+    for(let i=0;i<order-1;i++){
+        if(STEPS[i].status!=='failed'&&STEPS[i].status!=='skipped') STEPS[i].status='completed';
+    }
+    STEPS[order-1].status=status;
+    if(status==='failed'){
+        for(let i=order;i<STEPS.length;i++) STEPS[i].status='skipped';
+    }
+    const pct=Math.round((order/STEPS.length)*100);
+    const pb=document.getElementById('global-progress');
+    const pl=document.getElementById('global-pct');
+    if(pb) pb.style.width=pct+'%';
+    if(pl) pl.textContent=pct+'%';
+}
+
+/* Polling-based status (primary data source — no SSE dependency) */
+let pollInterval=null;
+let lastPhaseCounts={}; // Track phase count per step for activity feed
+let lastToolCounts={}; // Track tool call count per step for activity feed
+
+async function pollStatus(){
+    try{
+        const r=await fetch(`/api/pipeline/run/${RUN_ID}/status`);
+        if(!r.ok){
+            console.warn('[POLL] Status endpoint returned', r.status);
+            return;
+        }
+        const d=await r.json();
+        console.log('[POLL] Status:', d.status, 'Steps:', d.steps?.length||0, 'Phases:', d.steps?.reduce((n,s)=>n+(s.phases?.length||0),0)||0);
+
+        // Update global status
+        if(d.elapsed_s && startTime){
+            const el=document.getElementById('elapsed-time');
+            if(el) el.textContent=formatDuration(d.elapsed_s);
+        }
+        if(d.progress_pct!=null){
+            const pb=document.getElementById('global-progress');
+            const pl=document.getElementById('global-pct');
+            if(pb) pb.style.width=d.progress_pct+'%';
+            if(pl) pl.textContent=d.progress_pct+'%';
+        }
+
+        // Rebuild step + phase state from server truth
+        if(d.steps && d.steps.length>0){
+            for(const stepData of d.steps){
+                const stepName=stepData.step_name;
+                const order=STEP_ORDER_MAP[stepName]||0;
+                if(!order) continue;
+                const stepId=STEP_ID_FROM_ORDER[order]||'';
+
+                // Update step status
+                if(stepData.status==='running') updateStepStatus(order,'running');
+                else if(stepData.status==='completed') updateStepStatus(order,'completed');
+                else if(stepData.status==='failed') updateStepStatus(order,'failed');
+
+                // Set duration
+                if(stepData.duration_s) STEPS[order-1].duration=formatDuration(stepData.duration_s);
+
+                // Rebuild phases from server state (ONLY report_progress events, not raw tool calls)
+                if(stepId && stepData.phases && stepData.phases.length>0){
+                    substeps[stepId]=stepData.phases.map(ph=>({
+                        phase_id: ph.phase_id||'',
+                        name: ph.phase_name||'',
+                        detail: ph.current_task||'',
+                        status: ph.status==='completed'?'done':ph.status==='failed'?'failed':'running',
+                        currentTask: ph.current_task||'',
+                        progress: ph.progress_pct||0,
+                        stats: ph.stats?Object.entries(ph.stats).map(([k,v])=>({label:k.replace(/_/g,' '),value:v})):[],
+                        happenings: ph.happenings||[],
+                        findings: ph.findings||[],
+                    }));
+
+                    // Add to activity feed on new phases (tracked per step)
+                    const totalPhases=stepData.phases.length;
+                    const prevCount=lastPhaseCounts[stepId]||0;
+                    if(totalPhases>prevCount){
+                        const newPhases=stepData.phases.slice(prevCount);
+                        const now=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+                        for(const ph of newPhases){
+                            if(ph.status==='started'||ph.status==='running'){
+                                activities.unshift({time:now,text:`<strong>${ph.phase_name}</strong><br>${ph.current_task||'Starting...'}`,milestone:true});
+                            } else if(ph.status==='completed'){
+                                const findingsText=(ph.findings||[]).slice(0,2).join(', ');
+                                activities.unshift({time:now,text:`<strong>\u2713 ${ph.phase_name}</strong>${findingsText?' \u2014 '+findingsText:''}`,milestone:true});
+                            }
+                        }
+                        lastPhaseCounts[stepId]=totalPhases;
+                    }
+                }
+
+                // Feed tool_calls to the Activity timeline (right panel only, not the main accordion)
+                const toolCalls = stepData.tool_calls || [];
+                const lastToolCount = lastToolCounts[stepId] || 0;
+                if(toolCalls.length > lastToolCount){
+                    const newTools = toolCalls.slice(lastToolCount);
+                    const now=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+                    for(let tIdx=0; tIdx<newTools.length; tIdx++){
+                        const tc = newTools[tIdx];
+                        const label = TOOL_LABELS[tc.tool_name] || tc.tool_name;
+                        const desc = tc.args_summary || TOOL_DESCS[tc.tool_name] || '';
+                        const isFailed = tc.status==='failed';
+                        // Detect retry: check if previous tool calls in the full list had the same tool fail
+                        const priorIdx = lastToolCount + tIdx;
+                        const isRetry = isFailed && toolCalls.slice(0, priorIdx).some(prev => prev.tool_name===tc.tool_name && prev.status==='failed');
+                        const prefix = tc.status==='completed' ? '\u2713 ' : isFailed ? '\u274c ' : '';
+                        const retryTag = isRetry ? ' <span style="color:var(--danger);font-size:10px;font-weight:600;">RETRY</span>' : '';
+                        const errorSnippet = isFailed && tc.error ? `<br><span style="color:var(--danger);font-size:0.7rem;opacity:0.9;">${tc.error.slice(0,120)}</span>` : '';
+                        const textStyle = isFailed ? 'color:var(--danger);' : '';
+                        activities.unshift({time:now, text:`<span style="${textStyle}">${prefix}<strong>${label}</strong>${retryTag}${desc?' — '+desc:''}</span>${errorSnippet}`, milestone:false, failed:isFailed});
+                    }
+                    lastToolCounts[stepId] = toolCalls.length;
+                }
+                // Keep last 5 tool calls for "What's happening" live context in phase detail
+                stepRecentTools[stepId] = toolCalls.slice(-5).map(tc=>({
+                    label: TOOL_LABELS[tc.tool_name]||tc.tool_name,
+                    detail: tc.args_summary||'',
+                    status: tc.status||'running',
+                    error: tc.error||'',
+                }));
+            }
+        }
+
+        // Render UI
+        renderSteps(); renderAccordion(); renderTab();
+
+        // Stop polling on terminal state
+        if(['completed','failed','cancelled'].includes(d.status)){
+            clearInterval(pollInterval);
+            const st=d.status;
+            document.getElementById('run-status-badge').textContent=st.charAt(0).toUpperCase()+st.slice(1);
+            document.getElementById('run-status-badge').className='status-badge '+(st==='completed'?'idle':'failed');
+            document.getElementById('cancel-btn').style.display='none';
+            if(d.error){
+                const now=new Date().toLocaleTimeString('en-US',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
+                activities.unshift({time:now,text:`<strong style="color:var(--danger)">\u274c Pipeline failed</strong><br>${d.error.slice(0,200)}`,milestone:true});
+                renderTab();
+            }
+        }
+    }catch(e){console.error('Poll error:',e);}
+}
+
+// Initial render (shows "Waiting" state immediately)
+renderSteps(); renderAccordion(); renderTab();
+
+// Start polling immediately, then every 3 seconds
+console.log('[POLL] Starting poll for run:', RUN_ID);
+pollStatus();
+pollInterval=setInterval(pollStatus, 3000);
+</script>
+{% endblock %}

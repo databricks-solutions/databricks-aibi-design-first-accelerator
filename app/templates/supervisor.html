@@ -1,0 +1,612 @@
+{% extends "layout.html" %}
+{% set active_page = "runs" %}
+{% block title %}Pipeline Run - AI/BI Studio{% endblock %}
+
+{% block head %}
+<style>
+/* ─── Supervisor Pipeline Monitor UI ─── */
+:root {
+  --step-pending: #6b7280;
+  --step-active: #3b82f6;
+  --step-done: #10b981;
+  --step-error: #ef4444;
+  --panel-bg: #1e1e2e;
+  --card-bg: #252535;
+  --border: #3a3a4a;
+  --text-primary: #e4e4e7;
+  --text-muted: #9ca3af;
+  --accent: #818cf8;
+}
+
+.supervisor-layout {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 320px 1fr;
+  height: calc(100vh - 56px);
+  background: var(--panel-bg);
+  color: var(--text-primary);
+}
+
+/* ─── Top Pipeline Bar ─── */
+.pipeline-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 24px;
+  background: var(--card-bg);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.step-node {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 80px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.step-node:hover { opacity: 0.8; }
+.step-node.active .step-circle { box-shadow: 0 0 0 3px var(--step-active), 0 0 12px rgba(59,130,246,0.3); }
+
+.step-circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: var(--panel-bg);
+  border: 2px solid var(--step-pending);
+  transition: all 0.3s;
+}
+.step-circle.pending { border-color: var(--step-pending); color: var(--step-pending); }
+.step-circle.running { border-color: var(--step-active); color: var(--step-active); animation: pulse 2s infinite; }
+.step-circle.completed { border-color: var(--step-done); color: var(--step-done); background: rgba(16,185,129,0.1); }
+.step-circle.failed { border-color: var(--step-error); color: var(--step-error); background: rgba(239,68,68,0.1); }
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+}
+
+.step-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-align: center;
+  max-width: 80px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.step-connector {
+  width: 24px;
+  height: 2px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.step-connector.completed { background: var(--step-done); }
+
+/* ─── Left Panel (Active Step Detail) ─── */
+.left-panel {
+  padding: 16px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.active-step-header {
+  margin-bottom: 16px;
+}
+.active-step-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+.active-step-header .step-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.substep-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.substep-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  transition: background 0.2s;
+}
+.substep-item:hover { background: rgba(255,255,255,0.03); }
+.substep-item.active { background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); }
+
+.substep-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.substep-icon.pending { background: var(--panel-bg); border: 1.5px solid var(--step-pending); }
+.substep-icon.running { background: var(--panel-bg); border: 1.5px solid var(--step-active); color: var(--step-active); }
+.substep-icon.completed { background: rgba(16,185,129,0.15); border: 1.5px solid var(--step-done); color: var(--step-done); }
+.substep-icon.failed { background: rgba(239,68,68,0.15); border: 1.5px solid var(--step-error); color: var(--step-error); }
+
+.substep-info { flex: 1; min-width: 0; }
+.substep-name { font-size: 0.8rem; font-weight: 500; }
+.substep-timing { font-size: 0.7rem; color: var(--text-muted); margin-top: 2px; }
+
+.substep-progress {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--card-bg);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.progress-bar-track {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--step-active);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.progress-text {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+/* ─── Right Panel (Tabs) ─── */
+.right-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--card-bg);
+  padding: 0 16px;
+}
+.tab-btn {
+  padding: 12px 16px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+.tab-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+.tab-pane { display: none; }
+.tab-pane.active { display: block; }
+
+/* Activity feed */
+.activity-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-size: 0.8rem;
+}
+.activity-time {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  min-width: 50px;
+  flex-shrink: 0;
+}
+.activity-msg { flex: 1; }
+.activity-tag {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: rgba(129,140,248,0.15);
+  color: var(--primary);
+}
+
+/* Decision cards */
+.decision-card {
+  padding: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.decision-card .decision-title {
+  font-weight: 500;
+  font-size: 0.8rem;
+  margin-bottom: 4px;
+}
+.decision-card .decision-body {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Artifacts */
+.artifact-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+}
+.artifact-icon { color: var(--primary); }
+.artifact-name { flex: 1; }
+.artifact-type {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  padding: 2px 6px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 3px;
+}
+
+/* Logs */
+.log-line {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  padding: 2px 0;
+  color: var(--text-muted);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.log-line.error { color: var(--step-error); }
+.log-line.info { color: var(--text-primary); }
+
+/* ─── Bottom Status Bar ─── */
+.status-bar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 24px;
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.status-bar .status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.status-bar .status-separator {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+}
+.status-bar .cancel-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  font-size: 0.7rem;
+  background: rgba(239,68,68,0.1);
+  color: var(--step-error);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.status-bar .cancel-btn:hover { background: rgba(239,68,68,0.2); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="supervisor-layout" id="supervisor-app">
+
+  <!-- ═══ Top Pipeline Bar ═══ -->
+  <div class="pipeline-bar" id="pipeline-bar">
+    <!-- Rendered by JS from tool definitions -->
+  </div>
+
+  <!-- ═══ Left Panel: Active Step Detail ═══ -->
+  <div class="left-panel" id="left-panel">
+    <div class="active-step-header">
+      <h3 id="active-step-name">Waiting to start...</h3>
+      <div class="step-meta" id="active-step-meta">Pipeline not yet running</div>
+    </div>
+    <ul class="substep-list" id="substep-list">
+      <!-- Populated by JS -->
+    </ul>
+    <div class="substep-progress" id="substep-progress" style="display:none;">
+      <div class="progress-bar-track"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
+      <div class="progress-text" id="progress-text">Initializing...</div>
+    </div>
+  </div>
+
+  <!-- ═══ Right Panel: Tabs ═══ -->
+  <div class="right-panel">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="activity">Activity</button>
+      <button class="tab-btn" data-tab="decisions">Decisions</button>
+      <button class="tab-btn" data-tab="artifacts">Artifacts</button>
+      <button class="tab-btn" data-tab="logs">Logs</button>
+    </div>
+    <div class="tab-content">
+      <div class="tab-pane active" id="tab-activity"></div>
+      <div class="tab-pane" id="tab-decisions"></div>
+      <div class="tab-pane" id="tab-artifacts"></div>
+      <div class="tab-pane" id="tab-logs"></div>
+    </div>
+  </div>
+
+  <!-- ═══ Bottom Status Bar ═══ -->
+  <div class="status-bar">
+    <div class="status-item"><strong>Domain:</strong> <span id="sb-domain">—</span></div>
+    <div class="status-separator"></div>
+    <div class="status-item"><strong>Run:</strong> <span id="sb-run-id">—</span></div>
+    <div class="status-separator"></div>
+    <div class="status-item"><strong>Started:</strong> <span id="sb-start-time">—</span></div>
+    <div class="status-separator"></div>
+    <div class="status-item"><strong>Progress:</strong> <span id="sb-progress">0%</span></div>
+    <div class="status-separator"></div>
+    <div class="status-item"><strong>Elapsed:</strong> <span id="sb-elapsed">0s</span></div>
+    <button class="cancel-btn" id="cancel-btn">Cancel</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function() {
+  'use strict';
+
+  // ─── State ───
+  const runId = '{{ run_id }}';
+  const domain = '{{ domain }}';
+  let pollInterval = null;
+  let eventIndex = 0;
+  let startTime = Date.now();
+  let toolDefs = [];  // populated from pipeline_started event
+  let activeToolIndex = -1;
+  let completedTools = new Set();
+  let failedTools = new Set();
+
+  // ─── Init ───
+  document.getElementById('sb-domain').textContent = domain;
+  document.getElementById('sb-run-id').textContent = runId.slice(0, 8);
+  document.getElementById('sb-start-time').textContent = new Date().toLocaleTimeString();
+
+  // Tab switching
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Cancel button
+  document.getElementById('cancel-btn').addEventListener('click', () => {
+    fetch(`/api/agent/cancel/${runId}`, { method: 'POST' });
+  });
+
+  // ─── Pipeline Bar Rendering ───
+  function renderPipelineBar(tools) {
+    const bar = document.getElementById('pipeline-bar');
+    bar.innerHTML = '';
+    tools.forEach((tool, i) => {
+      if (i > 0) {
+        const conn = document.createElement('div');
+        conn.className = 'step-connector';
+        conn.id = `conn-${i}`;
+        bar.appendChild(conn);
+      }
+      const node = document.createElement('div');
+      node.className = 'step-node';
+      node.id = `step-node-${i}`;
+      node.innerHTML = `
+        <div class="step-circle pending" id="step-circle-${i}">${i + 1}</div>
+        <div class="step-label" title="${tool}">${tool.replace(/_/g, ' ')}</div>
+      `;
+      node.addEventListener('click', () => selectStep(i));
+      bar.appendChild(node);
+    });
+  }
+
+  function selectStep(index) {
+    document.querySelectorAll('.step-node').forEach(n => n.classList.remove('active'));
+    const node = document.getElementById(`step-node-${index}`);
+    if (node) node.classList.add('active');
+    // Update left panel to show this step's detail
+    document.getElementById('active-step-name').textContent = toolDefs[index]?.replace(/_/g, ' ') || 'Unknown';
+  }
+
+  function updateStepStatus(toolName, status) {
+    const idx = toolDefs.indexOf(toolName);
+    if (idx < 0) return;
+    const circle = document.getElementById(`step-circle-${idx}`);
+    if (!circle) return;
+    circle.className = `step-circle ${status}`;
+    if (status === 'completed') {
+      circle.innerHTML = '\u2713';
+      completedTools.add(toolName);
+      // Update connector
+      const conn = document.getElementById(`conn-${idx}`);
+      if (conn) conn.classList.add('completed');
+    } else if (status === 'failed') {
+      circle.innerHTML = '\u2717';
+      failedTools.add(toolName);
+    } else if (status === 'running') {
+      circle.innerHTML = `<span style="animation: pulse 1s infinite">&#9679;</span>`;
+    }
+    updateProgress();
+  }
+
+  function updateProgress() {
+    const total = toolDefs.length;
+    const done = completedTools.size + failedTools.size;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    document.getElementById('sb-progress').textContent = `${pct}%`;
+    document.getElementById('progress-fill').style.width = `${pct}%`;
+  }
+
+  // ─── Event Handlers ───
+  function handleEvent(evt) {
+    const { type, data } = evt;
+    addLog(type, JSON.stringify(data).slice(0, 200));
+
+    switch (type) {
+      case 'pipeline_started':
+        toolDefs = data.tool_names || [];
+        renderPipelineBar(toolDefs);
+        addActivity('Pipeline started', `${toolDefs.length} tools registered`);
+        break;
+
+      case 'tool_started':
+        updateStepStatus(data.tool_name, 'running');
+        activeToolIndex = toolDefs.indexOf(data.tool_name);
+        selectStep(activeToolIndex);
+        document.getElementById('substep-progress').style.display = 'block';
+        document.getElementById('progress-text').textContent = `Running: ${data.tool_name.replace(/_/g, ' ')}...`;
+        addActivity(`Started: ${data.tool_name}`, data.args_summary || '');
+        break;
+
+      case 'tool_completed':
+        updateStepStatus(data.tool_name, data.success ? 'completed' : 'failed');
+        const elapsed = data.elapsed_ms ? `${(data.elapsed_ms/1000).toFixed(1)}s` : '';
+        addActivity(
+          `${data.success ? 'Completed' : 'Failed'}: ${data.tool_name}`,
+          elapsed,
+          data.success ? 'success' : 'error'
+        );
+        if (!data.success) {
+          addDecision(data.tool_name, `Tool failed: ${data.result_summary?.slice(0, 200) || 'Unknown error'}`);
+        }
+        break;
+
+      case 'llm_reasoning':
+        addActivity('LLM reasoning', data.content?.slice(0, 150) || '', 'reasoning');
+        break;
+
+      case 'pipeline_completed':
+        document.getElementById('progress-text').textContent = `Pipeline ${data.status}`;
+        addActivity(`Pipeline ${data.status}`, `${data.steps_completed || 0} steps completed`);
+        stopPolling();
+        break;
+
+      case 'pipeline_error':
+        addActivity('Pipeline error', data.error || '', 'error');
+        addLog('error', data.error);
+        stopPolling();
+        break;
+
+      default:
+        addActivity(type, JSON.stringify(data).slice(0, 100));
+    }
+
+    updateElapsed();
+  }
+
+  // ─── Tab Content Helpers ───
+  function addActivity(title, detail, tag) {
+    const pane = document.getElementById('tab-activity');
+    const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    const tagHtml = tag ? `<span class="activity-tag">${tag}</span>` : '';
+    pane.insertAdjacentHTML('afterbegin', `
+      <div class="activity-item">
+        <span class="activity-time">${time}</span>
+        <span class="activity-msg"><strong>${title}</strong> ${detail ? '— ' + detail : ''}</span>
+        ${tagHtml}
+      </div>
+    `);
+  }
+
+  function addDecision(title, body) {
+    const pane = document.getElementById('tab-decisions');
+    pane.insertAdjacentHTML('afterbegin', `
+      <div class="decision-card">
+        <div class="decision-title">${title}</div>
+        <div class="decision-body">${body}</div>
+      </div>
+    `);
+  }
+
+  function addArtifact(name, type) {
+    const pane = document.getElementById('tab-artifacts');
+    pane.insertAdjacentHTML('beforeend', `
+      <div class="artifact-item">
+        <span class="artifact-icon">&#128196;</span>
+        <span class="artifact-name">${name}</span>
+        <span class="artifact-type">${type}</span>
+      </div>
+    `);
+  }
+
+  function addLog(level, msg) {
+    const pane = document.getElementById('tab-logs');
+    const cls = level === 'error' ? 'error' : 'info';
+    pane.insertAdjacentHTML('beforeend', `<div class="log-line ${cls}">[${new Date().toLocaleTimeString()}] ${level}: ${msg}</div>`);
+    pane.scrollTop = pane.scrollHeight;
+  }
+
+  function updateElapsed() {
+    const secs = Math.round((Date.now() - startTime) / 1000);
+    const min = Math.floor(secs / 60);
+    const sec = secs % 60;
+    document.getElementById('sb-elapsed').textContent = min > 0 ? `${min}m ${sec}s` : `${sec}s`;
+  }
+
+  // ─── Polling ───
+  function startPolling() {
+    pollInterval = setInterval(async () => {
+      try {
+        const resp = await fetch(`/api/supervisor/poll/${runId}?after=${eventIndex}`);
+        if (!resp.ok) return;
+        const payload = await resp.json();
+        const events = payload.events || [];
+        events.forEach(e => handleEvent(e));
+        eventIndex += events.length;
+      } catch (e) {
+        addLog('error', `Poll failed: ${e.message}`);
+      }
+    }, 1000);
+  }
+
+  function stopPolling() {
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  }
+
+  // Elapsed timer
+  setInterval(updateElapsed, 1000);
+
+  // Start
+  startPolling();
+
+})();
+</script>
+{% endblock %}

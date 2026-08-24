@@ -6,12 +6,16 @@ resources:
     # ─────────────────────────────────────────────────────────────
     # Setup App Infrastructure — One-time provisioning
     #
-    # Task execution order:
-    #   setup_lakebase              (provision Lakebase instance)
-    #         │
-    #         └── setup_metadata_tables  (seed phase config into Lakebase)
-    #                │
-    #                └── grant_permissions  (UC + Lakebase + workspace folder)
+    # Task execution order (two parallel tracks):
+    #
+    #   Track A: Lakebase + Permissions
+    #     cleanup_lakebase → create_lakebase → setup_metadata_tables
+    #         → grant_workspace_folder_access
+    #         → grant_uc_catalog_access
+    #
+    #   Track B: Agent Model (runs in parallel with Track A)
+    #     create_model_schema → register_supervisor_model
+    #       → deploy_serving_endpoint → configure_gateway
     # ─────────────────────────────────────────────────────────────
     setup_app_infrastructure:
       name: "aibi-studio-setup-infrastructure"
@@ -33,6 +37,10 @@ resources:
           default: ${var.catalog_name}
         - name: lakebase_project_id
           default: ${var.lakebase_project_id}
+        - name: sql_warehouse_id
+          default: ${var.sql_warehouse_id}
+        - name: llm_endpoint
+          default: ${var.gateway_model}
         - name: action
           default: "create"
 
@@ -73,11 +81,9 @@ resources:
               project_id: "{{job.parameters.lakebase_project_id}}"
               action: "{{job.parameters.action}}"
 
-        # --- Step 4: Grant permissions ---
+        # --- Step 4: Grant permissions (independent — no Lakebase dependency) ---
         - task_key: grant_workspace_folder_access
           description: "Grants CAN_MANAGE on project folder to the app service principal"
-          depends_on:
-            - task_key: setup_metadata_tables
           notebook_task:
             notebook_path: "../notebooks/setup_permissions.py"
             base_parameters:
@@ -87,14 +93,63 @@ resources:
 
         - task_key: grant_uc_catalog_access
           description: "Grants USE CATALOG and CREATE SCHEMA to the app SP"
-          depends_on:
-            - task_key: setup_metadata_tables
           notebook_task:
             notebook_path: "../notebooks/setup_uc_permissions.py"
             base_parameters:
               sp_id: "{{job.parameters.app_sp_id}}"
               catalog_name: "{{job.parameters.catalog_name}}"
               action: "{{job.parameters.action}}"
+
+        # --- Track B: Agent Model (parallel to Track A) ---
+
+        # B1: Create model schema
+        - task_key: create_model_schema
+          description: "Create UC schema for the supervisor MLflow model"
+          notebook_task:
+            notebook_path: "../notebooks/agent/create_model_schema.py"
+            base_parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+              model_schema: "aibi_models"
+
+        # B2: Register supervisor model
+        - task_key: register_supervisor_model
+          description: "Log and register AIBIPipelineSupervisor as MLflow pyfunc model"
+          depends_on:
+            - task_key: create_model_schema
+          notebook_task:
+            notebook_path: "../notebooks/agent/register_supervisor.py"
+            base_parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+              model_schema: "aibi_models"
+              model_name: "aibi_pipeline_supervisor"
+              llm_endpoint: "{{job.parameters.llm_endpoint}}"
+              source_root: "{{job.parameters.project_folder}}"
+
+        # B3: Deploy serving endpoint
+        - task_key: deploy_serving_endpoint
+          description: "Create or update the supervisor serving endpoint from registered model"
+          depends_on:
+            - task_key: register_supervisor_model
+          notebook_task:
+            notebook_path: "../notebooks/agent/deploy_serving_endpoint.py"
+            base_parameters:
+              catalog_name: "{{job.parameters.catalog_name}}"
+              model_schema: "aibi_models"
+              model_name: "aibi_pipeline_supervisor"
+              llm_endpoint: "{{job.parameters.llm_endpoint}}"
+              sql_warehouse_id: "{{job.parameters.sql_warehouse_id}}"
+              app_name: "{{job.parameters.app_name}}"
+              force_recreate: "false"
+
+        # B4: Configure AI Gateway overlay on LLM endpoint (no dependency —
+        #     targets the pre-existing databricks-gpt-5-5, not the supervisor endpoint)
+        - task_key: configure_gateway
+          description: "Apply AI Gateway overlay (rate limits, inference tables) on the LLM endpoint"
+          notebook_task:
+            notebook_path: "../notebooks/agent/configure_gateway.py"
+            base_parameters:
+              gateway_endpoint: "{{job.parameters.llm_endpoint}}"
+              catalog_name: "{{job.parameters.catalog_name}}"
       
       permissions:
         - level: CAN_MANAGE_RUN

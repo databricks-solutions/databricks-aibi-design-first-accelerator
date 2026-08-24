@@ -86,7 +86,7 @@ Replace `<you>` with your workspace user name. The master prompt loads `accelera
 
 **Agentic execution:** Genie should resolve paths from config, follow step prompts, and finish with minimal manual intervention.
 
-Generated assets land under `kpi_domains/member_claims/generated_outputs/` on the workspace (not in git).
+Generated assets land under `kpi_domains/member_claims/generated_outputs/v1/` (auto-versioned — each run increments). Both the App UI and Agent Code paths produce identical versioned output.
 
 ---
 

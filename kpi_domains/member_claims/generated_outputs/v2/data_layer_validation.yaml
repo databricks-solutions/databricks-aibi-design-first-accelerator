@@ -1,0 +1,49 @@
+status: PASS
+schema:
+  tables_expected: 8
+  tables_created: 8
+  missing_tables: []
+  unexpected_tables: []
+primary_keys:
+  tested: 8
+  failures: []
+  results:
+    dim_address: {rows: 200, pk_distinct: 200, pk_nulls: 0, pk_dups: 0}
+    dim_member: {rows: 500, pk_distinct: 500, pk_nulls: 0, pk_dups: 0}
+    dim_provider: {rows: 150, pk_distinct: 150, pk_nulls: 0, pk_dups: 0}
+    dim_member_identifier: {rows: 500, pk_distinct: 500, pk_nulls: 0, pk_dups: 0}
+    dim_member_history: {rows: 500, pk_distinct: 500, pk_nulls: 0, pk_dups: 0}
+    fact_member_enrollment: {rows: 1500, pk_distinct: 1500, pk_nulls: 0, pk_dups: 0}
+    fact_claim_header: {rows: 2000, pk_distinct: 2000, pk_nulls: 0, pk_dups: 0}
+    fact_claim_detail: {rows: 6000, pk_distinct: 6000, pk_nulls: 0, pk_dups: 0}
+foreign_keys:
+  tested: 7
+  orphan_counts:
+    dim_provider_to_dim_address: 0
+    dim_member_identifier_to_dim_member: 0
+    dim_member_history_to_dim_member: 0
+    fact_member_enrollment_to_dim_member: 0
+    fact_claim_header_to_dim_member: 0
+    fact_claim_header_to_dim_address: 0
+    fact_claim_detail_to_fact_claim_header: 0
+  failures: []
+cardinality:
+  tested: 7
+  failures: []
+join_stability:
+  tested: 7
+  fanout_failures: []
+semantic_constraints:
+  tested: 3
+  failures: []
+data_quality:
+  null_violations: []
+  generic_fallback_columns:
+    note: Some non-analytical audit/free-text/code columns use datatype-correct base_generator fallback; key analytical categorical and financial fields were domain-overridden.
+  unusable_dimension_columns: []
+analytical_readiness:
+  status: PASS
+  required_join_paths:
+    fact_claim_header_to_dim_member: matched_rows_gt_0
+    fact_claim_detail_to_fact_claim_header: matched_rows_gt_0
+    fact_member_enrollment_to_dim_member: matched_rows_gt_0

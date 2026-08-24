@@ -1,0 +1,6 @@
+# AI/BI Studio — Agent Job (DEPRECATED)
+#
+# Model registration and AI Gateway configuration have been merged into
+# the setup_app_infrastructure job in aibi.job.yml.
+#
+# This file is intentionally empty. Remove it when convenient.

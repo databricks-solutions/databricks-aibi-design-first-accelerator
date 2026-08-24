@@ -18,17 +18,17 @@ workspace:
 catalog:
   source:
     catalog: aw_serverless_stable_catalog
-    schema: member_claims_source
+    schema: aibi_member_claims
   target:
     catalog: aw_serverless_stable_catalog
-    schema: member_claims_semantic
+    schema: aibi_member_claims
 data_source:
   type: erd
   erd:
     image: inputs/erd.png
   live_schema:
     catalog: aw_serverless_stable_catalog
-    schema: member_claims_source
+    schema: aibi_member_claims
   greenfield:
     enabled: true
     synthetic_data: true
@@ -55,13 +55,43 @@ templates:
   dbldatagen_notebook: ../../framework/templates/dbldatagen_notebook.py.template
 pipeline:
   steps:
-    create_data_layer: true
-    create_metric_views: true
-    create_dashboards: true
-    create_genie_space: true
-    create_secured_dashboards: false
-    generate_documentation: true
+    create_data_layer:
+      enabled: true
+      execution_type: notebook    # Write notebook + execute via Jobs API
+      vision_input: true           # Pass ERD image to LLM via vision model
+    create_metric_views:
+      enabled: true
+      execution_type: sql          # Execute via SQL Statement API
+    create_dashboards:
+      enabled: true
+      execution_type: api          # Call Lakeview REST API
+    create_genie_space:
+      enabled: true
+      execution_type: api          # Call Genie REST API
+    create_secured_dashboards:
+      enabled: false
+      execution_type: api
+    generate_documentation:
+      enabled: true
+      execution_type: file         # Write file to output folder
   clean_start: false
+llm:
+  default_model: databricks-gpt-5-5
+  vision_model: databricks-gpt-5-5
+  temperature: 1  # databricks-gpt-5-5 only supports temperature=1
+  max_tokens: 32000  # reasoning model needs high budget (reasoning consumes ~4000-8000 tokens)
+  steps:
+    parse_erd:
+      model: databricks-gpt-5-5
+      capability: vision
+      instruction: Must use vision model to read ERD image directly. Never read from previous version outputs.
+    generate_sql:
+      model: databricks-gpt-5-5
+    create_dashboards:
+      model: databricks-gpt-5-5
+      instruction: Must read lakeview_dashboard_api.md fully before building serialized_dashboard JSON.
+    create_genie_space:
+      model: databricks-gpt-5-5
 validation:
   require_all_kpis: true
   min_benchmark_questions: 15

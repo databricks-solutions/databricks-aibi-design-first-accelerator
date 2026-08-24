@@ -71,6 +71,9 @@ class LLMClient:
     RATE_LIMIT_BACKOFF_BASE = 2.0
     RATE_LIMIT_JITTER_MAX = 1.0
 
+    # Track endpoints that reject temperature (class-level cache)
+    _endpoints_no_temperature: set = set()
+
     def __init__(
         self,
         endpoint_name: str = "databricks-gpt-5-5",
@@ -141,13 +144,13 @@ class LLMClient:
 
     # Max pixel dimension for vision API (Claude limit is 8000px)
     # Use 7500 to stay under limit while preserving detail for complex ERDs
-    VISION_MAX_DIMENSION = 6000
+    VISION_MAX_DIMENSION = 4096  # Balance detail vs input token cost for reasoning models
 
     def chat_with_vision(
         self,
         messages: list,
         image_bytes: bytes,
-        max_tokens: int = 4096,
+        max_tokens: int = 16384,
     ) -> str:
         """Generate text from image + text input (vision model).
 
@@ -205,6 +208,78 @@ class LLMClient:
             max_tokens=max_tokens,
             temperature=self._temperature,
         )
+
+    def chat_with_tools(
+        self,
+        messages: list,
+        tools: list,
+        max_tokens: int = 16384,
+        temperature: Optional[float] = None,
+    ) -> dict:
+        """Generate a response with tool-calling support.
+
+        This is the core method that enables the agent loop pattern.
+        The LLM can return tool_calls in its response, which the caller
+        executes and feeds back as tool results.
+
+        Args:
+            messages: Chat messages (system, user, assistant, tool roles).
+            tools: List of tool definitions (OpenAI function-calling format).
+            max_tokens: Maximum tokens in response.
+            temperature: Override default temperature.
+
+        Returns:
+            Dict with keys:
+                - content: str (assistant text, may be empty if tool_calls present)
+                - tool_calls: list of {id, function: {name, arguments}} dicts
+        """
+        body = {
+            "messages": messages,
+            "tools": tools,
+            "max_tokens": max_tokens,
+        }
+
+        temp = temperature or self._temperature
+        include_temp = (temp != 1.0) and (self._endpoint not in self._endpoints_no_temperature)
+
+        for attempt in range(self.RATE_LIMIT_MAX_RETRIES):
+            try:
+                req_body = {**body}
+                if include_temp:
+                    req_body["temperature"] = temp
+
+                response = self._client.api_client.do(
+                    "POST",
+                    f"/serving-endpoints/{self._endpoint}/invocations",
+                    body=req_body,
+                )
+
+                choices = response.get("choices", [])
+                if choices:
+                    message = choices[0].get("message", {})
+                    content = message.get("content", "") or ""
+                    tool_calls = message.get("tool_calls", []) or []
+                    return {"content": content, "tool_calls": tool_calls}
+
+                return {"content": "", "tool_calls": []}
+
+            except Exception as e:
+                error_str = str(e)
+                if "unsupported_value" in error_str and "temperature" in error_str:
+                    logger.info(
+                        f"Endpoint '{self._endpoint}' does not support temperature. "
+                        "Cached for future calls."
+                    )
+                    self._endpoints_no_temperature.add(self._endpoint)
+                    include_temp = False
+                    continue
+                if "429" in error_str or "rate" in error_str.lower():
+                    wait = self.RATE_LIMIT_BACKOFF_BASE ** attempt
+                    time.sleep(wait)
+                    continue
+                raise LLMError(f"Tool-calling endpoint error: {e}") from e
+
+        raise LLMRateLimitError("Rate limited after max retries (chat_with_tools)")
 
     def chat_structured(
         self,
@@ -300,16 +375,27 @@ class LLMClient:
             "messages": messages,
             "max_tokens": max_tokens,
         }
-        # Some models (e.g. GPT 5.5) reject non-default temperature values.
-        # Only include temperature if explicitly set AND not 1.0.
+
+        # Temperature handling — skip entirely for endpoints known to reject it
         temp = temperature or self._temperature
-        include_temp = temp != 1.0
+        include_temp = (temp != 1.0) and (endpoint not in self._endpoints_no_temperature)
 
         if response_format:
             body["response_format"] = response_format
 
-        # Log prompt size for debugging empty responses
-        total_prompt_chars = sum(len(m.get("content", "")) if isinstance(m.get("content"), str) else 0 for m in messages)
+        # Log prompt size for debugging (handles multimodal content correctly)
+        total_prompt_chars = 0
+        for m in messages:
+            c = m.get("content", "")
+            if isinstance(c, str):
+                total_prompt_chars += len(c)
+            elif isinstance(c, list):
+                # Multimodal: list of {type: text/image_url, ...}
+                for part in c:
+                    if part.get("type") == "text":
+                        total_prompt_chars += len(part.get("text", ""))
+                    elif part.get("type") == "image_url":
+                        total_prompt_chars += 1000  # Estimate for logging
         logger.debug(f"LLM call to '{endpoint}': {len(messages)} messages, ~{total_prompt_chars} prompt chars, max_tokens={max_tokens}")
 
         for attempt in range(self.RATE_LIMIT_MAX_RETRIES):
@@ -336,17 +422,33 @@ class LLMClient:
                     else:
                         content = choice.get("text", "") or ""
 
-                    # Check for empty content — retry with backoff
+                    # Empty content handling
                     if not content.strip():
-                        logger.warning(
-                            f"LLM returned empty content (attempt {attempt + 1}/{self.RATE_LIMIT_MAX_RETRIES}), "
-                            f"finish_reason='{finish_reason}', endpoint='{endpoint}', "
-                            f"prompt_chars={total_prompt_chars}, max_tokens={max_tokens}"
-                        )
-                        if attempt < self.RATE_LIMIT_MAX_RETRIES - 1:
-                            time.sleep(self.EMPTY_RESPONSE_WAIT_SECONDS)
+                        # If finish_reason='length', the model exhausted output tokens
+                        # before producing content. Retrying is futile — same limit applies.
+                        if finish_reason == "length":
+                            logger.error(
+                                f"LLM returned empty content with finish_reason='length'. "
+                                f"The model exhausted max_tokens={max_tokens} without producing output. "
+                                f"Input may be too large or max_tokens too low. endpoint='{endpoint}', "
+                                f"prompt_chars=~{total_prompt_chars}"
+                            )
+                            raise LLMError(
+                                f"Model exhausted output token limit ({max_tokens} tokens) "
+                                f"without producing content. The input may be too large "
+                                f"for the configured max_tokens."
+                            )
+
+                        # Other empty responses (transient) — retry up to 2 times only
+                        if attempt < 2:
+                            logger.warning(
+                                f"LLM returned empty content (attempt {attempt + 1}/3), "
+                                f"finish_reason='{finish_reason}', endpoint='{endpoint}'"
+                            )
+                            time.sleep(2.0)
                             continue
-                        # Final attempt — return whatever we got
+                        # Give up after 2 retries
+                        logger.error(f"LLM returned empty content after 3 attempts. Returning empty.")
                         return content
 
                     # Check if response was truncated (hit token limit)
@@ -366,15 +468,19 @@ class LLMClient:
                 logger.warning(f"Unexpected LLM response format: {str(response)[:200]}")
                 return str(response)
 
+            except LLMError:
+                raise  # Don't catch our own errors
+
             except Exception as e:
                 error_str = str(e)
 
-                # Temperature not supported — retry without it
+                # Temperature not supported — cache this permanently, no warning on future calls
                 if "unsupported_value" in error_str and "temperature" in error_str:
-                    logger.warning(
-                        f"Endpoint '{endpoint}' rejected temperature={temp}. "
-                        "Retrying without temperature parameter."
+                    logger.info(
+                        f"Endpoint '{endpoint}' does not support temperature parameter. "
+                        "Cached — will not attempt temperature on future calls."
                     )
+                    self._endpoints_no_temperature.add(endpoint)
                     include_temp = False
                     continue
 

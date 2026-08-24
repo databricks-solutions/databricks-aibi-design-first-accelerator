@@ -34,10 +34,12 @@ variables:
   lakebase_project_id:
     description: Lakebase project ID for pipeline durable state store.
     default: "aibi-studio"
-sync:
-  exclude:
-    - "**/.DS_Store"
-    - "**/__pycache__/**"
+  gateway_model:
+    description: Foundation model routed through AI Gateway for the supervisor agent.
+    default: "databricks-gpt-5-5"
+  gateway_rate_limit_calls:
+    description: Max LLM calls per minute through the gateway.
+    default: "100"
 
 targets:
   dev:

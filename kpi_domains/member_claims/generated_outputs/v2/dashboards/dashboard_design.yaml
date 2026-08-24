@@ -1,0 +1,122 @@
+status: DESIGNED
+version_suffix: _v2
+warehouse_id: 2d8e531640ffa469
+source_contracts:
+  kpi_spec: inputs/kpi_spec.md
+  metric_view_design: generated_outputs/v2/metric_view_design.yaml
+  metric_view_validation: generated_outputs/v2/metric_view_validation.yaml
+metric_views:
+  - aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2
+  - aw_serverless_stable_catalog.aibi_member_claims.member_enrollment_metric_view_v2
+eligible_kpis:
+  - C-1 Total Claims
+  - C-2 Total Claim Lines
+  - C-3 Total Paid Amount
+  - C-4 Average Paid per Claim
+  - M-1 New Member Enrollment
+  - M-2 Members by Line of Business
+  - M-3 Members by Geography
+  - Denial Rate
+  - Clean Claim Rate
+  - Payment-to-Billed Ratio
+  - Payment-to-Allowed Ratio
+  - Inpatient Paid Amount
+  - Outpatient Paid Amount
+  - Participating Provider Rate
+skipped_kpis:
+  - {kpi: MC-1 PMPM, dashboard_status: DASHBOARD_KPI_SKIPPED, reason: SKIPPED_UNSAFE_GRAIN in metric_view_validation.yaml}
+  - {kpi: W-1 Rolling 3-Month PMPM, dashboard_status: DASHBOARD_KPI_SKIPPED, reason: SKIPPED_UNSAFE_GRAIN in metric_view_validation.yaml}
+  - {kpi: W-2 MoM Active Member Growth, dashboard_status: DASHBOARD_KPI_SKIPPED, reason: SKIPPED_UNSUPPORTED_SEMANTICS in metric_view_validation.yaml}
+dashboards:
+  - dashboard:
+      id: kpis
+      configured_name: member_claims_kpis_dashboard
+      display_name: member_claims_kpis_dashboard_v2
+      metric_views:
+        - aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2
+        - aw_serverless_stable_catalog.aibi_member_claims.member_enrollment_metric_view_v2
+    pages:
+      - id: filters_page
+        title: Filters
+        purpose: Global filters scoped by shared datasets and exact field names
+        page_type: PAGE_TYPE_GLOBAL_FILTERS
+        filters:
+          - {field: service_date, type: filter-date-range-picker, dataset: ds_kpis_financial}
+          - {field: line_of_business, type: filter-multi-select, dataset: ds_kpis_financial}
+          - {field: claim_type, type: filter-multi-select, dataset: ds_kpis_financial}
+          - {field: enrollment_effective_date, type: filter-date-range-picker, dataset: ds_kpis_member_demo}
+          - {field: enrollment_line_of_business, type: filter-multi-select, dataset: ds_kpis_member_demo}
+          - {field: member_state, type: filter-multi-select, dataset: ds_kpis_member_demo}
+        widgets: []
+      - id: financial_overview
+        title: Financial Overview
+        purpose: Executive financial and volume claims overview plus cost drivers
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_date, line_of_business, claim_type]
+        widgets:
+          - {id: kpi_total_claims, title: Total Claims, kpi: C-1, measure: total_claims, dimensions: [], visualization: counter, dataset: ds_kpis_financial, position: {x: 0, y: 1}, size: {width: 2, height: 3}, rationale: headline additive claim count}
+          - {id: kpi_total_paid, title: Total Paid Amount, kpi: C-3, measure: total_paid_amount, dimensions: [], visualization: counter, dataset: ds_kpis_financial, position: {x: 2, y: 1}, size: {width: 2, height: 3}, rationale: headline additive cost}
+          - {id: top_cost_claim_type, title: Paid Amount by Claim Type, kpi: C-3/top-N cost drivers, measure: total_paid_amount, dimensions: [claim_type], visualization: bar, dataset: ds_kpis_financial, position: {x: 0, y: 4}, size: {width: 3, height: 5}, rationale: top-N categorical cost driver}
+          - {id: cost_composition_lob, title: Paid Composition by LOB, kpi: C-3/top-N cost drivers, measure: total_paid_amount, dimensions: [line_of_business], visualization: pie, dataset: ds_kpis_financial, position: {x: 3, y: 4}, size: {width: 3, height: 5}, rationale: low-cardinality composition}
+      - id: claims_analysis
+        title: Claims Analysis
+        purpose: Claims value, denial quality, and monthly trend analysis
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_date, line_of_business, claim_type]
+        widgets:
+          - {id: avg_paid_per_claim, title: Average Paid per Claim, kpi: C-4, measure: average_paid_per_claim, visualization: counter, dataset: ds_kpis_claims_analysis, position: {x: 0, y: 1}, size: {width: 2, height: 3}}
+          - {id: denial_rate, title: Denial Rate, kpi: Denial Rate, measure: denial_rate, visualization: counter, dataset: ds_kpis_claims_analysis, position: {x: 2, y: 1}, size: {width: 2, height: 3}}
+          - {id: clean_claim_rate, title: Clean Claim Rate, kpi: Clean Claim Rate, measure: clean_claim_rate, visualization: counter, dataset: ds_kpis_claims_analysis, position: {x: 4, y: 1}, size: {width: 2, height: 3}}
+          - {id: monthly_paid_trend, title: Monthly Paid Trend, kpi: monthly trends / C-3, measure: total_paid_amount, dimensions: [service_month], visualization: line, dataset: ds_kpis_claims_analysis, position: {x: 0, y: 4}, size: {width: 6, height: 5}}
+      - id: member_demographics
+        title: Member Demographics
+        purpose: Active member distribution by product and geography/demographics
+        page_type: PAGE_TYPE_CANVAS
+        filters: [enrollment_effective_date, enrollment_line_of_business, member_state]
+        widgets:
+          - {id: members_by_lob, title: Members by Line of Business, kpi: M-2, measure: active_enrolled_members, dimensions: [enrollment_line_of_business], visualization: bar, dataset: ds_kpis_member_demo, position: {x: 0, y: 1}, size: {width: 3, height: 5}}
+          - {id: members_by_state, title: Members by Geography, kpi: M-3, measure: active_enrolled_members, dimensions: [member_state], visualization: table, dataset: ds_kpis_member_demo, position: {x: 3, y: 1}, size: {width: 3, height: 5}}
+          - {id: members_by_sex, title: Member Sex Breakdown, kpi: age/sex breakdowns / M-2, measure: active_enrolled_members, dimensions: [member_sex], visualization: bar, dataset: ds_kpis_member_demo, position: {x: 0, y: 6}, size: {width: 6, height: 5}}
+  - dashboard:
+      id: utilization
+      configured_name: member_claims_utilization_dashboard
+      display_name: member_claims_utilization_dashboard_v2
+      metric_views:
+        - aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2
+    pages:
+      - id: filters_page
+        title: Filters
+        purpose: Utilization dashboard global claim filters
+        page_type: PAGE_TYPE_GLOBAL_FILTERS
+        filters:
+          - {field: service_date, type: filter-date-range-picker, dataset: ds_util_patterns}
+          - {field: line_of_business, type: filter-multi-select, dataset: ds_util_patterns}
+          - {field: claim_type, type: filter-multi-select, dataset: ds_util_patterns}
+        widgets: []
+      - id: utilization_patterns
+        title: Utilization Patterns
+        purpose: Claims utilization and inpatient/outpatient paid mix
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_date, line_of_business, claim_type]
+        widgets:
+          - {id: util_total_claims, title: Total Claims, kpi: C-1, measure: total_claims, visualization: counter, dataset: ds_util_patterns, position: {x: 0, y: 1}, size: {width: 2, height: 3}}
+          - {id: util_total_lines, title: Total Claim Lines, kpi: C-2, measure: total_claim_lines, visualization: counter, dataset: ds_util_patterns, position: {x: 2, y: 1}, size: {width: 2, height: 3}}
+          - {id: inpatient_outpatient_paid, title: Inpatient vs Outpatient Paid, kpi: Inpatient/Outpatient Paid, measure: inpatient_paid_amount/outpatient_paid_amount, visualization: bar, dataset: ds_util_patterns, position: {x: 0, y: 4}, size: {width: 3, height: 5}}
+          - {id: claims_by_type, title: Claims by Claim Type, kpi: C-1, measure: total_claims, dimensions: [claim_type], visualization: bar, dataset: ds_util_patterns, position: {x: 3, y: 4}, size: {width: 3, height: 5}}
+      - id: provider_insights
+        title: Provider Insights
+        purpose: Provider specialty paid rankings and participating provider mix
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_date, line_of_business]
+        widgets:
+          - {id: specialty_rankings, title: Specialty Rankings by Paid Amount, kpi: Specialty rankings, measure: total_paid_amount, dimensions: [rendering_provider_specialty], visualization: table, dataset: ds_provider_insights, position: {x: 0, y: 1}, size: {width: 6, height: 6}}
+          - {id: par_provider_rate, title: Participating Provider Rate, kpi: Participating Provider Rate, measure: participating_provider_rate, visualization: counter, dataset: ds_provider_insights, position: {x: 0, y: 7}, size: {width: 2, height: 3}}
+      - id: operational_metrics
+        title: Operational Metrics
+        purpose: Denials and payment realization operating KPIs
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_date, line_of_business, claim_type]
+        widgets:
+          - {id: denial_trend, title: Monthly Denial Rate Trend, kpi: Denial trends, measure: denial_rate, dimensions: [service_month], visualization: line, dataset: ds_operational_metrics, position: {x: 0, y: 1}, size: {width: 6, height: 5}}
+          - {id: payment_to_billed, title: Payment-to-Billed Ratio, kpi: Payment-to-Billed Ratio, measure: payment_to_billed_ratio, visualization: counter, dataset: ds_operational_metrics, position: {x: 0, y: 6}, size: {width: 2, height: 3}}
+          - {id: payment_to_allowed, title: Payment-to-Allowed Ratio, kpi: Payment-to-Allowed Ratio, measure: payment_to_allowed_ratio, visualization: counter, dataset: ds_operational_metrics, position: {x: 2, y: 6}, size: {width: 2, height: 3}}

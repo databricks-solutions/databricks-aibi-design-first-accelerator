@@ -1,1489 +1,319 @@
 {% extends "layout.html" %}
-{% block title %}KPI Domains - AI/BI Studio{% endblock %}
+{% block title %}KPI Domains — AI/BI Studio{% endblock %}
+
+{% block breadcrumb %}
+<a href="/domains">KPI Domains</a>
+{% endblock %}
+
+{% block top_bar_right %}
+<span class="status-badge idle">Ready</span>
+{% endblock %}
+
+{% block head %}
+<style>
+    .domains-page { padding: 28px; }
+    .domains-header { margin-bottom: 28px; }
+    .domains-header h2 { font-size: 1.5rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+    .domains-header p { color: var(--text-secondary); font-size: 0.9rem; }
+
+    .domain-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 16px;
+        margin-bottom: 28px;
+    }
+    .domain-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 20px;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .domain-card:hover { border-color: var(--primary); box-shadow: 0 4px 12px rgba(59,130,246,0.1); transform: translateY(-2px); }
+    .domain-card.selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+    .domain-card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .domain-icon {
+        width: 42px; height: 42px; border-radius: 10px;
+        display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .domain-icon.healthcare { background: var(--success-soft); color: var(--success); }
+    .domain-name { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+    .domain-desc { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; margin-bottom: 14px; }
+    .domain-meta { display: flex; gap: 16px; font-size: 0.75rem; color: var(--text-muted); }
+
+    /* --- Domain Detail Panel (files + config) --- */
+    .domain-detail {
+        display: none;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        overflow: hidden;
+    }
+    .domain-detail.visible { display: block; }
+    .domain-detail-header {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border);
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .domain-detail-header h3 { font-size: 1rem; font-weight: 600; }
+    .domain-detail-header .close-btn {
+        background: none; border: none; font-size: 18px; color: var(--text-muted);
+        cursor: pointer; padding: 4px 8px; border-radius: 4px;
+    }
+    .domain-detail-header .close-btn:hover { background: var(--bg-app); color: var(--text-primary); }
+
+    .domain-detail-body { display: grid; grid-template-columns: 1fr 1fr; }
+
+    /* File List Panel */
+    .files-panel { padding: 20px 24px; border-right: 1px solid var(--border); }
+    .files-panel h4 {
+        font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px;
+    }
+    .file-group { margin-bottom: 20px; }
+    .file-group-title {
+        font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);
+        text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 8px;
+        padding-bottom: 4px; border-bottom: 1px solid var(--border-light);
+    }
+    .file-item {
+        display: flex; align-items: center; gap: 8px;
+        padding: 7px 10px; margin: 2px 0; border-radius: 6px;
+        font-size: 0.82rem; color: var(--text-primary);
+        cursor: default; transition: background 0.15s;
+    }
+    .file-item:hover { background: var(--bg-app); }
+    .file-icon { font-size: 14px; opacity: 0.6; width: 18px; text-align: center; }
+    .file-icon.yaml { color: #e67e22; }
+    .file-icon.md { color: #3498db; }
+    .file-icon.png { color: #9b59b6; }
+    .file-icon.prompt { color: #10b981; }
+    .file-name { font-weight: 500; }
+    .file-desc { font-size: 0.72rem; color: var(--text-muted); margin-left: auto; }
+
+    /* Config Panel */
+    .config-panel-right { padding: 20px 24px; }
+    .config-panel-right h4 {
+        font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+        letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 12px;
+    }
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .config-field label {
+        display: block; font-size: 0.75rem; font-weight: 500;
+        color: var(--text-secondary); margin-bottom: 4px;
+    }
+    .config-field input {
+        width: 100%; padding: 8px 10px; font-size: 0.82rem;
+        background: var(--bg-app); border: 1px solid var(--border);
+        border-radius: 6px; color: var(--text-primary);
+    }
+    .config-field input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    .config-field.full { grid-column: 1 / -1; }
+    .config-actions {
+        display: flex; gap: 12px; justify-content: flex-end;
+        padding-top: 12px; border-top: 1px solid var(--border-light);
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+        .domain-detail-body { grid-template-columns: 1fr; }
+        .files-panel { border-right: none; border-bottom: 1px solid var(--border); }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="domains-page">
-  <!-- Horizontal Stepper -->
-  <div class="stepper">
-    <div class="stepper-track">
-      <div class="step" data-step="1"><span class="step-num">1</span><span class="step-label">Select Domain</span></div>
-      <div class="step-line"></div>
-      <div class="step" data-step="2"><span class="step-num">2</span><span class="step-label">Review Inputs</span></div>
-      <div class="step-line"></div>
-      <div class="step" data-step="3"><span class="step-num">3</span><span class="step-label">Execute</span></div>
-      <div class="step-line"></div>
-      <div class="step" data-step="4"><span class="step-num">4</span><span class="step-label">Summary</span></div>
-    </div>
-  </div>
-
-  <!-- Step 1: Select Domain -->
-  <section id="step-1" class="step-panel active">
-    <h2>Select a KPI Domain</h2>
-    <div id="domain-cards" class="domain-grid"></div>
-    <div id="domain-empty" class="empty-state" style="display:none;">No domains found. Create an <code>kpi_domains/&lt;domain&gt;/accelerator.yaml</code> to get started.</div>
-  </section>
-
-  <!-- Step 2: Review Inputs -->
-  <section id="step-2" class="step-panel">
-    <div class="sub-nav">
-      <button class="sub-nav-item active" data-tab="config">Configuration</button>
-      <button class="sub-nav-item" data-tab="kpi">KPI Matrix</button>
-      <button class="sub-nav-item" data-tab="practices">Best Practices</button>
+    <div class="domains-header">
+        <h2>KPI Domains</h2>
+        <p>Select a domain to view its configuration files and launch the AI pipeline</p>
     </div>
 
-    <!-- Sub-tab: Configuration -->
-    <div id="tab-config" class="sub-panel active">
-      <div class="config-form" id="config-form"></div>
-    </div>
-
-    <!-- Sub-tab: KPI Matrix -->
-    <div id="tab-kpi" class="sub-panel">
-      <div id="kpi-content"></div>
-    </div>
-
-    <!-- Sub-tab: Best Practices -->
-    <div id="tab-practices" class="sub-panel">
-      <div id="practices-content"></div>
-    </div>
-
-    <!-- Bottom Navigation -->
-    <div class="bottom-nav">
-      <button id="step2-prev" class="btn btn-secondary">&larr; Back to Domains</button>
-      <button id="step2-next" class="btn btn-primary">Next &rarr;</button>
-    </div>
-  </section>
-
-  <!-- Step 3: Execute (inline Run Details) -->
-  <section id="step-3" class="step-panel">
-    <div class="run-container">
-      <div class="status-pill" id="status-pill">
-        <span class="sparkle">&#x2728;</span>
-        <span id="pill-text">Working on your request</span>
-      </div>
-      <h2 class="run-title" id="run-title">Preparing your results</h2>
-      <p class="run-subtitle" id="run-subtitle">We're analyzing the information and putting everything together.</p>
-      <div class="steps-track" id="steps-track"></div>
-      <div class="detail-card" id="detail-card">
-        <div class="step-timeline" id="step-timeline">
-          <div class="timeline-progress" id="timeline-progress"></div>
+    <div class="domain-grid" id="domain-grid">
+        <div class="domain-card" data-domain="member_claims"
+             data-path="/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims">
+            <div class="domain-card-header">
+                <div class="domain-icon healthcare">&#9829;</div>
+                <div class="domain-name">Member Claims</div>
+            </div>
+            <div class="domain-desc">Healthcare member claims analysis — cost drivers, utilization patterns, and provider performance metrics.</div>
+            <div class="domain-meta">
+                <span>14 tables</span>
+                <span>9 metric views</span>
+                <span>2 dashboards</span>
+            </div>
         </div>
-      </div>
-      <div class="error-card" id="error-card" style="display:none;">
-        <h4>Error Detail</h4>
-        <pre id="error-content"></pre>
-      </div>
-      <div class="action-row">
-        <button class="btn-action cancel" id="cancel-btn" style="display:none;">Cancel</button>
-        <button class="btn-action rerun" id="rerun-btn" style="display:none;">Rerun from Failed</button>
-      </div>
     </div>
-  </section>
 
-  <!-- Step 4: Summary -->
-  <section id="step-4" class="step-panel">
-    <div class="summary-header">
-      <div class="summary-icon">&#x2705;</div>
-      <h2 class="summary-title">Pipeline Complete</h2>
-      <p class="summary-meta" id="summary-meta"></p>
+    <!-- Domain Detail Panel -->
+    <div class="domain-detail" id="domain-detail">
+        <div class="domain-detail-header">
+            <h3 id="detail-title">Member Claims</h3>
+            <button class="close-btn" onclick="hideDetail()">&times;</button>
+        </div>
+        <div class="domain-detail-body">
+            <!-- Left: Files -->
+            <div class="files-panel">
+                <h4>Pipeline Input Files</h4>
+
+                <div class="file-group">
+                    <div class="file-group-title">Domain Configuration</div>
+                    <div class="file-item">
+                        <span class="file-icon yaml">&#9998;</span>
+                        <span class="file-name">accelerator.yaml</span>
+                        <span class="file-desc">Domain config</span>
+                    </div>
+                </div>
+
+                <div class="file-group">
+                    <div class="file-group-title">KPI Inputs</div>
+                    <div class="file-item">
+                        <span class="file-icon md">&#9776;</span>
+                        <span class="file-name">kpi_spec.md</span>
+                        <span class="file-desc">KPI definitions &amp; measures</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="file-icon png">&#9634;</span>
+                        <span class="file-name">erd.png</span>
+                        <span class="file-desc">Entity relationship diagram</span>
+                    </div>
+                </div>
+
+                <div class="file-group">
+                    <div class="file-group-title">Framework Prompts</div>
+                    <div class="file-item">
+                        <span class="file-icon prompt">&#9654;</span>
+                        <span class="file-name">00_master_prompt.md</span>
+                        <span class="file-desc">Main orchestration prompt</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="file-icon prompt">&#9654;</span>
+                        <span class="file-name">01_create_data_layer.md</span>
+                        <span class="file-desc">Data layer generation</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="file-icon prompt">&#9654;</span>
+                        <span class="file-name">02_create_metric_views.md</span>
+                        <span class="file-desc">Metric view creation</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="file-icon prompt">&#9654;</span>
+                        <span class="file-name">03_create_dashboards.md</span>
+                        <span class="file-desc">Dashboard generation</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="file-icon prompt">&#9654;</span>
+                        <span class="file-name">04_create_genie_space.md</span>
+                        <span class="file-desc">Genie space setup</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="file-icon prompt">&#9654;</span>
+                        <span class="file-name">05_generate_documentation.md</span>
+                        <span class="file-desc">Auto-documentation</span>
+                    </div>
+                    <div class="file-item">
+                        <span class="file-icon prompt">&#9654;</span>
+                        <span class="file-name">06_create_secured_dashboards.md</span>
+                        <span class="file-desc">Row-level security</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Run Config -->
+            <div class="config-panel-right">
+                <h4>Run Configuration</h4>
+                <div class="config-grid">
+                    <div class="config-field">
+                        <label>Domain</label>
+                        <input type="text" id="cfg-domain" readonly>
+                    </div>
+                    <div class="config-field">
+                        <label>Version</label>
+                        <input type="text" id="cfg-version" value="v1_dev">
+                    </div>
+                    <div class="config-field">
+                        <label>Catalog</label>
+                        <input type="text" id="cfg-catalog" value="aw_serverless_stable_catalog">
+                    </div>
+                    <div class="config-field">
+                        <label>Schema</label>
+                        <input type="text" id="cfg-schema" value="aibi_member_claims">
+                    </div>
+                    <div class="config-field full">
+                        <label>Domain Path</label>
+                        <input type="text" id="cfg-path" readonly>
+                    </div>
+                </div>
+                <div class="config-actions">
+                    <button class="btn" onclick="hideDetail()">Cancel</button>
+                    <button class="btn btn-primary" id="run-btn" onclick="launchPipeline()">
+                        Run Pipeline
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
-    <div class="summary-card" id="summary-content"></div>
-    <div class="bottom-nav">
-      <button id="step4-new" class="btn btn-secondary">&larr; New Domain</button>
-      <button id="step4-rerun" class="btn btn-primary">Re-run</button>
-    </div>
-  </section>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<style>
-  .domains-page { max-width: 960px; margin: 0 auto; padding: 24px; }
-
-  /* Stepper */
-  .stepper { margin-bottom: 32px; }
-  .stepper-track { display: flex; align-items: center; gap: 0; }
-  .step { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; cursor: default; opacity: 0.5; transition: opacity 0.2s; }
-  .step.active { opacity: 1; font-weight: 600; background: #e8f0fe; }
-  .step.completed { opacity: 1; }
-  .step.completed .step-num { background: #34a853; color: #fff; }
-  .step-num { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #ddd; font-size: 13px; font-weight: 600; }
-  .step.active .step-num { background: #1a73e8; color: #fff; }
-  .step-label { font-size: 13px; }
-  .step-line { flex: 1; height: 2px; background: #ddd; min-width: 24px; }
-
-  /* Step panels */
-  .step-panel { display: none; }
-  .step-panel.active { display: block; }
-  #step-2.active { display: flex; }
-
-  /* Domain cards */
-  .domain-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-  .domain-card { border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; cursor: pointer; transition: box-shadow 0.2s, transform 0.15s, border-color 0.2s; background: #fff; }
-  .domain-card:hover { border-color: transparent; box-shadow: 0 4px 16px rgba(0,0,0,0.12); transform: translateY(-2px); }
-  .domain-card-header { padding: 14px 18px; color: #fff; font-weight: 600; font-size: 0.9rem; display: flex; align-items: center; gap: 10px; }
-  .domain-card-header .domain-icon { width: 28px; height: 28px; background: rgba(255,255,255,0.2); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .domain-card-header .domain-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-  .domain-card-header .domain-title { flex: 1; }
-  .domain-card-header .domain-version { font-size: 0.72rem; font-weight: 500; background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 10px; margin-left: auto; }
-  .domain-card-body { padding: 16px 18px; }
-  .domain-card-body p { margin: 0; font-size: 0.82rem; color: #555; line-height: 1.5; }
-  /* Color palette for domain cards */
-  .domain-card[data-color="0"] .domain-card-header { background: linear-gradient(135deg, #6366f1, #8b5cf6); }
-  .domain-card[data-color="1"] .domain-card-header { background: linear-gradient(135deg, #0891b2, #06b6d4); }
-  .domain-card[data-color="2"] .domain-card-header { background: linear-gradient(135deg, #059669, #10b981); }
-  .domain-card[data-color="3"] .domain-card-header { background: linear-gradient(135deg, #d97706, #f59e0b); }
-  .domain-card[data-color="4"] .domain-card-header { background: linear-gradient(135deg, #dc2626, #f43f5e); }
-  .domain-card[data-color="5"] .domain-card-header { background: linear-gradient(135deg, #7c3aed, #a78bfa); }
-  .domain-card[data-color="6"] .domain-card-header { background: linear-gradient(135deg, #0284c7, #38bdf8); }
-  .domain-card[data-color="7"] .domain-card-header { background: linear-gradient(135deg, #b45309, #fbbf24); }
-
-  /* Step 2 layout — fixed height with scrollable content */
-  #step-2.active { flex-direction: column; max-height: calc(100vh - 180px); }
-  .sub-nav { display: flex; gap: 0; border-bottom: 2px solid #e0e0e0; margin-bottom: 0; flex-shrink: 0; }
-  .sub-nav-item { padding: 10px 20px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: 14px; color: #666; display: flex; align-items: center; gap: 6px; }
-  .sub-nav-item.active { color: #1a73e8; border-bottom-color: #1a73e8; font-weight: 600; }
-  .sub-nav-badge { font-size: 0.65rem; font-weight: 600; background: #e5e7eb; color: #6b7280; padding: 1px 7px; border-radius: 10px; min-width: 18px; text-align: center; }
-  .sub-nav-item.active .sub-nav-badge { background: #dbeafe; color: #1a73e8; }
-  .sub-panel { display: none; overflow-y: auto; flex: 1; padding: 20px 0; min-height: 0; }
-  .sub-panel.active { display: block; }
-  #step-2 .bottom-nav { flex-shrink: 0; position: sticky; bottom: 0; background: #fff; z-index: 5; }
-
-  /* Config form — card-based modern layout */
-  .config-form { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-  @media (max-width: 900px) { .config-form { grid-template-columns: 1fr; } }
-  .config-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 22px; }
-  .config-card.full-width { grid-column: 1 / -1; }
-  .config-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #f3f4f6; }
-  .config-card-icon { width: 30px; height: 30px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; }
-  .config-card-icon.catalog { background: #eff6ff; color: #2563eb; }
-  .config-card-icon.data { background: #ecfdf5; color: #059669; }
-  .config-card-icon.assets { background: #fef3c7; color: #92400e; }
-  .config-card-icon.pipeline { background: #f3e8ff; color: #7c3aed; }
-  .config-card-title { font-size: 0.8rem; font-weight: 600; color: #374151; text-transform: uppercase; letter-spacing: 0.4px; }
-  .config-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid #f9fafb; }
-  .config-row:last-child { border-bottom: none; }
-  .config-row-label { font-size: 0.8rem; color: #6b7280; min-width: 100px; flex-shrink: 0; }
-  .config-row-value { font-size: 0.8rem; color: #1f2937; font-weight: 500; text-align: right; word-break: break-all; }
-  .config-row-editable { display: flex; align-items: center; gap: 6px; }
-  .config-row-editable .cfg-text { font-size: 0.8rem; color: #1f2937; font-weight: 500; }
-  .config-row-editable .cfg-edit-btn { background: none; border: none; color: #9ca3af; cursor: pointer; padding: 2px; border-radius: 3px; font-size: 0.75rem; line-height: 1; transition: color 0.15s; }
-  .config-row-editable .cfg-edit-btn:hover { color: #2563eb; }
-  .config-row-editable input.cfg-input { font-size: 0.78rem; padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 5px; width: 100%; max-width: 220px; color: #1f2937; outline: none; transition: border-color 0.15s; }
-  .config-row-editable input.cfg-input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,0.1); }
-  .config-row-value select { padding: 4px 10px; border: 1px solid #d1d5db; border-radius: 5px; font-size: 0.78rem; background: #fff; color: #1f2937; cursor: pointer; }
-  .config-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.2px; }
-  .config-badge.green { background: #ecfdf5; color: #059669; }
-  .config-badge.blue { background: #eff6ff; color: #2563eb; }
-  .config-badge.amber { background: #fef3c7; color: #92400e; }
-  .config-badge.gray { background: #f3f4f6; color: #6b7280; }
-  .checkbox-group { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
-  .checkbox-group label { font-weight: 400; font-size: 0.78rem; display: flex; align-items: center; gap: 5px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 5px 12px; cursor: pointer; transition: all 0.15s; }
-  .checkbox-group label:hover { border-color: #bfdbfe; }
-  .checkbox-group label:has(input:checked) { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
-  .erd-row { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 2px; }
-  .erd-file-info { display: flex; align-items: center; justify-content: space-between; }
-  .erd-filename { font-size: 0.75rem; color: #6b7280; background: #f9fafb; padding: 3px 10px; border-radius: 4px; border: 1px solid #f3f4f6; }
-  .erd-actions { display: flex; gap: 6px; align-items: center; }
-  .btn-erd { padding: 5px 12px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; font-size: 0.73rem; font-weight: 500; color: #374151; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
-  .btn-erd:hover { background: #f3f4f6; border-color: #d1d5db; }
-  .btn-erd svg { width: 12px; height: 12px; }
-  .erd-inline { margin-top: 10px; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; max-height: 320px; background: #fafafa; }
-  .erd-inline img { width: 100%; object-fit: contain; display: block; }
-  .btn-erd .spin { animation: spin 1s linear infinite; }
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
-  /* KPI Matrix — card-based editable UI */
-  .kpi-section { margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; }
-  .kpi-section-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #f9fafb; cursor: pointer; user-select: none; transition: background 0.15s; }
-  .kpi-section-header:hover { background: #f3f4f6; }
-  .kpi-section-header .collapse-icon { font-size: 0.7rem; color: #9ca3af; transition: transform 0.2s; }
-  .kpi-section.collapsed .collapse-icon { transform: rotate(-90deg); }
-  .kpi-section.collapsed .kpi-grid { display: none; }
-  .kpi-section-title { font-size: 0.82rem; font-weight: 700; color: #1f2937; flex: 1; }
-  .kpi-section-count { font-size: 0.7rem; background: #e5e7eb; color: #6b7280; padding: 2px 8px; border-radius: 10px; }
-  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 10px; padding: 12px 16px; }
-  @media (max-width: 860px) { .kpi-grid { grid-template-columns: 1fr; } }
-  .kpi-item { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px 16px; transition: box-shadow 0.15s, border-color 0.15s; }
-  .kpi-item:hover { border-color: #d1d5db; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
-  .kpi-item-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
-  .kpi-id { font-size: 0.68rem; font-weight: 700; color: #fff; background: #6366f1; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.3px; white-space: nowrap; }
-  .kpi-name { font-size: 0.82rem; font-weight: 600; color: #111827; flex: 1; }
-  .kpi-name-input { font-size: 0.82rem; font-weight: 600; color: #111827; border: 1px solid #d1d5db; border-radius: 4px; padding: 3px 8px; flex: 1; outline: none; }
-  .kpi-name-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.1); }
-  .kpi-type { font-size: 0.65rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; padding: 2px 8px; border-radius: 10px; white-space: nowrap; }
-  .kpi-type.additive { background: #ecfdf5; color: #059669; }
-  .kpi-type.ratio { background: #fef3c7; color: #92400e; }
-  .kpi-type.filtered { background: #eff6ff; color: #2563eb; }
-  .kpi-type.semi-additive { background: #f3e8ff; color: #7c3aed; }
-  .kpi-body { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 20px; }
-  @media (max-width: 700px) { .kpi-body { grid-template-columns: 1fr; } }
-  .kpi-field { display: flex; flex-direction: column; gap: 2px; }
-  .kpi-field-label { font-size: 0.68rem; font-weight: 500; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.3px; }
-  .kpi-field-value { font-size: 0.78rem; color: #374151; line-height: 1.4; }
-  .kpi-field-value code { background: #f3f4f6; padding: 1px 5px; border-radius: 3px; font-size: 0.72rem; color: #6366f1; }
-  .kpi-field-input { font-size: 0.78rem; color: #374151; border: 1px solid #e5e7eb; border-radius: 4px; padding: 4px 8px; outline: none; width: 100%; }
-  .kpi-field-input:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.08); }
-  .kpi-edit-toggle { background: none; border: none; color: #9ca3af; cursor: pointer; padding: 4px; border-radius: 4px; font-size: 0.75rem; transition: color 0.15s; }
-  .kpi-edit-toggle:hover { color: #6366f1; }
-  .kpi-actions { display: flex; gap: 6px; align-items: center; }
-  .kpi-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-  .kpi-toolbar-left { display: flex; gap: 8px; align-items: center; }
-  .kpi-toolbar-right { display: flex; gap: 8px; }
-  .kpi-search { padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.78rem; width: 200px; outline: none; }
-  .kpi-search:focus { border-color: #6366f1; }
-  .kpi-save-btn { padding: 6px 14px; border: none; border-radius: 6px; background: #6366f1; color: #fff; font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: background 0.15s; }
-  .kpi-save-btn:hover { background: #4f46e5; }
-  .kpi-save-btn:disabled { background: #c7d2fe; cursor: default; }
-  .kpi-raw-toggle { padding: 6px 12px; border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; font-size: 0.73rem; color: #6b7280; cursor: pointer; }
-  .kpi-raw-toggle:hover { background: #f9fafb; }
-  .kpi-info-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border: 1px solid #e0e7ff; border-radius: 6px; background: #eef2ff; font-size: 0.73rem; color: #4f46e5; cursor: pointer; font-weight: 500; transition: all 0.15s; }
-  .kpi-info-toggle:hover { background: #e0e7ff; }
-  .kpi-info-toggle svg { width: 13px; height: 13px; }
-  .kpi-info-panel { display: none; margin-bottom: 20px; border: 1px solid #e0e7ff; border-radius: 8px; background: #fafbff; padding: 16px 20px; font-size: 0.78rem; line-height: 1.6; color: #374151; }
-  .kpi-info-panel.visible { display: block; }
-  .kpi-info-panel h4 { font-size: 0.75rem; font-weight: 600; color: #4f46e5; text-transform: uppercase; letter-spacing: 0.3px; margin: 14px 0 6px; }
-  .kpi-info-panel h4:first-child { margin-top: 0; }
-  .kpi-info-panel table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 0.75rem; }
-  .kpi-info-panel th { text-align: left; padding: 5px 10px; background: #e8ecff; color: #3730a3; font-size: 0.7rem; font-weight: 600; border-bottom: 1px solid #c7d2fe; }
-  .kpi-info-panel td { padding: 5px 10px; border-bottom: 1px solid #eef2ff; color: #4b5563; }
-  .kpi-info-panel p { margin: 4px 0; color: #6b7280; font-style: italic; }
-
-  /* Best practices */
-  #practices-content { font-size: 0.82rem; line-height: 1.7; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px 24px; background: #fafbff; }
-  .bp-editor { width: 100%; min-height: 300px; font-family: 'SF Mono', Menlo, monospace; font-size: 0.75rem; padding: 14px; border: 1px solid #e5e7eb; border-radius: 6px; color: #374151; background: #fafafa; }
-  .bp-rendered { padding: 4px 0; }
-  .bp-rendered h1 { font-size: 1.2rem; font-weight: 700; color: #111827; margin: 20px 0 8px; padding-bottom: 6px; border-bottom: 2px solid #f3f4f6; }
-  .bp-rendered h2 { font-size: 1rem; font-weight: 700; color: #1f2937; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #f3f4f6; }
-  .bp-rendered h3 { font-size: 0.88rem; font-weight: 600; color: #374151; margin: 14px 0 6px; }
-  .bp-rendered h4 { font-size: 0.82rem; font-weight: 600; color: #4b5563; margin: 12px 0 4px; }
-  .bp-rendered p { margin: 6px 0; color: #374151; }
-  .bp-rendered strong { font-weight: 600; color: #111827; }
-  .bp-rendered code { background: #f3f4f6; padding: 1px 6px; border-radius: 3px; font-size: 0.75rem; color: #6366f1; font-family: 'SF Mono', Menlo, monospace; }
-  .bp-rendered pre { background: #1f2937; color: #e5e7eb; padding: 14px 16px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
-  .bp-rendered pre code { background: none; color: inherit; padding: 0; font-size: 0.73rem; }
-  .bp-rendered blockquote { border-left: 3px solid #6366f1; margin: 10px 0; padding: 8px 14px; background: #eef2ff; border-radius: 0 6px 6px 0; color: #4338ca; font-style: italic; }
-  .bp-rendered ul { margin: 6px 0; padding-left: 20px; }
-  .bp-rendered li { margin: 3px 0; color: #374151; }
-  .bp-rendered li::marker { color: #6366f1; }
-  .bp-rendered hr { border: none; border-top: 1px solid #e5e7eb; margin: 16px 0; }
-  .bp-rendered table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.78rem; }
-  .bp-rendered th { text-align: left; padding: 7px 12px; background: #f9fafb; border-bottom: 2px solid #e5e7eb; font-weight: 600; color: #374151; }
-  .bp-rendered td { padding: 6px 12px; border-bottom: 1px solid #f3f4f6; color: #4b5563; }
-  .bp-rendered tr:hover td { background: #f9fafb; }
-
-  /* Bottom nav */
-  .bottom-nav { display: flex; justify-content: space-between; margin-top: 24px; padding-top: 16px; border-top: 1px solid #eee; }
-
-  /* Run Details (inline) */
-  .run-container { max-width: 720px; margin: 0 auto; text-align: center; }
-  .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 6px 16px; border-radius: 20px; background: #f0f4ff; color: #2563eb; font-size: 0.85rem; font-weight: 500; margin-bottom: 16px; }
-  .status-pill.completed { background: #ecfdf5; color: #16a34a; }
-  .status-pill.failed { background: #fef2f2; color: #dc2626; }
-  .status-pill .sparkle { font-size: 1rem; }
-  .run-title { font-size: 1.5rem; font-weight: 700; color: #111827; margin: 0 0 8px; }
-  .run-subtitle { font-size: 0.9rem; color: #6b7280; margin: 0 0 28px; }
-  .steps-track { display: flex; align-items: flex-start; justify-content: center; gap: 0; margin-bottom: 24px; }
-  .step-node { display: flex; flex-direction: column; align-items: center; min-width: 80px; flex: 1; }
-  .step-circle { width: 32px; height: 32px; border-radius: 50%; border: 3px solid #e5e7eb; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: #9ca3af; z-index: 2; transition: all 0.3s ease; }
-  .step-node.completed .step-circle { border-color: #16a34a; background: #16a34a; color: #fff; }
-  .step-node.running .step-circle { border-color: #2563eb; background: #fff; color: #2563eb; box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
-  .step-node.running .step-circle::after { content: ''; width: 10px; height: 10px; background: #2563eb; border-radius: 50%; }
-  .step-node.failed .step-circle { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
-  .step-node.skipped .step-circle { border-color: #d1d5db; background: #f9fafb; color: #9ca3af; }
-  .step-node.skipped .step-label { color: #9ca3af; text-decoration: line-through; }
-  .step-node.skipped .step-dur { color: #d1d5db; }
-  .step-node .step-label { margin-top: 6px; font-size: 0.72rem; font-weight: 500; color: #6b7280; white-space: nowrap; }
-  .step-node.running .step-label { color: #111827; font-weight: 600; }
-  .step-node.completed .step-label { color: #374151; }
-  .step-dur { font-size: 0.7rem; color: #9ca3af; margin-top: 2px; }
-  .step-node.completed .step-dur { color: #16a34a; }
-  .step-connector { flex: 1; height: 3px; background: #e5e7eb; margin-top: 16px; min-width: 16px; z-index: 1; }
-  .step-connector.done { background: #16a34a; }
-  .detail-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; text-align: left; margin-bottom: 20px; }
-  .step-timeline { position: relative; padding-left: 24px; }
-  .step-timeline::before { content: ''; position: absolute; left: 7px; top: 12px; bottom: 12px; width: 3px; background: #e5e7eb; border-radius: 2px; }
-  .timeline-progress { position: absolute; left: 7px; top: 12px; width: 3px; height: 0; background: #16a34a; border-radius: 2px; transition: height 0.5s ease; z-index: 1; }
-  .step-entry { position: relative; padding: 8px 0 8px 20px; }
-  .step-entry::before { content: ''; position: absolute; left: -20px; top: 12px; width: 11px; height: 11px; border-radius: 50%; background: #e5e7eb; border: 2px solid #f9fafb; z-index: 2; }
-  .step-entry:first-child::before { top: 4px; }
-  .step-entry.completed::before { background: #16a34a; }
-  .step-entry.running::before { background: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.2); }
-  .step-entry.failed::before { background: #dc2626; }
-  .step-entry-header { display: flex; align-items: center; gap: 8px; }
-  .step-entry-icon { font-size: 0.85rem; }
-  .step-entry.completed .step-entry-icon { color: #16a34a; }
-  .step-entry.running .step-entry-icon { color: #2563eb; }
-  .step-entry.failed .step-entry-icon { color: #dc2626; }
-  .step-entry.pending .step-entry-icon { color: #d1d5db; }
-  .step-entry-title { flex: 1; font-size: 0.85rem; font-weight: 500; color: #374151; }
-  .step-entry.running .step-entry-title { color: #111827; font-weight: 600; }
-  .step-entry.pending .step-entry-title { color: #9ca3af; }
-  .step-entry-dur { font-size: 0.78rem; color: #16a34a; }
-  .step-entry.running .step-entry-dur { color: #2563eb; }
-  .step-entry-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.68rem; font-weight: 500; }
-  .step-entry.completed .step-entry-badge { background: #ecfdf5; color: #16a34a; }
-  .step-entry.running .step-entry-badge { background: #eff6ff; color: #2563eb; }
-  .step-entry.failed .step-entry-badge { background: #fef2f2; color: #dc2626; }
-  .step-logs-btn { padding: 2px 8px; border-radius: 4px; font-size: 0.68rem; cursor: pointer; border: 1px solid #e5e7eb; background: #fff; color: #6b7280; margin-left: 6px; }
-  .step-logs-btn:hover { background: #f3f4f6; }
-  .step-logs-btn.active { background: #1f2937; color: #d1d5db; border-color: #1f2937; }
-  .step-log-panel { display: none; margin-top: 6px; background: #1f2937; border-radius: 6px; padding: 8px 10px; max-height: 120px; overflow-y: auto; }
-  .step-log-panel.visible { display: block; }
-  .step-log-panel pre { margin: 0; font-size: 0.72rem; color: #d1d5db; white-space: pre-wrap; word-break: break-word; line-height: 1.5; }
-  .phase-list { margin-top: 6px; padding-left: 4px; }
-  .phase-row { display: flex; align-items: center; padding: 4px 0; }
-  .phase-icon { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #e5e7eb; display: flex; align-items: center; justify-content: center; margin-right: 8px; font-size: 0.5rem; color: #9ca3af; }
-  .phase-row.completed .phase-icon { border-color: #16a34a; background: #16a34a; color: #fff; }
-  .phase-row.running .phase-icon { border-color: #2563eb; color: #2563eb; }
-  .phase-row.failed .phase-icon { border-color: #dc2626; background: #fef2f2; color: #dc2626; }
-  .phase-name { flex: 1; font-size: 0.8rem; color: #374151; }
-  .phase-row.running .phase-name { color: #111827; font-weight: 500; }
-  .phase-row.pending .phase-name { color: #9ca3af; }
-  .phase-duration { font-size: 0.75rem; color: #6b7280; margin-right: 6px; }
-  .phase-check { width: 16px; text-align: center; font-size: 0.8rem; }
-  .phase-row.completed .phase-check { color: #16a34a; }
-  .phase-row.failed .phase-check { color: #dc2626; }
-  .error-card { background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px 20px; text-align: left; margin-bottom: 20px; }
-  .error-card h4 { color: #dc2626; margin: 0 0 8px; font-size: 0.85rem; }
-  .error-card pre { font-size: 0.78rem; color: #7f1d1d; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 150px; overflow-y: auto; }
-  .action-row { display: flex; gap: 8px; justify-content: center; margin-top: 16px; }
-  .btn-action { padding: 8px 20px; border-radius: 8px; font-size: 0.85rem; font-weight: 500; cursor: pointer; border: none; }
-  .btn-action.cancel { background: #fee2e2; color: #dc2626; }
-  .btn-action.cancel:hover { background: #fecaca; }
-  .btn-action.rerun { background: #fef3c7; color: #92400e; }
-  .btn-action.rerun:hover { background: #fde68a; }
-  .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  /* Summary */
-  .summary-header { text-align: center; margin-bottom: 24px; }
-  .summary-icon { font-size: 2.5rem; margin-bottom: 8px; }
-  .summary-title { font-size: 1.5rem; font-weight: 700; color: #111; margin: 0 0 4px; }
-  .summary-meta { font-size: 0.85rem; color: #6b7280; margin: 0; }
-  .summary-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
-  .summary-row { display: flex; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
-  .summary-row:last-child { border-bottom: none; }
-  .summary-row-label { width: 140px; font-size: 0.8rem; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.3px; flex-shrink: 0; padding-top: 2px; }
-  .summary-row-value { flex: 1; font-size: 0.9rem; color: #111; word-break: break-all; }
-  .summary-row-value code { background: #e8f0fe; padding: 2px 8px; border-radius: 4px; font-size: 0.82rem; color: #1a73e8; }
-
-  /* Buttons */
-  .btn { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; }
-  .btn-primary { background: #1a73e8; color: #fff; }
-  .btn-primary:hover { background: #1557b0; }
-  .btn-secondary { background: #f5f5f5; color: #333; border: 1px solid #ddd; }
-  .btn-secondary:hover { background: #e8e8e8; }
-  .status-badge { font-size: 12px; padding: 3px 10px; border-radius: 10px; background: #f0f0f0; }
-  .empty-state { text-align: center; padding: 40px; color: #888; }
-</style>
-
 <script>
-(function() {
-  // --- State ---
-  let currentStep = 1;
-  let currentSubTab = 'config';
-  let selectedDomain = null;
-  let domainConfig = null;
-  let runId = null;
+let selectedDomain = null;
+let selectedPath = null;
 
-  // --- Stepper Navigation ---
-  function goToStep(step) {
-    currentStep = step;
-    document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('step-' + step).classList.add('active');
-    document.querySelectorAll('.stepper-track .step').forEach(s => {
-      const n = parseInt(s.dataset.step);
-      s.classList.remove('active', 'completed');
-      if (n === step) s.classList.add('active');
-      else if (n < step) s.classList.add('completed');
+document.querySelectorAll('.domain-card').forEach(card => {
+    card.addEventListener('click', () => {
+        document.querySelectorAll('.domain-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedDomain = card.dataset.domain;
+        selectedPath = card.dataset.path;
+
+        // Populate config fields
+        document.getElementById('cfg-domain').value = selectedDomain;
+        document.getElementById('cfg-schema').value = 'aibi_' + selectedDomain;
+        document.getElementById('cfg-path').value = selectedPath;
+        document.getElementById('detail-title').textContent = card.querySelector('.domain-name').textContent;
+
+        // Show detail panel
+        document.getElementById('domain-detail').classList.add('visible');
     });
-  }
-
-  // --- Sub-tab Navigation ---
-  function switchSubTab(tab) {
-    currentSubTab = tab;
-    document.querySelectorAll('.sub-nav-item').forEach(b => b.classList.remove('active'));
-    document.querySelector(`.sub-nav-item[data-tab="${tab}"]`).classList.add('active');
-    document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
-    document.getElementById('tab-' + tab).classList.add('active');
-    // Update bottom nav button text
-    const tabs = ['config', 'kpi', 'practices'];
-    const idx = tabs.indexOf(tab);
-    document.getElementById('step2-prev').textContent = idx === 0 ? '\u2190 Back to Domains' : '\u2190 Previous';
-    document.getElementById('step2-next').textContent = idx === 2 ? 'Run Pipeline \u2192' : 'Next \u2192';
-  }
-
-  // --- Step 1: Load Domains ---
-  async function loadDomains() {
-    const resp = await fetch('/api/domains');
-    const data = await resp.json();
-    const container = document.getElementById('domain-cards');
-    const empty = document.getElementById('domain-empty');
-    if (!data.domains || data.domains.length === 0) {
-      container.innerHTML = '';
-      empty.style.display = 'block';
-      if (data.error) {
-        empty.innerHTML = `<strong>Error:</strong> ${data.error}<br><small>Path: ${data.resolved_path || 'unknown'}</small>`;
-      }
-      return;
-    }
-    empty.style.display = 'none';
-    const icons = [
-      '<svg viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg>',
-      '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
-      '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
-      '<svg viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
-      '<svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>',
-      '<svg viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><path d="M1 10h22"/></svg>',
-      '<svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>',
-      '<svg viewBox="0 0 24 24"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>',
-    ];
-    container.innerHTML = data.domains.map((d, i) => `
-      <div class="domain-card" data-domain="${d.name}" data-color="${i % 8}">
-        <div class="domain-card-header">
-          <span class="domain-icon">${icons[i % 8]}</span>
-          <span class="domain-title">${d.display_name}</span>
-          <span class="domain-version">${d.version || d.version_suffix || 'v1'}</span>
-        </div>
-        <div class="domain-card-body">
-          <p>${d.description || 'No description'}</p>
-        </div>
-      </div>
-    `).join('');
-    container.querySelectorAll('.domain-card').forEach(card => {
-      card.addEventListener('click', () => selectDomain(card.dataset.domain));
-    });
-  }
-
-  // --- Badge counts for sub-nav tabs ---
-  function updateBadge(id, count) {
-    const badge = document.getElementById(id);
-    if (badge) badge.textContent = count > 0 ? count : '';
-  }
-
-  // --- Select Domain & Load Config ---
-  async function selectDomain(name) {
-    selectedDomain = name;
-    const resp = await fetch(`/api/domains/${name}/config`);
-    const data = await resp.json();
-    domainConfig = data.config;
-    renderConfig();
-    loadKpiMatrix();
-    loadBestPractices();
-    goToStep(2);
-  }
-
-  // --- Step 2: Render Configuration ---
-  function editableField(id, value, placeholder) {
-    return `<div class="config-row-editable" id="field-${id}">
-      <span class="cfg-text">${value || '<em style="color:#9ca3af">' + (placeholder||'Not set') + '</em>'}</span>
-      <button class="cfg-edit-btn" title="Edit" onclick="toggleEdit('${id}', '${(value||'').replace(/'/g, "\\'")}')">&#x270E;</button>
-    </div>`;
-  }
-
-  function toggleEdit(id, currentVal) {
-    const container = document.getElementById('field-' + id);
-    const isEditing = container.querySelector('input.cfg-input');
-    if (isEditing) return;
-    container.innerHTML = `<input class="cfg-input" type="text" value="${currentVal}" id="input-${id}" onblur="finishEdit('${id}')" onkeydown="if(event.key==='Enter')this.blur()">`;
-    container.querySelector('input').focus();
-  }
-
-  function finishEdit(id) {
-    const input = document.getElementById('input-' + id);
-    if (!input) return;
-    const newVal = input.value;
-    const container = document.getElementById('field-' + id);
-    container.innerHTML = `<span class="cfg-text">${newVal || '<em style="color:#9ca3af">Not set</em>'}</span><button class="cfg-edit-btn" title="Edit" onclick="toggleEdit('${id}', '${newVal.replace(/'/g, "\\'")}')">&#x270E;</button>`;
-    // Store edit in domainConfig for pipeline run
-    pendingEdits[id] = newVal;
-  }
-
-  let pendingEdits = {};
-
-  function renderConfig() {
-    const c = domainConfig;
-    const domain = c.domain || {};
-    const catalog = c.catalog || {};
-    const source = catalog.source || {};
-    const target = catalog.target || {};
-    const workspace = c.workspace || {};
-    const pipeline = c.pipeline || {};
-    const steps = pipeline.steps || {};
-    const ds = c.data_source || {};
-    const gf = ds.greenfield || {};
-    const assets = c.assets || {};
-    const mv = (assets.metric_views || [])[0] || {};
-    const dashboards = assets.dashboards || [];
-    const genie = assets.genie || {};
-    const erdImage = ds.erd ? ds.erd.image : '';
-
-    const form = document.getElementById('config-form');
-    form.innerHTML = `
-      <!-- Catalog Card -->
-      <div class="config-card">
-        <div class="config-card-header">
-          <div class="config-card-icon catalog">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
-          </div>
-          <span class="config-card-title">Catalog</span>
-        </div>
-        <div class="config-row">
-          <span class="config-row-label">Target Catalog</span>
-          ${editableField('target_catalog', target.catalog, 'catalog_name')}
-        </div>
-        <div class="config-row">
-          <span class="config-row-label">Target Schema</span>
-          ${editableField('target_schema', target.schema, 'schema_name')}
-        </div>
-        <div class="config-row">
-          <span class="config-row-label">Source Catalog</span>
-          ${editableField('source_catalog', source.catalog, 'catalog_name')}
-        </div>
-        <div class="config-row">
-          <span class="config-row-label">Source Schema</span>
-          ${editableField('source_schema', source.schema, 'schema_name')}
-        </div>
-      </div>
-
-      <!-- Data Source Card -->
-      <div class="config-card">
-        <div class="config-card-header">
-          <div class="config-card-icon data">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg>
-          </div>
-          <span class="config-card-title">Data Source</span>
-        </div>
-        <div class="config-row"><span class="config-row-label">Type</span><span class="config-badge blue">${ds.type || 'N/A'}</span></div>
-        <div class="config-row"><span class="config-row-label">Greenfield</span><span class="config-badge ${gf.enabled ? 'green' : 'gray'}">${gf.enabled ? 'Enabled' : 'Disabled'}</span></div>
-        <div class="config-row"><span class="config-row-label">Synthetic Data</span><span class="config-badge ${gf.synthetic_data ? 'green' : 'gray'}">${gf.synthetic_data ? 'Yes' : 'No'}</span></div>
-        <div class="config-row"><span class="config-row-label">Volume</span>
-          <select id="cfg-volume">
-            <option value="low" ${gf.volume === 'low' ? 'selected' : ''}>Low</option>
-            <option value="medium" ${gf.volume === 'medium' ? 'selected' : ''}>Medium</option>
-            <option value="large" ${gf.volume === 'large' ? 'selected' : ''}>Large</option>
-          </select>
-        </div>
-        <div class="erd-row">
-          <div class="erd-file-info">
-            <span class="config-row-label">ERD Diagram</span>
-            ${erdImage ? `<span class="erd-filename">${erdImage}</span>` : '<span class="erd-filename" style="color:#9ca3af;">No file</span>'}
-          </div>
-          <div class="erd-actions">
-            ${erdImage ? `<button class="btn-erd" id="btn-toggle-erd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview</button>` : ''}
-            ${erdImage ? `<button class="btn-erd" id="btn-open-erd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg> Open</button>` : ''}
-            <button class="btn-erd" id="btn-replace-erd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Replace</button>
-            <input type="file" id="erd-file-input" accept="image/*" style="display:none;">
-          </div>
-        </div>
-        ${erdImage ? `<div id="erd-container" class="erd-inline" style="display:none;"><img id="erd-img" src="" alt="ERD Diagram"></div>` : ''}
-      </div>
-
-      <!-- Assets Card -->
-      <div class="config-card">
-        <div class="config-card-header">
-          <div class="config-card-icon assets">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-          </div>
-          <span class="config-card-title">Assets</span>
-        </div>
-        <div class="config-row">
-          <span class="config-row-label">Metric View</span>
-          ${editableField('mv_name', mv.name, 'metric_view_name')}
-        </div>
-        ${dashboards.map((d, i) => `<div class="config-row"><span class="config-row-label">Dashboard ${dashboards.length > 1 ? (i+1) : ''}</span>${editableField('dash_'+i, d.name, 'dashboard_name')}</div>`).join('')}
-        <div class="config-row">
-          <span class="config-row-label">Genie Space</span>
-          ${editableField('genie_name', genie.space_name, 'genie_space_name')}
-        </div>
-      </div>
-
-      <!-- Pipeline Card -->
-      <div class="config-card">
-        <div class="config-card-header">
-          <div class="config-card-icon pipeline">
-            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-          </div>
-          <span class="config-card-title">Pipeline</span>
-        </div>
-        <div class="config-row"><span class="config-row-label">Clean Start</span>
-          <select id="cfg-clean">
-            <option value="true" ${pipeline.clean_start ? 'selected' : ''}>Yes</option>
-            <option value="false" ${!pipeline.clean_start ? 'selected' : ''}>No</option>
-          </select>
-        </div>
-        <div style="padding-top: 10px;">
-          <span class="config-row-label">Steps</span>
-          <div class="checkbox-group">
-            <label><input type="checkbox" data-step="create_data_layer" ${steps.create_data_layer !== false ? 'checked' : ''}> Data Layer</label>
-            <label><input type="checkbox" data-step="create_metric_views" ${steps.create_metric_views !== false ? 'checked' : ''}> Metric Views</label>
-            <label><input type="checkbox" data-step="create_dashboards" ${steps.create_dashboards !== false ? 'checked' : ''}> Dashboards</label>
-            <label><input type="checkbox" data-step="create_genie_space" ${steps.create_genie_space !== false ? 'checked' : ''}> Genie Space</label>
-            <label><input type="checkbox" data-step="generate_documentation" ${steps.generate_documentation !== false ? 'checked' : ''}> Docs</label>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // ERD Preview toggle handler
-    const toggleBtn = document.getElementById('btn-toggle-erd');
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
-        const container = document.getElementById('erd-container');
-        const img = document.getElementById('erd-img');
-        if (container.style.display === 'none') {
-          container.style.display = 'block';
-          toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><line x1="1" y1="1" x2="23" y2="23"/></svg> Hide';
-          if (!img.src || img.src === window.location.href) {
-            img.src = `/api/domains/${selectedDomain}/erd-image`;
-          }
-        } else {
-          container.style.display = 'none';
-          toggleBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> Preview';
-        }
-      });
-    }
-    // ERD Open in new window
-    const openBtn = document.getElementById('btn-open-erd');
-    if (openBtn) {
-      openBtn.addEventListener('click', () => {
-        window.open(`/api/domains/${selectedDomain}/erd-image`, '_blank');
-      });
-    }
-    // ERD Replace (upload new file)
-    const replaceBtn = document.getElementById('btn-replace-erd');
-    const fileInput = document.getElementById('erd-file-input');
-    if (replaceBtn && fileInput) {
-      replaceBtn.addEventListener('click', () => fileInput.click());
-      fileInput.addEventListener('change', async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        replaceBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg> Uploading...';
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-          const resp = await fetch(`/api/domains/${selectedDomain}/erd-image`, { method: 'POST', body: formData });
-          if (resp.ok) {
-            replaceBtn.innerHTML = '&#x2713; Replaced';
-            // Refresh preview if visible
-            const img = document.getElementById('erd-img');
-            if (img) img.src = `/api/domains/${selectedDomain}/erd-image?t=${Date.now()}`;
-            // Update filename display
-            const fnEl = document.querySelector('.erd-filename');
-            if (fnEl) fnEl.textContent = file.name;
-          } else {
-            replaceBtn.innerHTML = '&#x2717; Failed';
-          }
-        } catch(err) {
-          replaceBtn.innerHTML = '&#x2717; Error';
-        }
-        setTimeout(() => { replaceBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Replace'; }, 2500);
-      });
-    }
-    // Update config badge — count of config cards rendered
-    updateBadge('badge-config', document.querySelectorAll('.config-card').length);
-  }
-
-  // --- Step 2: Load KPI Matrix ---
-  let kpiRawContent = '';
-  let kpiSections = [];
-  let kpiEditSections = [];  // KPI-only sections (excludes Reference)
-  let kpiShowRaw = false;
-
-  async function loadKpiMatrix() {
-    const resp = await fetch(`/api/domains/${selectedDomain}/kpi-matrix`);
-    const data = await resp.json();
-    const container = document.getElementById('kpi-content');
-    if (!data.raw) {
-      container.innerHTML = '<p class="empty-state">No KPI spec file found.</p>';
-      return;
-    }
-    kpiRawContent = data.raw;
-    kpiSections = parseKpiMarkdown(kpiRawContent);
-    renderKpiUI(container);
-  }
-
-  function parseKpiMarkdown(md) {
-    const sections = [];
-    const lines = md.split('\n');
-    let currentSection = null;
-    let inTable = false;
-    let headers = [];
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.startsWith('## ')) {
-        if (currentSection && currentSection.items.length > 0) sections.push(currentSection);
-        currentSection = { title: line.replace(/^#+\s*/, ''), items: [], headers: [] };
-        inTable = false;
-        headers = [];
-        continue;
-      }
-      if (line.startsWith('|') && line.includes('|') && !inTable) {
-        const cells = line.split('|').map(c => c.trim()).filter(c => c);
-        const next = (lines[i + 1] || '').trim();
-        if (next.startsWith('|') && next.includes('---')) {
-          headers = cells;
-          if (currentSection) currentSection.headers = headers;
-          inTable = true;
-          i++;
-          continue;
-        }
-      }
-      if (inTable && line.startsWith('|')) {
-        const cells = line.split('|').map(c => c.trim()).filter(c => c);
-        if (cells.length >= 2 && currentSection) {
-          const item = {};
-          headers.forEach((h, idx) => { item[h.toLowerCase().replace(/\s+/g, '_')] = cells[idx] || ''; });
-          currentSection.items.push(item);
-        }
-        continue;
-      }
-      if (inTable && !line.startsWith('|')) { inTable = false; }
-    }
-    if (currentSection && currentSection.items.length > 0) sections.push(currentSection);
-    return sections;
-  }
-
-  function getKpiType(item) {
-    const t = (item.type || '').toLowerCase();
-    if (t.includes('ratio')) return 'ratio';
-    if (t.includes('filtered')) return 'filtered';
-    if (t.includes('semi')) return 'semi-additive';
-    if (t.includes('additive')) return 'additive';
-    return '';
-  }
-
-  function renderKpiUI(container) {
-    if (kpiShowRaw) {
-      container.innerHTML = `
-        <div class="kpi-toolbar">
-          <div class="kpi-toolbar-left"><span style="font-size:0.8rem;font-weight:600;color:#374151;">Raw Markdown</span></div>
-          <div class="kpi-toolbar-right">
-            <button class="kpi-raw-toggle" onclick="kpiShowRaw=false;renderKpiUI(document.getElementById('kpi-content'))">Card View</button>
-            <button class="kpi-save-btn" id="kpi-save-raw">Save</button>
-          </div>
-        </div>
-        <textarea class="bp-editor" id="kpi-editor" style="min-height:400px;">${escapeHtml(kpiRawContent)}</textarea>`;
-      document.getElementById('kpi-save-raw').addEventListener('click', saveKpiRaw);
-      return;
-    }
-
-    // Separate reference sections from KPI sections
-    const refSections = kpiSections.filter(s => s.title.toLowerCase().startsWith('reference'));
-    const kpiOnly = kpiSections.filter(s => !s.title.toLowerCase().startsWith('reference'));
-    kpiEditSections = kpiOnly;
-
-    // Build reference info panel HTML
-    let refHtml = '';
-    refSections.forEach(sec => {
-      const label = sec.title.replace(/^Reference\s*[\u2014\-]+\s*/i, '');
-      refHtml += `<h4>${escapeHtml(label)}</h4>`;
-      if (sec.headers && sec.headers.length && sec.items.length) {
-        refHtml += '<table><thead><tr>' + sec.headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody>';
-        sec.items.forEach(item => {
-          refHtml += '<tr>' + sec.headers.map(h => `<td>${escapeHtml(item[h.toLowerCase().replace(/\s+/g, '_')] || '')}</td>`).join('') + '</tr>';
-        });
-        refHtml += '</tbody></table>';
-      }
-    });
-
-    let html = `
-      <div class="kpi-toolbar">
-        <div class="kpi-toolbar-left">
-          <input class="kpi-search" type="text" placeholder="Search KPIs..." id="kpi-search-input" oninput="filterKpis(this.value)">
-          <span style="font-size:0.72rem;color:#9ca3af;">${kpiOnly.reduce((s, sec) => s + sec.items.length, 0)} KPIs</span>
-        </div>
-        <div class="kpi-toolbar-right">
-          ${refHtml ? '<button class="kpi-info-toggle" id="kpi-info-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Reference</button>' : ''}
-          <button class="kpi-raw-toggle" onclick="kpiShowRaw=true;renderKpiUI(document.getElementById('kpi-content'))">Raw Editor</button>
-          <button class="kpi-save-btn" id="kpi-save-btn" disabled>Save Changes</button>
-        </div>
-      </div>
-      ${refHtml ? '<div class="kpi-info-panel" id="kpi-info-panel">' + refHtml + '</div>' : ''}`;
-
-    kpiOnly.forEach((sec, si) => {
-      html += `<div class="kpi-section" data-section="${si}">
-        <div class="kpi-section-header" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="collapse-icon">&#x25BC;</span>
-          <span class="kpi-section-title">${escapeHtml(sec.title)}</span>
-          <span class="kpi-section-count">${sec.items.length}</span>
-        </div>
-        <div class="kpi-grid">`;
-
-      sec.items.forEach((item, ki) => {
-        const id = item.id || '';
-        const name = item.kpi_name || item.name || '';
-        const purpose = item.purpose || '';
-        const formula = item.formula || '';
-        const type = item.type || '';
-        const format = item.format || '';
-        const pitfalls = item.pitfalls || '';
-        const kpiWindow = item.window || '';
-        const typeClass = getKpiType(item);
-        const dataIdx = `${si}-${ki}`;
-
-        html += `<div class="kpi-item" data-kpi="${dataIdx}" data-searchtext="${escapeHtml((id + ' ' + name + ' ' + purpose + ' ' + formula).toLowerCase())}">
-          <div class="kpi-item-header">
-            ${id ? `<span class="kpi-id">${escapeHtml(id)}</span>` : ''}
-            <span class="kpi-name" data-idx="${dataIdx}">${escapeHtml(name)}</span>
-            ${typeClass ? `<span class="kpi-type ${typeClass}">${escapeHtml(type)}</span>` : (type ? `<span class="kpi-type">${escapeHtml(type)}</span>` : '')}
-            <div class="kpi-actions">
-              <button class="kpi-edit-toggle" title="Edit this KPI" onclick="toggleKpiEdit('${dataIdx}')">&#x270E;</button>
-            </div>
-          </div>
-          <div class="kpi-body" id="kpi-body-${dataIdx}">
-            <div class="kpi-field"><span class="kpi-field-label">Purpose</span><span class="kpi-field-value">${escapeHtml(purpose)}</span></div>
-            <div class="kpi-field"><span class="kpi-field-label">Formula</span><span class="kpi-field-value"><code>${escapeHtml(formula.replace(/\`/g, ''))}</code></span></div>
-            ${format ? `<div class="kpi-field"><span class="kpi-field-label">Format</span><span class="kpi-field-value">${escapeHtml(format)}</span></div>` : ''}
-            ${kpiWindow ? `<div class="kpi-field"><span class="kpi-field-label">Window</span><span class="kpi-field-value">${escapeHtml(kpiWindow)}</span></div>` : ''}
-            ${pitfalls ? `<div class="kpi-field"><span class="kpi-field-label">Pitfalls</span><span class="kpi-field-value" style="color:#b45309;">${escapeHtml(pitfalls)}</span></div>` : ''}
-          </div>
-        </div>`;
-      });
-      html += '</div></div>';
-    });
-
-    container.innerHTML = html;
-
-    // Update KPI badge with total count
-    updateBadge('badge-kpi', kpiOnly.reduce((s, sec) => s + sec.items.length, 0));
-
-    // Info panel toggle
-    const infoBtn = document.getElementById('kpi-info-btn');
-    const infoPanel = document.getElementById('kpi-info-panel');
-    if (infoBtn && infoPanel) {
-      infoBtn.addEventListener('click', () => {
-        infoPanel.classList.toggle('visible');
-        infoBtn.innerHTML = infoPanel.classList.contains('visible')
-          ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Hide Reference'
-          : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg> Reference';
-      });
-    }
-  }
-
-  function toggleKpiEdit(idx) {
-    const [si, ki] = idx.split('-').map(Number);
-    const item = kpiEditSections[si].items[ki];
-    const body = document.getElementById('kpi-body-' + idx);
-    const isEditing = body.querySelector('.kpi-field-input');
-    if (isEditing) {
-      body.querySelectorAll('.kpi-field-input').forEach(inp => { item[inp.dataset.key] = inp.value; });
-      renderKpiItemBody(body, item);
-      document.getElementById('kpi-save-btn').disabled = false;
-      return;
-    }
-    const fields = ['purpose', 'formula', 'format', 'pitfalls'];
-    if (item.window) fields.splice(2, 0, 'window');
-    body.innerHTML = fields.map(f => {
-      const val = (item[f] || '').replace(/\`/g, '');
-      const label = f.charAt(0).toUpperCase() + f.slice(1);
-      return `<div class="kpi-field"><span class="kpi-field-label">${label}</span><input class="kpi-field-input" data-key="${f}" value="${escapeHtml(val)}"></div>`;
-    }).join('');
-  }
-
-  function renderKpiItemBody(body, item) {
-    const formula = item.formula || '';
-    const kpiWindow = item.window || '';
-    body.innerHTML = `
-      <div class="kpi-field"><span class="kpi-field-label">Purpose</span><span class="kpi-field-value">${escapeHtml(item.purpose || '')}</span></div>
-      <div class="kpi-field"><span class="kpi-field-label">Formula</span><span class="kpi-field-value"><code>${escapeHtml(formula.replace(/\`/g, ''))}</code></span></div>
-      ${item.format ? `<div class="kpi-field"><span class="kpi-field-label">Format</span><span class="kpi-field-value">${escapeHtml(item.format)}</span></div>` : ''}
-      ${kpiWindow ? `<div class="kpi-field"><span class="kpi-field-label">Window</span><span class="kpi-field-value">${escapeHtml(kpiWindow)}</span></div>` : ''}
-      ${item.pitfalls ? `<div class="kpi-field"><span class="kpi-field-label">Pitfalls</span><span class="kpi-field-value" style="color:#b45309;">${escapeHtml(item.pitfalls)}</span></div>` : ''}`;
-  }
-
-  function filterKpis(query) {
-    const q = query.toLowerCase();
-    document.querySelectorAll('.kpi-item').forEach(el => {
-      el.style.display = el.dataset.searchtext.includes(q) ? '' : 'none';
-    });
-  }
-
-  async function saveKpiRaw() {
-    const editor = document.getElementById('kpi-editor');
-    if (!editor) return;
-    const btn = document.getElementById('kpi-save-raw');
-    btn.disabled = true; btn.textContent = 'Saving...';
-    try {
-      const resp = await fetch(`/api/domains/${selectedDomain}/kpi-matrix`, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ content: editor.value })
-      });
-      if (resp.ok) {
-        btn.textContent = '\u2713 Saved';
-        kpiRawContent = editor.value;
-        kpiSections = parseKpiMarkdown(kpiRawContent);
-      } else { btn.textContent = 'Error'; }
-    } catch(e) { btn.textContent = 'Error'; }
-    setTimeout(() => { btn.disabled = false; btn.textContent = 'Save'; }, 2000);
-  }
-
-  // --- Step 2: Load Best Practices ---
-  let bpRawContent = '';
-  let bpShowRaw = false;
-
-  async function loadBestPractices() {
-    const resp = await fetch(`/api/domains/${selectedDomain}/best-practices`);
-    const data = await resp.json();
-    const container = document.getElementById('practices-content');
-    if (!data.content) {
-      container.innerHTML = '<p class="empty-state">No best practices file found.</p>';
-      return;
-    }
-    bpRawContent = data.content;
-    renderBestPractices(container);
-    // Count h2 sections in best practices markdown
-    const bpSections = (bpRawContent.match(/^## /gm) || []).length;
-    updateBadge('badge-practices', bpSections);
-  }
-
-  function renderBestPractices(container) {
-    if (bpShowRaw) {
-      container.innerHTML = `
-        <div class="kpi-toolbar">
-          <div class="kpi-toolbar-left"><span style="font-size:0.8rem;font-weight:600;color:#374151;">Raw Markdown</span></div>
-          <div class="kpi-toolbar-right">
-            <button class="kpi-raw-toggle" onclick="bpShowRaw=false;renderBestPractices(document.getElementById('practices-content'))">Preview</button>
-            <button class="kpi-save-btn" id="bp-save-btn">Save</button>
-          </div>
-        </div>
-        <textarea class="bp-editor" id="bp-editor" style="min-height:400px;">${escapeHtml(bpRawContent)}</textarea>`;
-      document.getElementById('bp-save-btn').addEventListener('click', saveBestPractices);
-      return;
-    }
-    container.innerHTML = `
-      <div class="kpi-toolbar">
-        <div class="kpi-toolbar-left"><span style="font-size:0.8rem;font-weight:600;color:#374151;">Best Practices</span></div>
-        <div class="kpi-toolbar-right">
-          <button class="kpi-raw-toggle" onclick="bpShowRaw=true;renderBestPractices(document.getElementById('practices-content'))">Edit</button>
-        </div>
-      </div>
-      <div class="bp-rendered">${renderMarkdown(bpRawContent)}</div>`;
-  }
-
-  function renderMarkdown(md) {
-    let html = md
-      // Headers
-      .replace(/^#### (.+)$/gm, '<h4>$1</h4>')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      // Bold & italic
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      // Inline code
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      // Horizontal rule
-      .replace(/^---$/gm, '<hr>')
-      // Blockquotes
-      .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>');
-
-    // Code blocks
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
-      return `<pre><code class="lang-${lang}">${escapeHtml(code.trim())}</code></pre>`;
-    });
-
-    // Tables
-    html = html.replace(/^(\|.+\|)\n(\|[-| :]+\|)\n((?:\|.+\|\n?)*)/gm, (_, header, sep, body) => {
-      const ths = header.split('|').filter(c => c.trim()).map(c => `<th>${c.trim()}</th>`).join('');
-      const rows = body.trim().split('\n').map(row => {
-        const tds = row.split('|').filter(c => c.trim()).map(c => `<td>${c.trim()}</td>`).join('');
-        return `<tr>${tds}</tr>`;
-      }).join('');
-      return `<table><thead><tr>${ths}</tr></thead><tbody>${rows}</tbody></table>`;
-    });
-
-    // Unordered lists
-    html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`);
-
-    // Numbered lists
-    html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-
-    // Paragraphs (remaining lines)
-    html = html.replace(/^(?!<[hublotap]|<\/|<hr|$)(.+)$/gm, '<p>$1</p>');
-
-    // Cleanup double blockquotes
-    html = html.replace(/<\/blockquote>\n<blockquote>/g, '<br>');
-
-    return html;
-  }
-
-  async function saveBestPractices() {
-    const editor = document.getElementById('bp-editor');
-    if (!editor) return;
-    const btn = document.getElementById('bp-save-btn');
-    btn.disabled = true; btn.textContent = 'Saving...';
-    try {
-      const resp = await fetch(`/api/domains/${selectedDomain}/best-practices`, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ content: editor.value })
-      });
-      if (resp.ok) {
-        btn.textContent = '\u2713 Saved';
-        bpRawContent = editor.value;
-      } else { btn.textContent = 'Error'; }
-    } catch(e) { btn.textContent = 'Error'; }
-    setTimeout(() => { btn.disabled = false; btn.textContent = 'Save'; }, 2000);
-  }
-
-  // --- Step 3: Inline Run Details ---
-  const PIPE_STEPS = [
-    { key: 'load_configuration', label: 'Config' },
-    { key: 'environment_setup', label: 'Setup' },
-    { key: 'create_data_layer', label: 'Data Layer' },
-    { key: 'create_metric_views', label: 'Metrics' },
-    { key: 'create_dashboards', label: 'Dashboards' },
-    { key: 'create_genie_space', label: 'Genie' },
-    { key: 'generate_documentation', label: 'Docs' },
-  ];
-  let stepLogs = {};
-  let evtSource = null;
-
-  function _getSkippedSteps() {
-    // Steps disabled by the user in the Configuration tab checkboxes
-    const skipped = new Set();
-    document.querySelectorAll('.checkbox-group input[data-step]').forEach(cb => {
-      if (!cb.checked) skipped.add(cb.dataset.step);
-    });
-    return skipped;
-  }
-
-  function buildStepsTrack() {
-    const skipped = _getSkippedSteps();
-    let html = '';
-    PIPE_STEPS.forEach((step, i) => {
-      const isSkipped = skipped.has(step.key);
-      const state = isSkipped ? 'skipped' : 'pending';
-      const icon = isSkipped ? '&#x2014;' : '';
-      const dur = isSkipped ? 'Skipped' : '&mdash;';
-      if (i > 0) html += `<div class="step-connector" id="conn-${i}"></div>`;
-      html += `<div class="step-node ${state}" id="node-${step.key}"><div class="step-circle"><span class="circle-content">${icon}</span></div><div class="step-label">${step.label}</div><div class="step-dur" id="dur-${step.key}">${dur}</div></div>`;
-    });
-    document.getElementById('steps-track').innerHTML = html;
-  }
-
-  function buildTimeline() {
-    const skipped = _getSkippedSteps();
-    let html = '';
-    PIPE_STEPS.forEach(step => {
-      const isSkipped = skipped.has(step.key);
-      const state = isSkipped ? 'skipped' : 'pending';
-      const icon = isSkipped ? '&#x2014;' : '&#x2B24;';
-      const badge = isSkipped ? 'Skipped' : '';
-      html += `<div class="step-entry ${state}" id="entry-${step.key}"><div class="step-entry-header"><span class="step-entry-icon">${icon}</span><span class="step-entry-title">${step.label}</span><span class="step-entry-dur" id="entry-dur-${step.key}"></span><span class="step-entry-badge" id="entry-badge-${step.key}">${badge}</span><button class="step-logs-btn" id="logbtn-${step.key}" onclick="window._toggleLogs('${step.key}')">Logs</button></div><div class="phase-list" id="phases-${step.key}"></div><div class="step-log-panel" id="logpanel-${step.key}"><pre id="logpre-${step.key}">Waiting for logs...</pre></div></div>`;
-    });
-    document.getElementById('step-timeline').innerHTML = '<div class="timeline-progress" id="timeline-progress"></div>' + html;
-  }
-
-  window._toggleLogs = function(stepKey) {
-    const panel = document.getElementById(`logpanel-${stepKey}`);
-    const btn = document.getElementById(`logbtn-${stepKey}`);
-    const isVisible = panel.classList.contains('visible');
-    PIPE_STEPS.forEach(s => {
-      document.getElementById(`logpanel-${s.key}`).classList.remove('visible');
-      document.getElementById(`logbtn-${s.key}`).classList.remove('active');
-    });
-    if (!isVisible) { panel.classList.add('visible'); btn.classList.add('active'); fetchStepLogs(stepKey); }
-  };
-
-  async function fetchStepLogs(stepKey) {
-    try {
-      const res = await fetch(`/api/pipeline/logs/${runId}/${stepKey}`);
-      if (res.ok) { const d = await res.json(); document.getElementById(`logpre-${stepKey}`).textContent = d.logs || 'No logs yet.'; }
-    } catch(e) {}
-  }
-
-  function updateProgressLine() {
-    const timeline = document.getElementById('step-timeline');
-    const progress = document.getElementById('timeline-progress');
-    if (!timeline || !progress) return;
-    let lastActive = null;
-    for (let i = PIPE_STEPS.length - 1; i >= 0; i--) {
-      const entry = document.getElementById(`entry-${PIPE_STEPS[i].key}`);
-      if (entry && (entry.classList.contains('completed') || entry.classList.contains('running') || entry.classList.contains('failed'))) { lastActive = entry; break; }
-    }
-    if (lastActive) {
-      const tRect = timeline.getBoundingClientRect();
-      const eRect = lastActive.getBoundingClientRect();
-      progress.style.height = `${eRect.top - tRect.top + 14}px`;
-    } else { progress.style.height = '0px'; }
-  }
-
-  function updateStepNode(stepKey, status, duration) {
-    const node = document.getElementById(`node-${stepKey}`);
-    if (!node) return;
-    node.className = `step-node ${status}`;
-    const circle = node.querySelector('.circle-content');
-    if (status === 'completed') circle.innerHTML = '&#x2713;';
-    else if (status === 'failed') circle.innerHTML = '&#x2717;';
-    else if (status === 'skipped') circle.innerHTML = '&#x2014;';
-    else circle.innerHTML = '';
-    const durEl = document.getElementById(`dur-${stepKey}`);
-    if (status === 'skipped') durEl.textContent = 'Skipped';
-    else if (duration != null) durEl.textContent = duration < 60 ? `${Math.round(duration)}s` : `${(duration/60).toFixed(1)}m`;
-    const stepIdx = PIPE_STEPS.findIndex(s => s.key === stepKey);
-    if (status === 'completed' && stepIdx < PIPE_STEPS.length - 1) {
-      const conn = document.getElementById(`conn-${stepIdx + 1}`);
-      if (conn) conn.classList.add('done');
-    }
-  }
-
-  function updateStepEntry(stepKey, status, duration) {
-    const entry = document.getElementById(`entry-${stepKey}`);
-    if (!entry) return;
-    entry.className = `step-entry ${status}`;
-    const icon = entry.querySelector('.step-entry-icon');
-    if (status === 'completed') icon.innerHTML = '&#x2713;';
-    else if (status === 'failed') icon.innerHTML = '&#x2717;';
-    else if (status === 'running') icon.innerHTML = '&#x25F7;';
-    else icon.innerHTML = '&#x2B24;';
-    const badge = document.getElementById(`entry-badge-${stepKey}`);
-    if (status === 'completed') badge.textContent = 'Done';
-    else if (status === 'running') badge.textContent = 'In progress';
-    else if (status === 'failed') badge.textContent = 'Failed';
-    else badge.textContent = '';
-    const durEl = document.getElementById(`entry-dur-${stepKey}`);
-    if (duration != null) durEl.textContent = duration < 60 ? `${Math.round(duration)}s` : `${(duration/60).toFixed(1)}m`;
-    requestAnimationFrame(updateProgressLine);
-  }
-
-  function renderPhase(stepKey, phaseName, status, durationMs, error) {
-    const container = document.getElementById(`phases-${stepKey}`);
-    if (!container) return;
-    let row = container.querySelector(`[data-phase="${phaseName}"]`);
-    if (!row) {
-      row = document.createElement('div');
-      row.className = 'phase-row pending';
-      row.setAttribute('data-phase', phaseName);
-      row.innerHTML = `<div class="phase-icon"><span class="pi-inner"></span></div><span class="phase-name">${formatName(phaseName)}</span><span class="phase-duration">&mdash;</span><span class="phase-check"></span>`;
-      container.appendChild(row);
-    }
-    row.className = `phase-row ${status}`;
-    const icon = row.querySelector('.pi-inner');
-    const check = row.querySelector('.phase-check');
-    const dur = row.querySelector('.phase-duration');
-    if (status === 'completed') { icon.innerHTML = '&#x2713;'; check.innerHTML = '&#x2713;'; }
-    else if (status === 'running') { icon.innerHTML = '&#x25CF;'; check.innerHTML = '&mdash;'; }
-    else if (status === 'failed') { icon.innerHTML = '&#x2717;'; check.innerHTML = '&#x2717;'; }
-    else { icon.innerHTML = ''; check.innerHTML = ''; }
-    if (durationMs != null) dur.textContent = durationMs < 1000 ? `${durationMs}ms` : durationMs < 60000 ? `${Math.round(durationMs/1000)}s` : `${(durationMs/60000).toFixed(1)}m`;
-  }
-
-  function formatName(name) { return name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()); }
-
-  function handlePipelineEvent(data) {
-    switch(data.type) {
-      case 'step_started': updateStepNode(data.step, 'running'); updateStepEntry(data.step, 'running'); document.getElementById('cancel-btn').style.display = 'inline-block'; break;
-      case 'step_completed': updateStepNode(data.step, 'completed', data.duration_s); updateStepEntry(data.step, 'completed', data.duration_s); break;
-      case 'step_failed': updateStepNode(data.step, 'failed', data.duration_s); updateStepEntry(data.step, 'failed', data.duration_s); showError(data.error, data.error_detail); break;
-      case 'step_skipped':
-        if (data.previously_completed) { updateStepNode(data.step, 'completed', data.duration_s); updateStepEntry(data.step, 'completed', data.duration_s); }
-        else { updateStepNode(data.step, 'skipped'); updateStepEntry(data.step, 'skipped'); }
-        break;
-      case 'phase_started': renderPhase(data.step, data.phase, 'running'); break;
-      case 'phase_completed': renderPhase(data.step, data.phase, 'completed', data.duration_ms); break;
-      case 'phase_failed': renderPhase(data.step, data.phase, 'failed', data.duration_ms, data.error); break;
-      case 'log':
-        if (data.step) {
-          if (!stepLogs[data.step]) stepLogs[data.step] = '';
-          stepLogs[data.step] += data.message + '\n';
-          const logPre = document.getElementById(`logpre-${data.step}`);
-          if (logPre) { logPre.textContent = stepLogs[data.step]; logPre.parentElement.scrollTop = logPre.parentElement.scrollHeight; }
-        }
-        break;
-      case 'pipeline_completed':
-        document.getElementById('cancel-btn').style.display = 'none';
-        const finalStatus = data.status || 'completed';
-        if (finalStatus === 'completed') { setFinalState('completed', 'All done!', 'Your pipeline completed successfully.'); setTimeout(() => { loadSummary(); goToStep(4); }, 2000); }
-        else { setFinalState('failed', 'Pipeline failed', 'An error occurred.'); document.getElementById('rerun-btn').style.display = 'inline-block'; showError(data.error); }
-        break;
-    }
-  }
-
-  function setFinalState(status, title, subtitle) {
-    const pill = document.getElementById('status-pill');
-    pill.className = `status-pill ${status}`;
-    document.getElementById('pill-text').textContent = status === 'completed' ? 'Completed' : 'Failed';
-    document.getElementById('run-title').textContent = title;
-    document.getElementById('run-subtitle').textContent = subtitle;
-  }
-
-  function showError(error, detail) {
-    if (error || detail) {
-      document.getElementById('error-card').style.display = 'block';
-      document.getElementById('error-content').textContent = detail || error || 'Unknown error';
-      document.getElementById('rerun-btn').style.display = 'inline-block';
-    }
-  }
-
-  let _pollRetries = 0;
-  const _POLL_MAX_RETRIES = 5;
-
-  async function pollStatus() {
-    try {
-      let res = await fetch(`/api/pipeline/status/${runId}`);
-      let data;
-      if (res.ok) {
-        data = await res.json();
-        _pollRetries = 0; // Reset on success
-      } else {
-        // Try fallback endpoint
-        res = await fetch(`/api/pipeline/runs/${runId}`);
-        if (!res.ok) {
-          // Run not found (404) — stop polling, don't retry forever
-          _pollRetries++;
-          if (_pollRetries >= _POLL_MAX_RETRIES) {
-            console.warn('pollStatus: run not found after max retries, stopping.');
-            return;
-          }
-          setTimeout(pollStatus, 3000);
-          return;
-        }
-        data = await res.json();
-        _pollRetries = 0;
-      }
-      const status = data.status || 'unknown';
-      if (status === 'started' || status === 'running') {
-        document.getElementById('cancel-btn').style.display = 'inline-block';
-        if (data.steps) { data.steps.forEach(s => { const key = s.step_name || s.name; updateStepNode(key, s.status, s.duration_s); updateStepEntry(key, s.status, s.duration_s); if (s.phases) s.phases.forEach(p => renderPhase(key, p.name || p.phase_name, p.status, p.duration_ms, p.error)); }); }
-        setTimeout(pollStatus, 2000);
-      } else if (status === 'completed') {
-        setFinalState('completed', 'All done!', 'Pipeline completed successfully.');
-        if (data.steps) data.steps.forEach(s => { const key = s.step_name || s.name; updateStepNode(key, s.status, s.duration_s); updateStepEntry(key, s.status, s.duration_s); if (s.phases) s.phases.forEach(p => renderPhase(key, p.name || p.phase_name, p.status, p.duration_ms, p.error)); });
-        setTimeout(() => { loadSummary(); goToStep(4); }, 2000);
-      } else if (status === 'failed') {
-        setFinalState('failed', 'Pipeline failed', 'An error occurred.');
-        document.getElementById('rerun-btn').style.display = 'inline-block';
-        showError(data.error, data.error_detail);
-        if (data.steps) data.steps.forEach(s => { const key = s.step_name || s.name; updateStepNode(key, s.status, s.duration_s); updateStepEntry(key, s.status, s.duration_s); });
-      }
-      // Any other status (cancelled, unknown) — stop polling
-    } catch(err) {
-      _pollRetries++;
-      if (_pollRetries >= _POLL_MAX_RETRIES) {
-        console.warn('pollStatus: max retries reached, stopping.', err);
-        return;
-      }
-      setTimeout(pollStatus, 3000);
-    }
-  }
-
-  function getSelectedSteps() {
-    // Collect checked steps from the Configuration tab checkboxes
-    const stepFlags = {};
-    document.querySelectorAll('.checkbox-group input[data-step]').forEach(cb => {
-      stepFlags[cb.dataset.step] = cb.checked;
-    });
-    return stepFlags;
-  }
-
-  function getCleanStart() {
-    const sel = document.getElementById('cfg-clean');
-    return sel ? sel.value === 'true' : true;
-  }
-
-  async function saveConfigBeforeRun() {
-    // Build config overrides from UI selections and save to accelerator.yaml
-    const stepFlags = getSelectedSteps();
-    const cleanStart = getCleanStart();
-
-    const overrides = {
-      pipeline: {
-        clean_start: cleanStart,
-        steps: stepFlags
-      }
+});
+
+function hideDetail() {
+    document.getElementById('domain-detail').classList.remove('visible');
+    document.querySelectorAll('.domain-card').forEach(c => c.classList.remove('selected'));
+}
+
+async function launchPipeline() {
+    const btn = document.getElementById('run-btn');
+    btn.disabled = true;
+    btn.textContent = 'Starting...';
+
+    const payload = {
+        domain: selectedDomain,
+        run_mode: 'versioned',
     };
 
-    // Map pending editable field IDs to nested config paths
-    if (pendingEdits && Object.keys(pendingEdits).length > 0) {
-      const fieldMap = {
-        target_catalog: ['catalog', 'target', 'catalog'],
-        target_schema: ['catalog', 'target', 'schema'],
-        source_catalog: ['catalog', 'source', 'catalog'],
-        source_schema: ['catalog', 'source', 'schema'],
-        mv_name: ['assets', 'metric_views', 0, 'name'],
-        genie_name: ['assets', 'genie', 'space_name'],
-      };
-      for (const [fieldId, val] of Object.entries(pendingEdits)) {
-        const path = fieldMap[fieldId];
-        if (path) {
-          let target = overrides;
-          for (let i = 0; i < path.length - 1; i++) {
-            const key = path[i];
-            if (typeof path[i + 1] === 'number') {
-              if (!target[key]) target[key] = [];
-            } else {
-              if (!target[key]) target[key] = {};
-            }
-            target = target[key];
-          }
-          target[path[path.length - 1]] = val;
-        }
-      }
-    }
-
-    const resp = await fetch(`/api/domains/${selectedDomain}/config`, {
-      method: 'PATCH',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(overrides)
-    });
-    if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error || 'Failed to save config');
-    }
-    return await resp.json();
-  }
-
-  async function startPipeline() {
-    // Save config overrides to accelerator.yaml BEFORE starting the run.
-    // The master prompt reads accelerator.yaml to decide which steps to execute.
     try {
-      await saveConfigBeforeRun();
-    } catch (e) {
-      alert(`Failed to save configuration: ${e.message}`);
-      return;
-    }
-
-    goToStep(3);
-    // Reset UI
-    stepLogs = {};
-    document.getElementById('error-card').style.display = 'none';
-    document.getElementById('cancel-btn').style.display = 'none';
-    document.getElementById('rerun-btn').style.display = 'none';
-    document.getElementById('status-pill').className = 'status-pill';
-    document.getElementById('pill-text').textContent = 'Working on your request';
-    document.getElementById('run-title').textContent = 'Preparing your results';
-    document.getElementById('run-subtitle').textContent = 'We\'re analyzing the information and putting everything together.';
-    buildStepsTrack();
-    buildTimeline();
-    // Trigger run — config is already saved, pipeline reads it from accelerator.yaml
-    const resp = await fetch('/api/pipeline/run', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({domain: selectedDomain, run_mode: 'versioned'})
-    });
-    const result = await resp.json();
-    if (!result.run_id) {
-      setFinalState('failed', 'Failed to start', result.error || 'Unknown error');
-      return;
-    }
-    runId = result.run_id;
-    // Start SSE
-    if (evtSource) evtSource.close();
-    evtSource = new EventSource(`/api/pipeline/stream/${runId}`);
-    evtSource.onmessage = (e) => { try { handlePipelineEvent(JSON.parse(e.data)); } catch(ex) {} };
-    evtSource.onerror = () => { evtSource.close(); };
-    // Start polling
-    pollStatus();
-  }
-
-  // --- Step 4: Load Summary ---
-  async function loadSummary() {
-    // Get actual version from run status (not from accelerator.yaml)
-    let runVersion = '';
-    let runDuration = '';
-    try {
-      const statusResp = await fetch(`/api/pipeline/status/${runId}`);
-      if (statusResp.ok) {
-        const statusData = await statusResp.json();
-        runVersion = statusData.version_suffix || statusData.version || '';
-        if (statusData.duration_s) {
-          runDuration = statusData.duration_s < 60 ? `${Math.round(statusData.duration_s)}s` : `${(statusData.duration_s / 60).toFixed(1)} min`;
+        const resp = await fetch('/api/pipeline/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.run_id) {
+            window.location.href = '/domains/' + selectedDomain + '/run/' + data.run_id;
+        } else {
+            throw new Error(data.error?.message || data.error || 'Failed to start');
         }
-      }
-    } catch(e) {}
-
-    // Get summary data
-    const resp = await fetch(`/api/domains/${selectedDomain}/summary/${runId}`);
-    const data = await resp.json();
-
-    // Use run version if available, otherwise fall back to summary
-    const version = runVersion || data.version || 'v1';
-    const versionDisplay = version.startsWith('_') ? version.substring(1) : version;
-
-    // Update header meta
-    document.getElementById('summary-meta').textContent = `${selectedDomain.replace(/_/g, ' ')} • ${versionDisplay}${runDuration ? ' • ' + runDuration : ''}`;
-
-    // Read asset names from config
-    const cfg = domainConfig || {};
-    const cfgAssets = cfg.assets || {};
-    const metricViews = cfgAssets.metric_views || [];
-    const dashboards = cfgAssets.dashboards || [];
-    const genie = cfgAssets.genie || {};
-    const suffix = runVersion || data.version || '_v1';
-    const suffixClean = suffix.startsWith('_') ? suffix : '_' + suffix;
-
-    const container = document.getElementById('summary-content');
-    let html = '';
-
-    // Output folder
-    html += `<div class="summary-row"><div class="summary-row-label">Output Folder</div><div class="summary-row-value"><code>${data.output_folder || 'N/A'}</code></div></div>`;
-
-    // Metric Views
-    if (metricViews.length) {
-      const mvNames = metricViews.map(mv => mv.name + suffixClean).join(', ');
-      html += `<div class="summary-row"><div class="summary-row-label">Metric Views</div><div class="summary-row-value">${mvNames}</div></div>`;
+    } catch(err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = 'Run Pipeline';
     }
-
-    // Dashboards
-    if (dashboards.length) {
-      const dbNames = dashboards.map(d => d.name + suffixClean).join('<br>');
-      html += `<div class="summary-row"><div class="summary-row-label">Dashboards</div><div class="summary-row-value">${dbNames}</div></div>`;
-    }
-
-    // Genie Space
-    if (genie.space_name) {
-      html += `<div class="summary-row"><div class="summary-row-label">Genie Space</div><div class="summary-row-value">${genie.space_name}${suffixClean}</div></div>`;
-    }
-
-    // Notebooks
-    if (data.notebooks && data.notebooks.length) {
-      html += `<div class="summary-row"><div class="summary-row-label">Notebooks</div><div class="summary-row-value">${data.notebooks.join('<br>')}</div></div>`;
-    }
-
-    // Manifest files
-    if (data.assets && data.assets.length) {
-      html += `<div class="summary-row"><div class="summary-row-label">Manifests</div><div class="summary-row-value">${data.assets.map(a => a.file).join('<br>')}</div></div>`;
-    }
-
-    container.innerHTML = html;
-  }
-
-  // --- Helpers ---
-  function escapeHtml(str) {
-    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  }
-
-  // --- Event Listeners ---
-  document.querySelectorAll('.sub-nav-item').forEach(btn => {
-    btn.addEventListener('click', () => switchSubTab(btn.dataset.tab));
-  });
-
-  document.getElementById('step2-prev').addEventListener('click', () => {
-    const tabs = ['config', 'kpi', 'practices'];
-    const idx = tabs.indexOf(currentSubTab);
-    if (idx === 0) goToStep(1);
-    else switchSubTab(tabs[idx - 1]);
-  });
-
-  document.getElementById('step2-next').addEventListener('click', () => {
-    const tabs = ['config', 'kpi', 'practices'];
-    const idx = tabs.indexOf(currentSubTab);
-    if (idx < 2) switchSubTab(tabs[idx + 1]);
-    else startPipeline();
-  });
-
-  document.getElementById('step4-new').addEventListener('click', () => { goToStep(1); loadDomains(); });
-  document.getElementById('step4-rerun').addEventListener('click', () => startPipeline());
-
-  document.getElementById('cancel-btn').addEventListener('click', async () => {
-    await fetch(`/api/pipeline/cancel/${runId}`, {method: 'POST'});
-    document.getElementById('cancel-btn').disabled = true;
-  });
-  document.getElementById('rerun-btn').addEventListener('click', () => startPipeline());
-
-  // --- Init ---
-  loadDomains();
-})();
+}
 </script>
 {% endblock %}

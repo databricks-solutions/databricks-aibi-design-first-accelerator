@@ -1,0 +1,18 @@
+# AI/BI Studio — Supervisor Agent Serving Endpoint (AgentBricks)
+#
+# Architecture (true AgentBricks):
+#   App (OBO) → Supervisor Serving Endpoint (MLflow model from UC)
+#                    └── calls Foundation Model (databricks-gpt-5-5) via OBO
+#
+# The serving endpoint is NOT defined here. It is created programmatically
+# by the register_supervisor_model task in the setup_app_infrastructure job
+# (after the MLflow model is registered to UC).
+#
+# Deployment flow (single pass):
+#   1. databricks bundle deploy -t dev     (deploys App + Job)
+#   2. databricks bundle run setup_app_infrastructure -t dev
+#      (registers model + creates endpoint + configures AI Gateway)
+#
+# Endpoint name: aibi-supervisor-<user>
+# Model: <catalog>.aibi_models.aibi_pipeline_supervisor
+# Created by: notebooks/agent/register_supervisor.py

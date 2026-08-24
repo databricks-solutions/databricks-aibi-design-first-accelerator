@@ -31,11 +31,15 @@ def create_app():
     from routes.pipeline_routes import pipeline_bp
     from routes.admin_routes import admin_bp
     from routes.domain_routes import domain_bp
+    from routes.agent_routes import agent_bp
+    # supervisor_bp removed — Phase 4 uses pipeline_routes + agent_routes
 
     application.register_blueprint(auth_bp)
     application.register_blueprint(pipeline_bp)
     application.register_blueprint(admin_bp)
     application.register_blueprint(domain_bp)
+    application.register_blueprint(agent_bp)
+    # application.register_blueprint(supervisor_bp)  # Removed: Phase 4 architecture
 
     # --- Auto-authenticate from platform headers on every request ---
     @application.before_request
@@ -63,8 +67,8 @@ def create_app():
     # --- Page Routes ---
     @application.route('/')
     def index():
-        """Redirect to dashboard."""
-        return redirect(url_for('dashboard'))
+        """Redirect to KPI Domains page."""
+        return redirect(url_for('domains_page'))
 
     @application.route('/dashboard')
     def dashboard():
@@ -73,8 +77,28 @@ def create_app():
 
     @application.route('/domains')
     def domains_page():
-        """KPI Domains management page."""
+        """KPI Domains selection and launch page."""
         return render_template('domains.html', active_page='domains')
+
+    @application.route('/runs')
+    def runs_page():
+        """Runs history page."""
+        return render_template('domains.html', active_page='runs')  # TODO: dedicated runs template
+
+    @application.route('/catalog')
+    def catalog_page():
+        """Catalog browser page."""
+        return render_template('domains.html', active_page='catalog')  # TODO: dedicated catalog template
+
+    @application.route('/alerts')
+    def alerts_page():
+        """Alerts page."""
+        return render_template('domains.html', active_page='alerts')  # TODO: dedicated alerts template
+
+    @application.route('/settings')
+    def settings_page():
+        """Settings page."""
+        return render_template('domains.html', active_page='settings')  # TODO: dedicated settings template
 
     @application.route('/run/latest')
     def run_latest():
@@ -98,8 +122,19 @@ def create_app():
 
     @application.route('/pipeline/<run_id>')
     def pipeline_view(run_id):
-        """Legacy pipeline view — redirect to new run details."""
-        return redirect(url_for('run_detail', run_id=run_id))
+        """Pipeline monitor page (Phase 4 UI)."""
+        return render_template('pipeline_monitor.html',
+                               run_id=run_id,
+                               domain=request.args.get('domain', ''),
+                               run_meta={})
+
+    @application.route('/domains/<domain_name>/run/<run_id>')
+    def domain_pipeline_monitor(run_id, domain_name):
+        """Pipeline monitor page launched from domains page."""
+        return render_template('pipeline_monitor.html',
+                               run_id=run_id,
+                               domain=domain_name,
+                               run_meta={})
 
     @application.route('/results/<run_id>')
     def results_view(run_id):

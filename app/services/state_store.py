@@ -152,6 +152,30 @@ class StateStore:
         fields["updated_at"] = datetime.now(timezone.utc).isoformat()
         self._update("runs", {"run_id": run_id}, fields)
 
+    def save_run_manifest(self, run_id: str, manifest: dict) -> None:
+        """Persist the run_manifest JSON to the run record.
+
+        Stores the full manifest (steps + sub-steps + errors) as a JSON field
+        on the run record. Called incrementally after each step completes.
+        Auto-adds the run_manifest column if it doesn't exist yet.
+        """
+        import json
+        manifest_json = json.dumps(manifest)
+        try:
+            self.update_run(run_id, run_manifest=manifest_json)
+        except Exception as e:
+            if "column" in str(e).lower() and "does not exist" in str(e).lower():
+                # Column missing — add it and retry
+                try:
+                    self._execute_write(
+                        "ALTER TABLE public.runs ADD COLUMN IF NOT EXISTS run_manifest JSONB"
+                    )
+                    self.update_run(run_id, run_manifest=manifest_json)
+                except Exception as e2:
+                    logger.warning(f"Could not save run_manifest to Lakebase: {e2}")
+            else:
+                logger.warning(f"Could not save run_manifest to Lakebase: {e}")
+
     def get_run(self, run_id: str) -> Optional[dict]:
         runs = self._select("runs", {"run_id": run_id})
         if not runs:

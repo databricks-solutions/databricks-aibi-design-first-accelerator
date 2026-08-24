@@ -4,60 +4,396 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AI/BI Studio{% endblock %}</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        /* ══════════════════════════════════════════════════════════════════
+           AI/BI Studio — Design System (shadcn/Tailwind-inspired)
+           Light-first, with [data-theme="dark"] override.
+           Sidebar always dark navy.
+           ══════════════════════════════════════════════════════════════════ */
+
+        :root {
+            /* Surfaces */
+            --bg-app: #f7f8fa;
+            --bg-card: #ffffff;
+            --bg-subtle: #f9fafb;
+            --bg-sidebar: #0b1f36;
+            --bg-sidebar-hover: #1b314b;
+            --bg-sidebar-active: #263b55;
+
+            /* Text */
+            --text-primary: #152238;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --text-inverse: #f8fafc;
+
+            /* Brand / States */
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --primary-soft: #eff6ff;
+
+            --success: #16a34a;
+            --success-soft: #f0fdf4;
+            --success-border: #bbf7d0;
+            --success-text: #15803d;
+
+            --warning: #f59e0b;
+            --warning-soft: #fffbeb;
+            --warning-border: #fde68a;
+            --warning-text: #b45309;
+
+            --danger: #ef4444;
+            --danger-soft: #fef2f2;
+            --danger-border: #fecaca;
+            --danger-text: #dc2626;
+
+            /* Borders */
+            --border: #e2e8f0;
+            --border-subtle: #edf2f7;
+            --border-active: #bfdbfe;
+
+            /* Radius */
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --radius-lg: 12px;
+            --radius-xl: 16px;
+
+            /* Shadow */
+            --shadow-card: 0 1px 2px rgba(15,23,42,0.03), 0 1px 3px rgba(15,23,42,0.04);
+            --shadow-lg: 0 4px 6px -1px rgba(15,23,42,0.05), 0 2px 4px -2px rgba(15,23,42,0.03);
+
+            /* Layout */
+            --sidebar-width: 232px;
+
+            /* Typography */
+            --font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --font-mono: "SF Mono", "Fira Code", "JetBrains Mono", ui-monospace, monospace;
+        }
+
+        /* ─── Dark theme ─── */
+        [data-theme="dark"] {
+            --bg-app: #0d1117;
+            --bg-card: #161b22;
+            --bg-subtle: #1c2128;
+
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --text-muted: #6e7681;
+
+            --primary: #58a6ff;
+            --primary-hover: #79c0ff;
+            --primary-soft: #0d2240;
+
+            --success: #3fb950;
+            --success-soft: #0d2818;
+            --success-border: #1a4d2e;
+            --success-text: #56d364;
+
+            --warning: #d29922;
+            --warning-soft: #2a1f05;
+            --warning-border: #4d3800;
+            --warning-text: #e3b341;
+
+            --danger: #f85149;
+            --danger-soft: #2d0e0e;
+            --danger-border: #5c1a1a;
+            --danger-text: #ff7b72;
+
+            --border: #30363d;
+            --border-subtle: #21262d;
+            --border-active: #1f4a7a;
+
+            --shadow-card: 0 1px 2px rgba(0,0,0,0.2);
+            --shadow-lg: 0 4px 6px rgba(0,0,0,0.25);
+        }
+
+        /* ─── System preference auto-detect ─── */
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --bg-app: #0d1117;
+                --bg-card: #161b22;
+                --bg-subtle: #1c2128;
+                --text-primary: #e6edf3;
+                --text-secondary: #8b949e;
+                --text-muted: #6e7681;
+                --primary: #58a6ff;
+                --primary-hover: #79c0ff;
+                --primary-soft: #0d2240;
+                --success: #3fb950;
+                --success-soft: #0d2818;
+                --success-border: #1a4d2e;
+                --success-text: #56d364;
+                --warning: #d29922;
+                --warning-soft: #2a1f05;
+                --warning-border: #4d3800;
+                --warning-text: #e3b341;
+                --danger: #f85149;
+                --danger-soft: #2d0e0e;
+                --danger-border: #5c1a1a;
+                --danger-text: #ff7b72;
+                --border: #30363d;
+                --border-subtle: #21262d;
+                --border-active: #1f4a7a;
+                --shadow-card: 0 1px 2px rgba(0,0,0,0.2);
+                --shadow-lg: 0 4px 6px rgba(0,0,0,0.25);
+            }
+        }
+
+        /* ─── Reset ─── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body {
+            min-height: 100%;
+            font-family: var(--font-ui);
+            font-size: 14px;
+            background: var(--bg-app);
+            color: var(--text-primary);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ─── App Shell ─── */
+        .app-shell {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+        }
+
+        /* ─── Dark Sidebar ─── */
+        .sidebar {
+            background: linear-gradient(180deg, #0d223a 0%, #091a2e 100%);
+            color: var(--text-inverse);
+            padding: 20px 14px;
+            border-right: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            flex-direction: column;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+        .sidebar-header {
+            padding: 4px 10px 22px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-logo {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            border-radius: var(--radius-md);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 12px; color: #fff;
+            flex-shrink: 0;
+        }
+        .sidebar-brand { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; color: #fff; }
+        .sidebar-subtitle { font-size: 11px; color: #8b9eb0; margin-top: 1px; }
+        .nav-menu { list-style: none; flex: 1; }
+        .nav-item a {
+            display: flex; align-items: center; gap: 12px;
+            height: 38px; padding: 0 12px;
+            border-radius: var(--radius-md);
+            color: #cbd5e1; font-size: 13px; font-weight: 500;
+            text-decoration: none; transition: all 0.15s;
+        }
+        .nav-item a:hover { background: rgba(255,255,255,0.06); color: #fff; }
+        .nav-item.active a {
+            color: #fff; background: var(--bg-sidebar-active);
+            box-shadow: inset 3px 0 0 var(--primary);
+        }
+        .nav-icon { width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; opacity: 0.7; }
+        .nav-item.active .nav-icon { opacity: 1; }
+        .nav-badge {
+            margin-left: auto; font-size: 10px; padding: 2px 6px;
+            background: var(--danger); color: #fff; border-radius: 10px; font-weight: 600;
+        }
+
+        /* ─── Main Panel ─── */
+        .main-panel {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-app);
+            overflow: hidden;
+        }
+
+        /* ─── Top Bar ─── */
+        .top-bar {
+            height: 52px; padding: 0 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg-card);
+            flex-shrink: 0;
+        }
+        .breadcrumb { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+        .breadcrumb a { color: var(--text-secondary); text-decoration: none; }
+        .breadcrumb a:hover { color: var(--primary); }
+        .breadcrumb .separator { color: var(--text-muted); }
+        .breadcrumb .current { color: var(--text-primary); font-weight: 600; }
+        .top-bar-right { display: flex; align-items: center; gap: 12px; }
+
+        /* Status badges (pill style) */
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            height: 24px; padding: 0 9px;
+            border-radius: 999px; font-size: 12px; font-weight: 500;
+            border: 1px solid transparent;
+        }
+        .status-badge.running { color: #1d4ed8; background: #eff6ff; border-color: #bfdbfe; }
+        .status-badge.idle, .status-badge.completed { color: var(--success-text); background: var(--success-soft); border-color: var(--success-border); }
+        .status-badge.failed { color: var(--danger-text); background: var(--danger-soft); border-color: var(--danger-border); }
+        .timer { font-size: 12px; font-family: var(--font-mono); color: var(--text-secondary); }
+
+        /* Theme toggle */
+        .theme-toggle {
+            width: 32px; height: 32px;
+            background: none; border: 1px solid var(--border); border-radius: var(--radius-sm);
+            cursor: pointer; color: var(--text-secondary);
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.15s;
+        }
+        .theme-toggle:hover { border-color: var(--primary); color: var(--primary); }
+        .theme-icon-dark { display: none; }
+        [data-theme="dark"] .theme-icon-light { display: none; }
+        [data-theme="dark"] .theme-icon-dark { display: block; }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) .theme-icon-light { display: none; }
+            :root:not([data-theme="light"]) .theme-icon-dark { display: block; }
+        }
+
+        .user-avatar {
+            width: 30px; height: 30px; border-radius: 50%;
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: 600; color: #fff;
+        }
+
+        /* ─── Content Area ─── */
+        .content-area { flex: 1; overflow-y: auto; padding: 0; background: var(--bg-app); }
+
+        /* ─── Utility Components ─── */
+        .btn {
+            padding: 8px 16px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500;
+            cursor: pointer; border: 1px solid var(--border); background: var(--bg-card);
+            color: var(--text-primary); transition: all 0.15s; font-family: var(--font-ui);
+        }
+        .btn:hover { border-color: var(--text-muted); }
+        .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+        .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+        .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+        .btn-danger:hover { opacity: 0.9; }
+        .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+        /* ─── Cards ─── */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-card);
+        }
+    </style>
     {% block head %}{% endblock %}
 </head>
 <body>
-    <div class="app-container">
-        <!-- Left Navigation Sidebar -->
+    <div class="app-shell">
         <nav class="sidebar">
             <div class="sidebar-header">
-                <h1 class="app-title">AI/BI Studio</h1>
+                <div class="sidebar-logo">AI</div>
+                <div>
+                    <div class="sidebar-brand">AI/BI Studio</div>
+                    <div class="sidebar-subtitle">Design-First Accelerator</div>
+                </div>
             </div>
             <ul class="nav-menu">
                 <li class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
                     <a href="/dashboard">
-                        <span class="nav-icon">&#9632;</span>
-                        <span class="nav-label">Dashboard</span>
+                        <span class="nav-icon"><svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg></span>
+                        Dashboard
                     </a>
                 </li>
                 <li class="nav-item {% if active_page == 'domains' %}active{% endif %}">
                     <a href="/domains">
-                        <span class="nav-icon">&#9733;</span>
-                        <span class="nav-label">KPI Domains</span>
+                        <span class="nav-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l3 2"/></svg></span>
+                        KPI Domains
+                    </a>
+                </li>
+                <li class="nav-item {% if active_page == 'runs' %}active{% endif %}">
+                    <a href="/runs">
+                        <span class="nav-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 16 16"><path d="M3 3h10v2H3zm0 4h10v2H3zm0 4h7v2H3z"/></svg></span>
+                        Runs
+                    </a>
+                </li>
+                <li class="nav-item {% if active_page == 'catalog' %}active{% endif %}">
+                    <a href="/catalog">
+                        <span class="nav-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 16 16"><path d="M2 3a1 1 0 011-1h4.586a1 1 0 01.707.293L9 3h5a1 1 0 011 1v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3z"/></svg></span>
+                        Catalog
+                    </a>
+                </li>
+                <li class="nav-item {% if active_page == 'alerts' %}active{% endif %}">
+                    <a href="/alerts">
+                        <span class="nav-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 16 16"><path d="M8 2a4 4 0 00-4 4v3l-1 2h10l-1-2V6a4 4 0 00-4-4zm0 12a2 2 0 01-2-2h4a2 2 0 01-2 2z"/></svg></span>
+                        Alerts
+                        <span class="nav-badge">3</span>
                     </a>
                 </li>
                 <li class="nav-item {% if active_page == 'admin' %}active{% endif %}">
                     <a href="/admin">
-                        <span class="nav-icon">&#9881;</span>
-                        <span class="nav-label">Admin</span>
+                        <span class="nav-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v2m0 10v2m-7-7h2m10 0h2m-2.5-4.5L10 4m-4 8l-1.5 1.5m0-9L6 4m4 8l1.5 1.5"/></svg></span>
+                        Admin
+                    </a>
+                </li>
+                <li class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                    <a href="/settings">
+                        <span class="nav-icon"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2"/><path d="M13.5 8h1m-13 0h1m9.2-4.2l.7-.7M3.6 12.4l.7-.7m0-7.4l-.7-.7m9.2 9.2l-.7-.7M8 1.5v1m0 11v1"/></svg></span>
+                        Settings
                     </a>
                 </li>
             </ul>
-            <div class="sidebar-footer">
-            </div>
         </nav>
 
-        <!-- Right Content Area -->
         <div class="main-panel">
-            <!-- Top Header -->
-            <header class="top-header">
-                <div class="header-left">
-                    <h1 class="header-title">AI/BI Studio</h1>
-                    <span class="header-subtitle">Design-First Accelerator</span>
+            <div class="top-bar">
+                <div class="breadcrumb">
+                    {% block breadcrumb %}<span class="current">Dashboard</span>{% endblock %}
                 </div>
-                <div class="header-right">
-                    <span class="header-user">{% block user_info %}{% endblock %}</span>
+                <div class="top-bar-right">
+                    {% block top_bar_right %}{% endblock %}
+                    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">
+                        <svg class="theme-icon-light" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3.5"/><path d="M8 1v2m0 10v2M1 8h2m10 0h2m-2.5-4.5L11 5M5 11l-1.5 1.5m0-9L5 5m6 6l1.5 1.5"/></svg>
+                        <svg class="theme-icon-dark" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13.5 10.5A6 6 0 015.5 2.5a6 6 0 108 8z"/></svg>
+                    </button>
+                    <div class="user-avatar">{{ (session.get('user_email', 'A')[0])|upper }}</div>
                 </div>
-            </header>
-
-            <!-- Main Content -->
-            <main class="content-area">
+            </div>
+            <div class="content-area">
                 {% block content %}{% endblock %}
-            </main>
+            </div>
         </div>
     </div>
-
     {% block scripts %}{% endblock %}
+    <script>
+    (function(){
+        const html = document.documentElement;
+        const stored = localStorage.getItem('aibi-theme');
+        function applyTheme(t){
+            if(t==='dark') html.setAttribute('data-theme','dark');
+            else if(t==='light') html.setAttribute('data-theme','light');
+            else html.removeAttribute('data-theme');
+        }
+        applyTheme(stored);
+        if(window.matchMedia){
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){
+                if(!localStorage.getItem('aibi-theme')) applyTheme(null);
+            });
+        }
+        window.toggleTheme=function(){
+            const cur=html.getAttribute('data-theme');
+            const sysDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;
+            let next;
+            if(cur==='dark') next='light';
+            else if(cur==='light') next='dark';
+            else next=sysDark?'light':'dark';
+            localStorage.setItem('aibi-theme',next);
+            applyTheme(next);
+        };
+    })();
+    </script>
 </body>
 </html>

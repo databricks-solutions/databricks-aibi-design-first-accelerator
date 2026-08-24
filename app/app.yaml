@@ -4,7 +4,9 @@ command:
   - --bind
   - "0.0.0.0:$DATABRICKS_APP_PORT"
   - --workers
-  - "2"
+  - "1"
+  - --threads
+  - "4"
   - --timeout
   - "600"
   - --access-logfile
@@ -24,10 +26,4 @@ env:
 
   - name: CATALOG_NAME
     value: "aw_serverless_stable_catalog"
-
-  - name: LLM_ENDPOINT_NAME
-    value: "databricks-gpt-5-5"
-
-  - name: VISION_ENDPOINT_NAME
-    value: "databricks-gpt-5-5"
 

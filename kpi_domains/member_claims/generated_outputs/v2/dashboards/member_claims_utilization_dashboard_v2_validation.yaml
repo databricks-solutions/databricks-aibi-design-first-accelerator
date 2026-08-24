@@ -1,0 +1,48 @@
+dashboard:
+  dashboard_id: 01f19fe166671aba95710520a957c51a
+  display_name: member_claims_utilization_dashboard_v2
+  status: CREATED_AND_PERSISTED
+  published: true
+source_metric_views:
+  - aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2
+pages:
+  expected: 4
+  actual: 4
+  names: [Filters, Utilization Patterns, Provider Insights, Operational Metrics]
+  status: PASS
+datasets:
+  expected: 6
+  actual: 6
+  empty_queries: []
+  failed_queries: []
+  status: PASS
+widgets:
+  expected: 12
+  actual: 12
+  invalid_widgets: []
+  status: PASS
+filters:
+  expected: 3
+  actual: 3
+  fields: [service_date, line_of_business, claim_type]
+  binding_failures: []
+  impact_tests:
+    - filter: claim_type=INSTITUTIONAL
+      unfiltered_claims_by_filter_grain: 6000
+      filtered_claims_by_filter_grain: 857
+      status: PASS
+  status: PASS
+kpis:
+  - {name: C-1 Total Claims, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-total-claims, page: Utilization Patterns}
+  - {name: C-2 Total Claim Lines, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-total-lines, page: Utilization Patterns}
+  - {name: Inpatient Paid Amount, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: inpatient-outpatient-paid, page: Utilization Patterns}
+  - {name: Outpatient Paid Amount, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: inpatient-outpatient-paid, page: Utilization Patterns}
+  - {name: Participating Provider Rate, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: par-provider-rate, page: Provider Insights}
+  - {name: Denial Rate, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: denial-trend, page: Operational Metrics}
+  - {name: Payment-to-Billed Ratio, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: payment-to-billed, page: Operational Metrics}
+  - {name: Payment-to-Allowed Ratio, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: payment-to-allowed, page: Operational Metrics}
+api:
+  create_status: PASS
+  get_status: PASS
+  publish_status: PASS
+overall_status: PASS

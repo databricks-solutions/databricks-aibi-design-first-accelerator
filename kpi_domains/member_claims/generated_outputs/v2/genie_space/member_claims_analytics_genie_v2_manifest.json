@@ -1,0 +1,14 @@
+{
+  "space_id": "01f19fe2918e1238a890e4796a9a722e",
+  "title": "member_claims_analytics_genie_v2",
+  "warehouse_id": "2d8e531640ffa469",
+  "metric_views": [
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2",
+    "aw_serverless_stable_catalog.aibi_member_claims.member_enrollment_metric_view_v2"
+  ],
+  "sample_question_count": 18,
+  "example_sql_count": 18,
+  "benchmark_count": 18,
+  "notebook_path": "/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v2/genie_space/genie_space_configuration_member_claims",
+  "validated": true
+}

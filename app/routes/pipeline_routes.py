@@ -44,11 +44,11 @@ def _get_services(user_token: str = None):
     warehouse_id = app_config.SQL_WAREHOUSE_ID
 
     return {
-        "workspace": WorkspaceService(),  # SP auth (CAN_MANAGE on project folder)
+        "workspace": WorkspaceService(),   # SP auth (CAN_MANAGE on project folder)
         "sql": SQLService(warehouse_id=warehouse_id),
-        "lakeview": LakeviewService(),    # SP auth
-        "genie": GenieService(),          # SP auth
-        "jobs": JobsService(warehouse_id=warehouse_id),
+        "lakeview": LakeviewService(),     # SP auth
+        "genie": GenieService(),           # SP auth
+        "jobs": JobsService(warehouse_id=warehouse_id),  # For execute_notebook tool
     }
 
 
@@ -142,6 +142,46 @@ def _get_state_store():
     return _state_store
 
 
+def _finalize_run_manifest(run_id, run, domain, run_mode, config, services, run_store, log):
+    """Build and persist run_manifest.json from tracked step/sub-step data.
+
+    Called at pipeline completion (success or failure). Records every tool call
+    as a sub-step so the UI can show granular progress on reload.
+    """
+    try:
+        manifest = {
+            "run_id": run_id,
+            "domain": domain,
+            "version": run.get('version'),
+            "version_suffix": run.get('version_suffix', ''),
+            "status": run.get('status', 'unknown'),
+            "run_mode": run_mode,
+            "started_at": run.get('started_at'),
+            "completed_at": run.get('completed_at'),
+            "duration_s": run.get('duration_s'),
+            "error": run.get('error'),
+            "steps": [],
+        }
+        for step_name, step_info in run.get('step_data', {}).items():
+            manifest["steps"].append({
+                "step_name": step_name,
+                "status": step_info.get('status', 'unknown'),
+                "duration_s": step_info.get('duration_s'),
+                "substeps": step_info.get('phases', []),
+            })
+        # Save to workspace output folder
+        output_folder = getattr(config, 'output_folder', None)
+        if output_folder:
+            manifest_path = f"{output_folder}/run_manifest.json"
+            services["workspace"].write_file(manifest_path, json.dumps(manifest, indent=2))
+            log.info(f"Written run_manifest.json to {manifest_path}")
+        # Persist to Lakebase
+        if run_store:
+            run_store.save_run_manifest(run_id, manifest)
+    except Exception as e:
+        log.warning(f"Failed to finalize run_manifest: {e}")
+
+
 def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: str,
                               version_override, user_token: str = "",
                               resume_from: dict = None):
@@ -202,6 +242,9 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                                   artifacts=event.data.get('artifacts'))
             run_store.update_run_status(run_id, 'running',
                                         steps_completed=len(run['steps_completed']))
+            # Incremental manifest write — capture progress after each step
+            _finalize_run_manifest(run_id, run, domain, run_mode, config,
+                                   services, run_store, logger)
         elif event.event_type == "step_failed":
             step = event.data.get('step')
             duration_s = event.data.get('duration_s')
@@ -219,6 +262,9 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                                   error=event.data.get('error'),
                                   error_detail=event.data.get('error_detail'),
                                   suggestion=event.data.get('suggestion'))
+            # Incremental manifest write — capture error state immediately
+            _finalize_run_manifest(run_id, run, domain, run_mode, config,
+                                   services, run_store, logger)
         elif event.event_type == "step_skipped":
             step = event.data.get('step')
             # On rerun, if step was previously completed, keep its completed status
@@ -246,6 +292,93 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                 else:
                     phases.append({'phase_name': phase, 'status': phase_status, 'duration_ms': duration_ms})
                 run['step_data'][step]['phases'] = phases
+        elif event.event_type == "phase_update":
+            # Rich phase progress from LLM's report_progress tool
+            step = event.data.get('step') or run.get('current_step')
+            phase_id = event.data.get('phase_id', '')
+            incoming_status = event.data.get('status', 'started')
+            if step and step in run['step_data']:
+                phases = run['step_data'][step].get('phases', [])
+                # Upsert phase by phase_id
+                existing = next((p for p in phases if p.get('phase_id') == phase_id), None)
+                if existing:
+                    existing.update({
+                        'phase_name': event.data.get('phase_name', existing.get('phase_name', '')),
+                        'status': incoming_status,
+                        'current_task': event.data.get('current_task'),
+                        'progress_pct': event.data.get('progress_pct'),
+                        'stats': event.data.get('stats', existing.get('stats', {})),
+                        'happenings': event.data.get('happenings', existing.get('happenings', [])),
+                        'findings': event.data.get('findings', existing.get('findings', [])),
+                    })
+                else:
+                    # NEW phase being added — auto-close any prior phases that are
+                    # still in a non-terminal state. Phases are strictly sequential
+                    # (single-threaded agent loop), so if phase N+1 starts, phase N
+                    # must have functionally completed even if the LLM forgot to
+                    # call report_progress(status="completed") for it.
+                    if incoming_status == 'started':
+                        for prior in phases:
+                            if prior.get('status') not in ('completed', 'failed'):
+                                prior['status'] = 'completed'
+                                logger.info(
+                                    f"Auto-completing prior phase '{prior.get('phase_name')}' "
+                                    f"because new phase '{event.data.get('phase_name')}' started"
+                                )
+
+                    phases.append({
+                        'phase_id': phase_id,
+                        'phase_name': event.data.get('phase_name', ''),
+                        'status': incoming_status,
+                        'current_task': event.data.get('current_task'),
+                        'progress_pct': event.data.get('progress_pct'),
+                        'stats': event.data.get('stats', {}),
+                        'happenings': event.data.get('happenings', []),
+                        'findings': event.data.get('findings', []),
+                    })
+                run['step_data'][step]['phases'] = phases
+        elif event.event_type in ("tool_started", "tool_completed", "tool_failed"):
+            # Track agent tool calls in a SEPARATE list (not phases) — these are
+            # low-level implementation details, not user-facing progress events.
+            # Only report_progress (phase_update) events go into 'phases'.
+            step = event.data.get('step') or run.get('current_step')
+            tool_name = event.data.get('tool_name', '')
+            if step and step in run['step_data']:
+                tool_calls = run['step_data'][step].setdefault('tool_calls', [])
+                if event.event_type == 'tool_started':
+                    tool_calls.append({
+                        'tool_name': tool_name,
+                        'status': 'running',
+                        'started_at': datetime.utcnow().isoformat(),
+                        'args_summary': event.data.get('args_summary', ''),
+                    })
+                elif event.event_type == 'tool_completed':
+                    # Update the most recent matching tool call
+                    existing = next((t for t in reversed(tool_calls)
+                                     if t.get('tool_name') == tool_name and t.get('status') == 'running'), None)
+                    if existing:
+                        existing['status'] = 'completed'
+                        existing['duration_ms'] = event.data.get('duration_ms')
+                    else:
+                        tool_calls.append({
+                            'tool_name': tool_name,
+                            'status': 'completed',
+                            'duration_ms': event.data.get('duration_ms'),
+                        })
+                elif event.event_type == 'tool_failed':
+                    existing = next((t for t in reversed(tool_calls)
+                                     if t.get('tool_name') == tool_name and t.get('status') == 'running'), None)
+                    if existing:
+                        existing['status'] = 'failed'
+                        existing['duration_ms'] = event.data.get('duration_ms')
+                        existing['error'] = event.data.get('error', '')[:500]
+                    else:
+                        tool_calls.append({
+                            'tool_name': tool_name,
+                            'status': 'failed',
+                            'duration_ms': event.data.get('duration_ms'),
+                            'error': event.data.get('error', '')[:500],
+                        })
         elif event.event_type == "pipeline_completed":
             run['status'] = event.data.get('status', 'completed')
             run['progress_pct'] = 100
@@ -312,6 +445,9 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                              workspace_root=workspace_root)
 
         # Handle versioning
+        # Schema comes from accelerator.yaml (single source of truth).
+        # The App no longer overrides catalog.source/target — both paths
+        # (App + Genie Agent Code) read the same yaml values.
         config.run_mode = run_mode
         if run_mode == 'versioned':
             resolver = VersionResolver(services["workspace"], services["sql"],
@@ -321,20 +457,6 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
             config.version_suffix = version_info.suffix
             # Output folder: output/v1/, output/v2/ etc.
             config.output_folder = config.output_folder + f"/v{version_info.version}"
-            # Use a single schema per domain: aibi_{domain}
-            # SP creates this schema at runtime → SP is owner → no grants needed.
-            # Tables within get the version suffix (e.g. members_v1, claims_v1).
-            catalog_name = config.catalog.source.split(".")[0] if config.catalog.source else ""
-            domain_schema = f"{catalog_name}.aibi_{domain}"
-            config.catalog.source = domain_schema
-            config.catalog.target = domain_schema
-            # Point live_schema to the domain schema (metric view profiler)
-            domain_schema_name = f"aibi_{domain}"
-            if config.data_source.live_schema:
-                config.data_source.live_schema['schema'] = domain_schema_name
-            if config.data_source.live_schemas:
-                for ls in config.data_source.live_schemas:
-                    ls['schema'] = domain_schema_name
             # Append version suffix to all asset names
             suffix = version_info.suffix  # "_v1", "_v2", etc.
             if config.assets.metric_view:
@@ -407,6 +529,10 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
         run['duration_s'] = pipeline_run.duration_s
         run['error'] = pipeline_run.error
         run['completed_at'] = pipeline_run.completed_at
+
+        # Build run manifest from tracked sub-steps and persist
+        _finalize_run_manifest(run_id, run, domain, run_mode, config,
+                               services, run_store, logger)
 
     except Exception as e:
         logger.exception(f"Pipeline background execution failed: {e}")
@@ -506,8 +632,9 @@ def get_status(run_id):
 
     # For terminal-state runs, return 404 to force client to use /runs/<run_id> (Lakebase)
     # This avoids returning stale in-memory state with large logs/internal fields
-    if run.get('status') in ('completed', 'failed', 'cancelled'):
-        return jsonify({'error': {'type': 'NotFound', 'message': 'Run completed; use /runs/<run_id>'}}), 404
+    # Note: We intentionally do NOT reject completed/failed/cancelled runs here.
+    # The UI needs this endpoint to render the final state with all phases visible
+    # in the expandable accordion after completion.
 
     # Build structured steps array for the UI
     STEP_ORDER = [
@@ -570,10 +697,37 @@ def stream_events(run_id):
             yield f"data: {json.dumps({'type': 'error', 'message': 'Run not found'})}\n\n"
             return
 
+        # Replay current state — ensures UI shows progress even on reconnect.
+        # This sends all known phase_update events from step_data so the UI
+        # can rebuild its state regardless of missed real-time events.
+        run = _runs.get(run_id, {})
+        for step_name, step_info in run.get('step_data', {}).items():
+            # Replay step status
+            step_status = step_info.get('status', 'pending')
+            if step_status in ('running', 'completed', 'failed'):
+                yield f"data: {json.dumps({'type': 'step_started', 'step': step_name})}\n\n"
+            if step_status in ('completed',):
+                yield f"data: {json.dumps({'type': 'step_completed', 'step': step_name})}\n\n"
+            # Replay phase_update events for each phase in this step
+            for phase in step_info.get('phases', []):
+                replay_event = {
+                    'type': 'phase_update',
+                    'step': step_name,
+                    'phase_id': phase.get('phase_id', ''),
+                    'phase_name': phase.get('phase_name', ''),
+                    'status': phase.get('status', 'started'),
+                    'current_task': phase.get('current_task'),
+                    'progress_pct': phase.get('progress_pct'),
+                    'stats': phase.get('stats', {}),
+                    'happenings': phase.get('happenings', []),
+                    'findings': phase.get('findings', []),
+                }
+                yield f"data: {json.dumps(replay_event)}\n\n"
+
         # Stream events from queue
         while True:
             try:
-                event = q.get(timeout=30)  # 30s heartbeat timeout
+                event = q.get(timeout=15)  # 15s heartbeat (must be < proxy idle timeout)
                 if event is None:
                     # Sentinel — pipeline done
                     break
@@ -589,6 +743,90 @@ def stream_events(run_id):
 
     return Response(generate(), mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+# ------------------------------------------------------------------
+# Polling-Based Status Endpoint (primary UI data source)
+# ------------------------------------------------------------------
+
+@pipeline_bp.route('/run/<run_id>/status')
+def get_run_status(run_id):
+    """Return full run state for polling-based UI.
+
+    This is the PRIMARY data source for the pipeline monitor UI.
+    The frontend polls every 3s and rebuilds its state from this response.
+    No SSE, no lost events, no proxy timeouts — always returns current truth.
+
+    Returns JSON:
+    {
+        "run_id": "...",
+        "status": "running|completed|failed|cancelled",
+        "progress_pct": 43,
+        "current_step": "create_data_layer",
+        "elapsed_s": 120.5,
+        "error": null,
+        "steps": [
+            {
+                "step_name": "create_data_layer",
+                "status": "running",
+                "duration_s": 45.2,
+                "phases": [
+                    {
+                        "phase_id": "parse_erd",
+                        "phase_name": "Parse ERD",
+                        "status": "completed",
+                        "current_task": "...",
+                        "progress_pct": 100,
+                        "stats": {...},
+                        "happenings": [...],
+                        "findings": [...]
+                    }
+                ]
+            }
+        ]
+    }
+    """
+    run = _runs.get(run_id)
+    if not run:
+        return jsonify({"error": "Run not found"}), 404
+
+    # Build step list with phases and tool_calls
+    steps = []
+    for step_name, step_info in run.get('step_data', {}).items():
+        steps.append({
+            "step_name": step_name,
+            "status": step_info.get('status', 'pending'),
+            "duration_s": step_info.get('duration_s'),
+            "phases": step_info.get('phases', []),
+            "tool_calls": step_info.get('tool_calls', []),
+        })
+
+    # Calculate elapsed time
+    started_at = run.get('started_at')
+    elapsed_s = None
+    if started_at:
+        from datetime import datetime, timezone
+        try:
+            if isinstance(started_at, str):
+                start_dt = datetime.fromisoformat(started_at.replace('Z', '+00:00'))
+            else:
+                start_dt = started_at
+            elapsed_s = round((datetime.now(timezone.utc) - start_dt).total_seconds(), 1)
+        except Exception:
+            elapsed_s = None
+
+    return jsonify({
+        "run_id": run_id,
+        "status": run.get('status', 'unknown'),
+        "progress_pct": run.get('progress_pct', 0),
+        "current_step": run.get('current_step'),
+        "elapsed_s": elapsed_s,
+        "error": run.get('error'),
+        "domain": run.get('domain'),
+        "version": run.get('version'),
+        "version_suffix": run.get('version_suffix', ''),
+        "steps": steps,
+    })
+
 
 # ------------------------------------------------------------------
 # Runs List & Rerun Endpoints

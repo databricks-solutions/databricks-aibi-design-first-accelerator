@@ -180,21 +180,31 @@ class PipelineRunner:
         self._steps = self._build_steps()
 
     def _build_steps(self) -> dict:
-        """Lazy-import and instantiate step modules."""
+        """Lazy-import and instantiate step modules.
+
+        Uses agent-loop-driven steps (AgentStep) which read the framework
+        prompt files and execute them via LLM with tools — identical to
+        how Genie Code executes the same prompts.
+
+        The EnvironmentSetup step remains non-LLM (pure config resolution).
+        DocumentationGenerator also uses the agent loop.
+        """
         from orchestrator.environment_setup import EnvironmentSetup
-        from orchestrator.data_layer import DataLayerCreator
-        from orchestrator.metric_views import MetricViewCreator
-        from orchestrator.dashboards import DashboardCreator
-        from orchestrator.genie_space import GenieSpaceCreator
-        from orchestrator.documentation import DocumentationGenerator
+        from orchestrator.agent_step import (
+            DataLayerAgentStep,
+            MetricViewAgentStep,
+            DashboardAgentStep,
+            GenieSpaceAgentStep,
+            DocumentationAgentStep,
+        )
 
         return {
             "environment_setup": EnvironmentSetup(self._config, self._services),
-            "create_data_layer": DataLayerCreator(self._config, self._services, self._llm_client),
-            "create_metric_views": MetricViewCreator(self._config, self._services, self._llm_client),
-            "create_dashboards": DashboardCreator(self._config, self._services, self._llm_client),
-            "create_genie_space": GenieSpaceCreator(self._config, self._services, self._llm_client),
-            "generate_documentation": DocumentationGenerator(self._config, self._services, self._llm_client),
+            "create_data_layer": DataLayerAgentStep(self._config, self._services, self._llm_client),
+            "create_metric_views": MetricViewAgentStep(self._config, self._services, self._llm_client),
+            "create_dashboards": DashboardAgentStep(self._config, self._services, self._llm_client),
+            "create_genie_space": GenieSpaceAgentStep(self._config, self._services, self._llm_client),
+            "generate_documentation": DocumentationAgentStep(self._config, self._services, self._llm_client),
         }
 
     # ------------------------------------------------------------------
@@ -237,6 +247,21 @@ class PipelineRunner:
         self._current_run_id = run.run_id
         steps_to_run = steps or self.STEP_NAMES
         total_steps = len(steps_to_run)
+
+        # Build domain context for AgentStep — these paths tell the LLM
+        # WHERE to find the ERD image, accelerator.yaml, KPI spec, and templates.
+        # Without this, the LLM has no way to locate domain-specific files.
+        domain_root = f"{self._config.deploy_root}/kpi_domains/{domain}"
+        self._domain_context = {
+            "DOMAIN_NAME": domain,
+            "DOMAIN_ROOT": domain_root,
+            "ACCELERATOR_YAML_PATH": f"{domain_root}/accelerator.yaml",
+            "ERD_IMAGE_PATH": f"{domain_root}/inputs/erd.png",
+            "KPI_SPEC_PATH": f"{domain_root}/inputs/kpi_spec.md",
+            "TEMPLATES_DIR": f"{self._config.framework_root}/templates",
+            "DDL_TEMPLATE_PATH": f"{self._config.framework_root}/templates/ddl_notebook.py.template",
+            "DBLDATAGEN_TEMPLATE_PATH": f"{self._config.framework_root}/templates/dbldatagen_notebook.py.template",
+        }
 
         # Determine resume step (skip completed steps on rerun)
         resume_step = resume_from.get("step_name") if resume_from else None
@@ -485,19 +510,91 @@ class PipelineRunner:
                         self._current_run_id, step_name, phases
                     )
 
-            # Execute step with phase-aware signature
+            # Execute step — dispatch by signature type
             if hasattr(step, 'execute') and callable(step.execute):
                 import inspect
                 sig = inspect.signature(step.execute)
-                if 'phases' in sig.parameters:
-                    # Phase-aware step (e.g., DataLayerCreator)
+                if 'callback' in sig.parameters and 'extra_context' in sig.parameters:
+                    # Phase 4 AgentStep: bridge agent events to SSE queue.
+                    # AgentLoop emits: tool_call, tool_result, llm_reasoning, agent_iteration
+                    # AgentStep emits: step_started, step_completed, step_failed
+                    # UI expects: tool_started, tool_completed, tool_failed, llm_reasoning
+                    def agent_event_bridge(event_type, data):
+                        d = data if isinstance(data, dict) else {}
+                        d["step"] = step_name
+
+                        if event_type == "tool_call":
+                            tool_name = d.get("tool", "")
+                            # Suppress tool_started for report_progress (UI handles phase_update)
+                            if tool_name == "report_progress":
+                                return
+                            self._emit(callback, "tool_started", {
+                                "step": step_name,
+                                "tool_name": tool_name,
+                                "step_name": tool_name,
+                                "args_summary": d.get("args_summary", ""),
+                            })
+                        elif event_type == "tool_result":
+                            tool_name = d.get("tool", "")
+                            result_summary = d.get("result_summary", "")
+
+                            # Check if this is a report_progress result
+                            if tool_name == "report_progress" and d.get("success", True):
+                                # Parse the structured progress JSON and emit as phase_update
+                                try:
+                                    import json
+                                    progress = json.loads(result_summary)
+                                    if progress.get("__progress_event__"):
+                                        progress.pop("__progress_event__", None)
+                                        progress["step"] = step_name
+                                        logger.info(f"Emitting phase_update: {progress.get('phase_name')} [{progress.get('status')}]")
+                                        self._emit(callback, "phase_update", progress)
+                                    else:
+                                        logger.warning(f"report_progress result missing __progress_event__ marker: {result_summary[:200]}")
+                                except (json.JSONDecodeError, TypeError) as e:
+                                    logger.warning(f"Failed to parse report_progress JSON: {e}, raw: {result_summary[:200]}")
+                                return  # Don't emit tool_completed for progress reports
+
+                            # Normal tool result handling
+                            if d.get("success", True):
+                                self._emit(callback, "tool_completed", {
+                                    "step": step_name,
+                                    "tool_name": tool_name,
+                                    "step_name": tool_name,
+                                    "duration_ms": d.get("duration_ms", 0),
+                                    "result_summary": result_summary[:200],
+                                })
+                            else:
+                                self._emit(callback, "tool_failed", {
+                                    "step": step_name,
+                                    "tool_name": tool_name,
+                                    "step_name": tool_name,
+                                    "duration_ms": d.get("duration_ms", 0),
+                                    "error": result_summary[:500],
+                                })
+                        elif event_type == "llm_reasoning":
+                            self._emit(callback, "llm_reasoning", d)
+                        else:
+                            # Pass through other events (step_started, etc.)
+                            self._emit(callback, event_type, d)
+
+                    result = step.execute(
+                        callback=agent_event_bridge,
+                        extra_context=self._domain_context,
+                    )
+                    # AgentStep returns AgentResult; extract artifacts
+                    artifacts = getattr(result, 'artifacts', []) or []
+                    if hasattr(result, 'success') and not result.success:
+                        raise RuntimeError(result.error or "Agent step failed")
+                elif 'phases' in sig.parameters:
+                    # Legacy phase-aware step (e.g., EnvironmentSetup)
                     artifacts = step.execute(
                         phases=phases,
                         resume_from_phase=resume_from_phase,
                         phase_callback=phase_callback,
                     )
                 else:
-                    # Legacy step (not yet refactored)
+                    # Minimal step (no special params)
                     artifacts = step.execute()
 
             duration = time.time() - start

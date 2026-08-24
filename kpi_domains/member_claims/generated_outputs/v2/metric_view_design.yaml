@@ -1,0 +1,157 @@
+status: PASS_WITH_VALIDATED_SKIPS
+notes:
+  - Two metric views are required because claims and enrollment have incompatible fact grains.
+  - The primary configured asset name is used for the claims metric view; a second enrollment metric view is added for member-only KPIs.
+  - No chained joins are used. All join on clauses reference only source.* and the joined alias.
+  - SCD2/history table dim_member_history_v2 is intentionally excluded from metric views because temporal join semantics cannot be represented safely for claim/enrollment facts without explicit effective-date relationship rules.
+  - Greenfield data_layer_validation.yaml status PASS; all implemented join paths have no orphan/fanout failures.
+
+metric_views:
+  - metric_view:
+      name: member_claims_metric_view_v2
+      fqn: aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2
+      source_table: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v2
+      source_grain: one claim line/detail record
+      rationale: Claim financial, claim count, denial/clean claim, payment ratio, and utilization/provider paid metrics physically exist at claim-line grain. Header and member dimensions are reached via validated N:1 relationships.
+    measures:
+      - {name: total_claims, source_columns: [source.clm_dtl_claim_id], expression: COUNT(DISTINCT source.clm_dtl_claim_id), aggregation_semantics: DISTINCT_COUNT, kpis_supported: [C-1]}
+      - {name: total_claim_lines, source_columns: [source.*], expression: COUNT(1), aggregation_semantics: ADDITIVE, kpis_supported: [C-2]}
+      - {name: total_paid_amount, source_columns: [source.clm_dtl_paid_amt], expression: SUM(source.clm_dtl_paid_amt), aggregation_semantics: ADDITIVE, kpis_supported: [C-3]}
+      - {name: average_paid_per_claim, source_columns: [source.clm_dtl_paid_amt, source.clm_dtl_claim_id], expression: MEASURE(total_paid_amount) / NULLIF(MEASURE(total_claims), 0), aggregation_semantics: RATIO, kpis_supported: [C-4]}
+      - {name: total_billed_amount, source_columns: [source.clm_dtl_billed_amt], expression: SUM(source.clm_dtl_billed_amt), aggregation_semantics: ADDITIVE, kpis_supported: [Payment-to-Billed Ratio]}
+      - {name: total_allowed_amount, source_columns: [source.clm_dtl_allowed_amt], expression: SUM(source.clm_dtl_allowed_amt), aggregation_semantics: ADDITIVE, kpis_supported: [Payment-to-Allowed Ratio]}
+      - {name: denied_lines, source_columns: [source.clm_dtl_adjudication_status, source.clm_dtl_line_status], expression: COUNT(1) FILTER (WHERE upper(coalesce(source.clm_dtl_adjudication_status, source.clm_dtl_line_status, '')) LIKE '%DEN%'), aggregation_semantics: ADDITIVE, kpis_supported: [Denial Rate]}
+      - {name: denial_rate, source_columns: [source.clm_dtl_adjudication_status], expression: MEASURE(denied_lines) / NULLIF(MEASURE(total_claim_lines), 0), aggregation_semantics: RATIO, kpis_supported: [Denial Rate]}
+      - {name: clean_lines, source_columns: [source.clm_dtl_clean_claim_ind], expression: COUNT(1) FILTER (WHERE upper(coalesce(source.clm_dtl_clean_claim_ind, '')) IN ('Y','YES','TRUE','1','CLEAN')), aggregation_semantics: ADDITIVE, kpis_supported: [Clean Claim Rate]}
+      - {name: clean_claim_rate, source_columns: [source.clm_dtl_clean_claim_ind], expression: MEASURE(clean_lines) / NULLIF(MEASURE(total_claim_lines), 0), aggregation_semantics: RATIO, kpis_supported: [Clean Claim Rate]}
+      - {name: payment_to_billed_ratio, source_columns: [source.clm_dtl_paid_amt, source.clm_dtl_billed_amt], expression: MEASURE(total_paid_amount) / NULLIF(MEASURE(total_billed_amount), 0), aggregation_semantics: RATIO, kpis_supported: [Payment-to-Billed Ratio]}
+      - {name: payment_to_allowed_ratio, source_columns: [source.clm_dtl_paid_amt, source.clm_dtl_allowed_amt], expression: MEASURE(total_paid_amount) / NULLIF(MEASURE(total_allowed_amount), 0), aggregation_semantics: RATIO, kpis_supported: [Payment-to-Allowed Ratio]}
+      - {name: unique_members, source_columns: [claim_header.clm_member_sk], expression: COUNT(DISTINCT claim_header.clm_member_sk), aggregation_semantics: DISTINCT_COUNT, kpis_supported: [Average Paid per Member, Claims per Member]}
+      - {name: average_paid_per_member, source_columns: [source.clm_dtl_paid_amt, claim_header.clm_member_sk], expression: MEASURE(total_paid_amount) / NULLIF(MEASURE(unique_members), 0), aggregation_semantics: RATIO, kpis_supported: [Average Paid per Member]}
+      - {name: claims_per_member, source_columns: [source.clm_dtl_claim_id, claim_header.clm_member_sk], expression: MEASURE(total_claims) / NULLIF(MEASURE(unique_members), 0), aggregation_semantics: RATIO, kpis_supported: [Claims per Member]}
+      - {name: lines_per_claim, source_columns: [source.clm_dtl_claim_id], expression: MEASURE(total_claim_lines) / NULLIF(MEASURE(total_claims), 0), aggregation_semantics: RATIO, kpis_supported: [Lines per Claim]}
+      - {name: inpatient_paid_amount, source_columns: [source.clm_dtl_paid_amt, source.clm_dtl_claim_type], expression: SUM(source.clm_dtl_paid_amt) FILTER (WHERE upper(coalesce(source.clm_dtl_claim_type, '')) IN ('INSTITUTIONAL','INPATIENT')), aggregation_semantics: ADDITIVE, kpis_supported: [Inpatient Paid Amount]}
+      - {name: outpatient_paid_amount, source_columns: [source.clm_dtl_paid_amt, source.clm_dtl_claim_type], expression: SUM(source.clm_dtl_paid_amt) FILTER (WHERE upper(coalesce(source.clm_dtl_claim_type, '')) IN ('PROFESSIONAL','OUTPATIENT')), aggregation_semantics: ADDITIVE, kpis_supported: [Outpatient Paid Amount]}
+      - {name: par_paid_amount, source_columns: [source.clm_dtl_paid_amt, source.clm_dtl_participating_provider], expression: SUM(source.clm_dtl_paid_amt) FILTER (WHERE upper(coalesce(source.clm_dtl_participating_provider, '')) IN ('Y','YES','TRUE','1','PAR','PARTICIPATING')), aggregation_semantics: ADDITIVE, kpis_supported: [Participating Provider Rate]}
+      - {name: participating_provider_rate, source_columns: [source.clm_dtl_paid_amt, source.clm_dtl_participating_provider], expression: MEASURE(par_paid_amount) / NULLIF(MEASURE(total_paid_amount), 0), aggregation_semantics: RATIO, kpis_supported: [Participating Provider Rate]}
+    dimensions:
+      - {name: service_date, physical_column: source.clm_dtl_specific_dos_date, source_or_join: source}
+      - {name: service_month, physical_column: DATE_TRUNC('month', source.clm_dtl_specific_dos_date), source_or_join: source}
+      - {name: claim_type, physical_column: source.clm_dtl_claim_type, source_or_join: source}
+      - {name: benefit_category, physical_column: source.clm_dtl_benefit_category, source_or_join: source}
+      - {name: benefit_level, physical_column: source.clm_dtl_benefit_level, source_or_join: source}
+      - {name: line_status, physical_column: source.clm_dtl_line_status, source_or_join: source}
+      - {name: adjudication_status, physical_column: source.clm_dtl_adjudication_status, source_or_join: source}
+      - {name: clean_claim_indicator, physical_column: source.clm_dtl_clean_claim_ind, source_or_join: source}
+      - {name: place_of_service, physical_column: source.clm_dtl_place_of_service, source_or_join: source}
+      - {name: procedure_code, physical_column: source.clm_dtl_procedure_code, source_or_join: source}
+      - {name: rendering_provider_specialty, physical_column: source.clm_dtl_rendering_provider_spec, source_or_join: source}
+      - {name: participating_provider_indicator, physical_column: source.clm_dtl_participating_provider, source_or_join: source}
+      - {name: header_claim_type, physical_column: claim_header.clm_claim_type, source_or_join: claim_header}
+      - {name: line_of_business, physical_column: claim_header.clm_line_of_business, source_or_join: claim_header}
+      - {name: plan_code, physical_column: claim_header.clm_plan_code, source_or_join: claim_header}
+      - {name: member_state, physical_column: member.mbr_state, source_or_join: member}
+      - {name: member_zip_code, physical_column: member.mbr_zip_code, source_or_join: member}
+      - {name: member_sex, physical_column: member.mbr_sex, source_or_join: member}
+      - {name: service_facility_state, physical_column: service_address.state, source_or_join: service_address}
+      - {name: service_facility_county, physical_column: service_address.county, source_or_join: service_address}
+    joins:
+      - name: claim_header
+        left_table: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v2
+        right_table: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_header_v2
+        left_columns: [clm_dtl_claim_id]
+        right_columns: [clm_claim_id]
+        left_grain: one claim line/detail record
+        right_grain: one claim header record
+        expected_cardinality: N:1
+        observed_cardinality: N:1; rows before 6000; rows after 6000; distinct source keys preserved; data_layer_validation fanout_failures none
+        fanout_risk: false
+        safe_for_metric_view: true
+        rationale: Validated direct source-to-header relationship; used for member and header dimensions.
+      - name: member
+        left_table: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v2
+        right_table: aw_serverless_stable_catalog.aibi_member_claims.dim_member_v2
+        left_columns: [clm_dtl_member_nbr_sk]
+        right_columns: [member_sk]
+        left_grain: one claim line/detail record
+        right_grain: one current member row
+        expected_cardinality: N:1
+        observed_cardinality: not from semantic model; column datatype mismatch risk (varchar to bigint); excluded from YAML
+        fanout_risk: true
+        safe_for_metric_view: false
+        rationale: No direct authoritative relationship from detail to member; chained join via header is prohibited in metric views. Member dimensions from claims view are therefore excluded from implementation despite design candidate.
+      - name: service_address
+        left_table: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v2
+        right_table: aw_serverless_stable_catalog.aibi_member_claims.dim_address_v2
+        left_columns: []
+        right_columns: []
+        left_grain: one claim line/detail record
+        right_grain: one address row
+        expected_cardinality: unavailable
+        observed_cardinality: only reachable through claim_header.clm_service_facility_address_sk; excluded due no chained joins
+        fanout_risk: true
+        safe_for_metric_view: false
+        rationale: Address is reachable only through claim_header from claim detail source; no chained joins allowed.
+    kpis_supported: [C-1, C-2, C-3, C-4, ADD-1, ADD-2, ADD-3, ADD-4, ADD-5, ADD-6, ADD-7, ADD-8, ADD-9, ADD-10]
+    kpis_skipped: [MC-1, MC-2, MC-3, MC-4, W-1]
+  - metric_view:
+      name: member_enrollment_metric_view_v2
+      fqn: aw_serverless_stable_catalog.aibi_member_claims.member_enrollment_metric_view_v2
+      source_table: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_v2
+      source_grain: one member enrollment coverage/event record
+      rationale: Enrollment/member population KPIs require enrollment source grain and must not be forced into claim-line metric view.
+    measures:
+      - {name: new_member_enrollment, source_columns: [source.member_sk, source.mbr_enr_effective_date], expression: COUNT(DISTINCT source.member_sk), aggregation_semantics: DISTINCT_COUNT, kpis_supported: [M-1]}
+      - {name: active_enrolled_members, source_columns: [source.member_sk, source.is_active, source.mbr_enr_status], expression: COUNT(DISTINCT source.member_sk) FILTER (WHERE source.is_active = true OR upper(coalesce(source.mbr_enr_status, '')) IN ('ACTIVE','ENROLLED')), aggregation_semantics: DISTINCT_COUNT, kpis_supported: [M-2, M-3]}
+      - {name: enrollment_records, source_columns: [source.*], expression: COUNT(1), aggregation_semantics: ADDITIVE, kpis_supported: []}
+    dimensions:
+      - {name: enrollment_effective_date, physical_column: source.mbr_enr_effective_date, source_or_join: source}
+      - {name: enrollment_month, physical_column: DATE_TRUNC('month', source.mbr_enr_effective_date), source_or_join: source}
+      - {name: enrollment_status, physical_column: source.mbr_enr_status, source_or_join: source}
+      - {name: enrollment_line_of_business, physical_column: source.mbr_enr_line_of_business, source_or_join: source}
+      - {name: enrollment_plan_id, physical_column: source.mbr_enr_plan_id, source_or_join: source}
+      - {name: enrollment_group_name, physical_column: source.mbr_enr_group_name, source_or_join: source}
+      - {name: member_state, physical_column: member.mbr_state, source_or_join: member}
+      - {name: member_zip_code, physical_column: member.mbr_zip_code, source_or_join: member}
+      - {name: member_sex, physical_column: member.mbr_sex, source_or_join: member}
+      - {name: member_line_of_business, physical_column: member.mbr_line_of_business, source_or_join: member}
+    joins:
+      - name: member
+        left_table: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_v2
+        right_table: aw_serverless_stable_catalog.aibi_member_claims.dim_member_v2
+        left_columns: [member_sk]
+        right_columns: [member_sk]
+        left_grain: one member enrollment coverage/event record
+        right_grain: one current member row
+        expected_cardinality: N:1
+        observed_cardinality: N:1; rows before 1500; rows after 1500; distinct source keys preserved; data_layer_validation fanout_failures none
+        fanout_risk: false
+        safe_for_metric_view: true
+        rationale: Direct authoritative relationship supports geography and member attributes.
+    kpis_supported: [M-1, M-2, M-3]
+    kpis_skipped: [W-2, MC-3]
+
+kpi_coverage:
+  - {kpi: M-1, source: member_enrollment_metric_view_v2, grain: enrollment event, measure: new_member_enrollment, dimensions: [enrollment_month, enrollment_line_of_business], join_safety: safe, status: READY}
+  - {kpi: M-2, source: member_enrollment_metric_view_v2, grain: enrollment/member distinct, measure: active_enrolled_members, dimensions: [enrollment_line_of_business], join_safety: safe, status: READY}
+  - {kpi: M-3, source: member_enrollment_metric_view_v2, grain: enrollment/member distinct, measure: active_enrolled_members, dimensions: [member_state, member_zip_code], join_safety: safe, status: READY}
+  - {kpi: C-1, source: member_claims_metric_view_v2, grain: claim line, measure: total_claims, dimensions: [claim_type, service_month, line_of_business], join_safety: safe, status: READY}
+  - {kpi: C-2, source: member_claims_metric_view_v2, grain: claim line, measure: total_claim_lines, dimensions: [claim_type, service_month], join_safety: safe, status: READY}
+  - {kpi: C-3, source: member_claims_metric_view_v2, grain: claim line, measure: total_paid_amount, dimensions: [claim_type, service_month], join_safety: safe, status: READY}
+  - {kpi: C-4, source: member_claims_metric_view_v2, grain: claim line, measure: average_paid_per_claim, dimensions: [claim_type, service_month], join_safety: safe, status: READY}
+  - {kpi: MC-1, source: null, grain: incompatible claims + member-month exposure, measure: null, dimensions: [], join_safety: unsafe, status: UNSAFE, reason: member-month exposure not physically materialized}
+  - {kpi: MC-2, source: null, grain: incompatible claims + member-month exposure, measure: null, dimensions: [], join_safety: unsafe, status: UNSAFE, reason: member-month exposure not physically materialized}
+  - {kpi: MC-3, source: null, grain: claims numerator + enrollment denominator, measure: null, dimensions: [], join_safety: unsafe, status: UNSAFE, reason: cross-fact ratio unsafe in metric view}
+  - {kpi: MC-4, source: null, grain: member-period pre-aggregation, measure: null, dimensions: [], join_safety: unsupported, status: UNSUPPORTED, reason: member spend preaggregation table absent}
+  - {kpi: W-1, source: null, grain: monthly paid + member-month exposure, measure: null, dimensions: [], join_safety: unsafe, status: UNSAFE, reason: denominator absent}
+  - {kpi: W-2, source: null, grain: monthly active snapshot, measure: null, dimensions: [], join_safety: unsupported, status: UNSUPPORTED, reason: monthly snapshot/LAG semantics not safely available}
+  - {kpi: Denial Rate, source: member_claims_metric_view_v2, grain: claim line, measure: denial_rate, dimensions: [adjudication_status, service_month], join_safety: safe, status: READY}
+  - {kpi: Clean Claim Rate, source: member_claims_metric_view_v2, grain: claim line, measure: clean_claim_rate, dimensions: [clean_claim_indicator, service_month], join_safety: safe, status: READY}
+  - {kpi: Payment-to-Billed Ratio, source: member_claims_metric_view_v2, grain: claim line, measure: payment_to_billed_ratio, dimensions: [claim_type, service_month], join_safety: safe, status: READY}
+  - {kpi: Payment-to-Allowed Ratio, source: member_claims_metric_view_v2, grain: claim line, measure: payment_to_allowed_ratio, dimensions: [claim_type, service_month], join_safety: safe, status: READY}
+  - {kpi: Average Paid per Member, source: member_claims_metric_view_v2, grain: claim line with header join, measure: average_paid_per_member, dimensions: [line_of_business], join_safety: safe, status: READY}
+  - {kpi: Claims per Member, source: member_claims_metric_view_v2, grain: claim line with header join, measure: claims_per_member, dimensions: [line_of_business], join_safety: safe, status: READY}
+  - {kpi: Lines per Claim, source: member_claims_metric_view_v2, grain: claim line, measure: lines_per_claim, dimensions: [claim_type], join_safety: safe, status: READY}
+  - {kpi: Inpatient Paid Amount, source: member_claims_metric_view_v2, grain: claim line, measure: inpatient_paid_amount, dimensions: [claim_type], join_safety: safe, status: READY}
+  - {kpi: Outpatient Paid Amount, source: member_claims_metric_view_v2, grain: claim line, measure: outpatient_paid_amount, dimensions: [claim_type], join_safety: safe, status: READY}
+  - {kpi: Participating Provider Rate, source: member_claims_metric_view_v2, grain: claim line, measure: participating_provider_rate, dimensions: [participating_provider_indicator], join_safety: safe, status: READY}

@@ -1,0 +1,14 @@
+{
+  "dashboard_id": "01f19fe165f91ce4a18f69a1d33ae169",
+  "display_name": "member_claims_kpis_dashboard_v2",
+  "warehouse_id": "2d8e531640ffa469",
+  "metric_views": [
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2",
+    "aw_serverless_stable_catalog.aibi_member_claims.member_enrollment_metric_view_v2"
+  ],
+  "pages": ["Filters", "Financial Overview", "Claims Analysis", "Member Demographics"],
+  "dataset_count": 6,
+  "widget_count": 14,
+  "filter_count": 3,
+  "published": true
+}

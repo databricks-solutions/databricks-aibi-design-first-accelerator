@@ -57,22 +57,78 @@ Create via Workspace `import` (`format: JUPYTER`) — see `workspace_file_io.md`
 
 ## `serialized_space` structure
 
+### Authoritative Schema Reference
+
+The complete `serialized_space` JSON schema is defined in the official Databricks documentation:
+
+```text
+https://docs.databricks.com/aws/en/genie-agents/conversation-api#understanding-the-serialized_space-field
+```
+
+Always consult this reference for the canonical field structure, required vs optional fields, and correct nesting. The example below shows the minimal structure used by this accelerator; the docs define additional optional fields (`sql_functions`, `join_specs`, `sql_snippets`, etc.).
+
 Cell 8 `build_serialized_space()` assembles:
 
 ```json
 {
   "version": 2,
-  "config": { "sample_questions": [...] },
-  "data_sources": { "metric_views": [...] },
-  "instructions": {
-    "text_instructions": [...],
-    "example_question_sqls": [...]
+  "config": {
+    "sample_questions": [
+      {"id": "<32-char-hex>", "question": ["What is the average fare per trip?"]}
+    ]
   },
-  "benchmarks": { "questions": [...] }
+  "data_sources": {
+    "tables": [
+      {
+        "identifier": "catalog.schema.metric_view_name",
+        "description": ["Description of the metric view"],
+        "column_configs": [{"column_name": "column_name"}]
+      }
+    ]
+  },
+  "instructions": {
+    "text_instructions": [
+      {"id": "<32-char-hex>", "content": ["Single-line instruction text with no newlines."]}
+    ],
+    "example_question_sqls": [
+      {"id": "<32-char-hex>", "question": ["What is total revenue?"], "sql": ["SELECT MEASURE(total_paid) FROM catalog.schema.mv"]}
+    ]
+  },
+  "benchmarks": {
+    "questions": [
+      {"id": "<32-char-hex>", "question": ["How much revenue?"], "answer": [{"format": "SQL", "content": ["SELECT ..."]}]}
+    ]
+  }
 }
 ```
 
-- **text_instructions:** exactly one block (`GENERAL_INSTRUCTIONS`)
+### Critical API Behaviors (Common Failures)
+
+| Field | Behavior | Fix |
+|-------|----------|-----|
+| `data_sources` | Key is **`tables`** (NOT `metric_views`) | Always use `data_sources.tables[]` |
+| `text_instructions[].content[]` | API **truncates at newline characters** (`\n`) — only the first line is persisted | Instructions MUST be a **single continuous string with no newlines** |
+| `column_configs` | Optional per table — lists columns for reference. **Must be sorted alphabetically by `column_name`** or API rejects with InvalidParameterValue | Sort with `sorted(configs, key=lambda x: x['column_name'])` |
+| All IDs | Must be 32-character lowercase hex UUIDs | Use `uuid.uuid4().hex` |
+| All text fields | Wrapped in arrays `["text"]` | Always use `["..."]` not bare strings |
+
+**Instruction format (CRITICAL):**
+
+The `text_instructions[].content[0]` string MUST NOT contain `\n` characters. The Genie API truncates at the first newline, silently discarding everything after it.
+
+```python
+# WRONG — will be truncated to first line only:
+"content": ["Line one.\nLine two.\nLine three."]
+# → API stores only: "Line one."
+
+# CORRECT — single continuous string, use spaces/punctuation for separation:
+"content": ["Line one. Line two. Line three."]
+# → API stores complete text
+```
+
+If instructions are long, use sentence-based formatting with periods and spaces — never newlines.
+
+- **text_instructions:** exactly one block (`GENERAL_INSTRUCTIONS`) — must be a single line (no `\n`)
 - **example_question_sqls:** teaches Genie how to answer (part of instructions)
 - **benchmarks:** evaluates accuracy only — Genie does not learn from these
 

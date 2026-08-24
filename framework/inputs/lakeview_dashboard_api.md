@@ -146,12 +146,14 @@ databricks api post /api/2.0/lakeview/dashboards/{dashboard_id}/published
 - Prefer `MEASURE()` in SELECT; use CTE + window functions only when KPI spec requires it.
 - `queryLines` elements concatenate **with no separator** — end each line with a space or use a single-line query.
 
+**NOTE:** Column names in examples are illustrative. Always use actual dimension names from `DESCRIBE <metric_view>`. If the metric view has `service_date` (not `service_month`), use DATE_TRUNC:
+
 ```json
 {
   "name": "a1b2c3d4",
   "displayName": "Monthly Cost Trend",
   "queryLines": [
-    "SELECT service_month, MEASURE(total_paid) AS total_paid FROM catalog.schema.metric_view GROUP BY service_month "
+    "SELECT DATE_TRUNC('MONTH', service_date) AS service_month, MEASURE(total_paid) AS total_paid FROM catalog.schema.metric_view GROUP BY DATE_TRUNC('MONTH', service_date) "
   ]
 }
 ```
@@ -205,6 +207,7 @@ Each row must sum to **width = 6**. No gaps.
 | Filter version | `spec.version: 2` for ALL filter types (NOT 1 — version 1 causes broken binding) |
 | Filter encodings | `encodings.fields[]` MUST include `queryName` referencing `queries[].name` (e.g., `"queryName": "main_query"`) |
 | Filter queries | `disaggregated: true`, simple field expression — **no** `associative_filter_predicate_group` |
+| **Canvas widget `disaggregated`** | **MUST be `false`** with SUM/AVG expressions — see Critical Filter Binding Rule below |
 | Bar color | Omit `color` encoding unless grouping by a dimension |
 | Query name | Always `"main_query"` on chart/table widgets |
 | Widget `name` | alphanumeric, hyphens, underscores only |
@@ -275,30 +278,29 @@ Filter widgets are special — they live on the `PAGE_TYPE_GLOBAL_FILTERS` page 
 2. **Every canvas-page dataset must also SELECT the filter columns** in its SQL query. Filters cannot narrow widgets whose datasets don't include the filter column.
 3. **The dataset `query` field must be NON-EMPTY** — a dataset with `"query": ""` will cause "Filter has no fields or parameters selected".
 
-#### Filter dataset (REQUIRED):
+#### Shared Dataset Pattern (REQUIRED for filters to work):
 
-Datasets MUST use `queryLines` (array of strings) and include `displayName`:
+**CRITICAL: Filter widgets and canvas widgets MUST reference the SAME dataset.** Do NOT create a separate `ds_filter_values` dataset for filters. When filters reference a different dataset than canvas widgets, Lakeview does NOT auto-bind across datasets via the API — filters will appear to work (values populate, pills show) but canvas widget values will NOT change.
+
+**Correct pattern:** One dataset per canvas page that includes BOTH filter dimensions and measures:
 
 ```json
 {
-  "name": "ds_filter_values",
-  "displayName": "Filter Values",
+  "name": "ds_kpi_headline",
+  "displayName": "Headline KPIs",
   "queryLines": [
-    "SELECT DISTINCT service_month, line_of_business, claim_type, member_state FROM catalog.schema.metric_view"
+    "SELECT service_date, line_of_business, claim_type, member_state, MEASURE(total_paid) AS total_paid, MEASURE(total_claims) AS total_claims, MEASURE(denial_rate) AS denial_rate FROM catalog.schema.metric_view GROUP BY service_date, line_of_business, claim_type, member_state"
   ]
 }
 ```
 
-**Every dataset** in the dashboard must also include the filter dimension columns and use `queryLines`:
-```json
-{
-  "name": "ds_summary",
-  "displayName": "Summary",
-  "queryLines": [
-    "SELECT service_month, line_of_business, claim_type, member_state, MEASURE(total_claims) as total_claims FROM catalog.schema.metric_view"
-  ]
-}
-```
+Then BOTH filter widgets AND counter/chart widgets reference this same `ds_kpi_headline`:
+- Filter widget: `datasetName: "ds_kpi_headline"`, `disaggregated: true`
+- Counter widget: `datasetName: "ds_kpi_headline"`, `disaggregated: false`, `SUM(\`total_paid\`)`
+
+This way, when the filter selects a value, it narrows the shared dataset rows, and the counter re-aggregates only the remaining rows.
+
+**CRITICAL:** Filter dimensions MUST use actual metric view dimension names (from DESCRIBE). Do NOT use derived aliases like `service_month` unless the metric view actually has that column. Use DATE_TRUNC only in canvas datasets where monthly aggregation is needed — not in the filter fields.
 
 #### Multi-select filter widget:
 
@@ -333,15 +335,17 @@ Datasets MUST use `queryLines` (array of strings) and include `displayName`:
 
 #### Date range filter widget:
 
+**NOTE:** Use the actual temporal dimension name from DESCRIBE (e.g., `service_date`, not a derived alias like `service_month`).
+
 ```json
 {
   "widget": {
-    "name": "filter-service-month",
+    "name": "filter-service-date",
     "queries": [{
       "name": "main_query",
       "query": {
         "datasetName": "ds_filter_values",
-        "fields": [{"name": "service_month", "expression": "`service_month`"}],
+        "fields": [{"name": "service_date", "expression": "`service_date`"}],
         "disaggregated": true
       }
     }],
@@ -350,12 +354,12 @@ Datasets MUST use `queryLines` (array of strings) and include `displayName`:
       "widgetType": "filter-date-range-picker",
       "encodings": {
         "fields": [{
-          "fieldName": "service_month",
-          "displayName": "Service Month",
+          "fieldName": "service_date",
+          "displayName": "Service Date",
           "queryName": "main_query"
         }]
       },
-      "frame": {"showTitle": true, "title": "Service Month"}
+      "frame": {"showTitle": true, "title": "Service Date"}
     }
   },
   "position": {"x": 2, "y": 0, "width": 2, "height": 2}
@@ -371,6 +375,49 @@ Datasets MUST use `queryLines` (array of strings) and include `displayName`:
 - `encodings.fields[].fieldName` must match the column name in the dataset SQL results
 - The same column name must appear in canvas-page datasets for cross-filtering to work
 - If a filter shows "no fields or parameters selected": check `spec.version` is 2, check `queryName` is present, check dataset has SQL
+
+### Critical Filter Binding Rule (Correct Widget Aggregation Pattern)
+
+**Canvas-page widgets (counters, charts, tables) MUST use `disaggregated: false` with explicit aggregation expressions (`SUM`/`AVG`).**
+
+The filter mechanism works as follows:
+1. Dataset SQL uses `MEASURE()` against the metric view, grouped by filter dimensions
+2. The dataset returns multiple rows (one per dimension combination)
+3. When a filter is applied, Lakeview narrows the rows client-side to matching values
+4. The widget re-aggregates (`SUM`/`AVG`) the remaining rows → values change
+
+**Additive measures** (total_paid, total_claims, total_claim_lines, distinct_members): use `SUM`
+**Rate/ratio measures** (denial_rate, clean_claim_rate, par_provider_rate, avg_paid_per_line): use `AVG`
+
+```text
+✓ CORRECT — counter for additive measure:
+  "disaggregated": false
+  "fields": [{"name": "sum(total_paid)", "expression": "SUM(`total_paid`)"}]
+
+✓ CORRECT — counter for rate measure:
+  "disaggregated": false
+  "fields": [{"name": "avg(denial_rate)", "expression": "AVG(`denial_rate`)"}]
+
+✓ CORRECT — bar chart:
+  "disaggregated": false
+  "fields": [
+    {"name": "line_of_business", "expression": "`line_of_business`"},
+    {"name": "sum(total_paid)", "expression": "SUM(`total_paid`)"}
+  ]
+
+✗ BROKEN — disaggregated: true on counters shows individual row values (e.g. "1" instead of "500"):
+  "disaggregated": true
+  "fields": [{"name": "total_claims", "expression": "`total_claims`"}]
+```
+
+**Rule:** Always use `disaggregated: false` + SUM/AVG for canvas widgets. Use `disaggregated: true` ONLY for filter widgets.
+
+| Widget type | disaggregated | Field expression | Why |
+|-------------|---------------|------------------|-----|
+| Filter | `true` | `` `column` `` | Shows distinct values for selection |
+| Counter (additive) | `false` | `SUM(\`col\`)` | Aggregates all filtered rows into total |
+| Counter (rate) | `false` | `AVG(\`col\`)` | Averages rate across filtered rows |
+| Bar/Line chart | `false` | x=`` `dim` ``, y=`SUM(\`col\`)` | Groups by x, aggregates y across filtered rows |
 
 ---
 

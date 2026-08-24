@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI/BI Studio — Supervisor</title>
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --border: #30363d;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --green: #3fb950;
+            --orange: #d29922;
+            --red: #f85149;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 640px;
+            padding: 2rem;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
+            color: var(--text-secondary);
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.6rem 0.75rem;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .btn {
+            display: inline-block;
+            padding: 0.7rem 1.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            transition: background 0.2s;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+            width: 100%;
+        }
+        .btn-primary:hover {
+            background: var(--primary-hover);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            text-align: center;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        .status.error { color: var(--danger); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>AI/BI Pipeline Supervisor</h1>
+            <p>Launch an autonomous pipeline run for a KPI domain</p>
+        </div>
+
+        <div class="card">
+            <form id="launch-form">
+                <div class="form-group">
+                    <label for="domain">Domain</label>
+                    <input type="text" id="domain" name="domain" placeholder="e.g. member_claims" required>
+                </div>
+                <div class="form-group">
+                    <label for="domain_path">Domain Path</label>
+                    <input type="text" id="domain_path" name="domain_path"
+                           placeholder="/Workspace/Users/.../kpi_domains/member_claims" required>
+                </div>
+                <div class="form-group">
+                    <label for="catalog">Catalog</label>
+                    <input type="text" id="catalog" name="catalog" value="aw_serverless_stable_catalog">
+                </div>
+                <div class="form-group">
+                    <label for="schema">Schema</label>
+                    <input type="text" id="schema" name="schema" value="aibi_member_claims">
+                </div>
+                <button type="submit" class="btn btn-primary" id="launch-btn">
+                    Launch Pipeline
+                </button>
+            </form>
+            <div class="status" id="status"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('launch-form');
+        const btn = document.getElementById('launch-btn');
+        const status = document.getElementById('status');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.textContent = 'Starting...';
+            status.textContent = '';
+            status.className = 'status';
+
+            const payload = {
+                domain: document.getElementById('domain').value,
+                domain_path: document.getElementById('domain_path').value,
+                catalog: document.getElementById('catalog').value,
+                schema: document.getElementById('schema').value,
+                deploy_root: window.location.origin,
+                sql_warehouse_id: '2d8e531640ffa469',
+                workspace_host: window.location.origin,
+            };
+
+            try {
+                const resp = await fetch('/api/supervisor/run', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await resp.json();
+
+                if (resp.ok && data.monitor_url) {
+                    status.textContent = 'Pipeline started! Redirecting...';
+                    window.location.href = data.monitor_url;
+                } else {
+                    throw new Error(data.error || 'Failed to start pipeline');
+                }
+            } catch (err) {
+                status.textContent = err.message;
+                status.className = 'status error';
+                btn.disabled = false;
+                btn.textContent = 'Launch Pipeline';
+            }
+        });
+    </script>
+</body>
+</html>

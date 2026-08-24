@@ -16,11 +16,26 @@ resources:
             id: ${var.sql_warehouse_id}
             permission: CAN_USE
 
+        - name: llm_endpoint
+          serving_endpoint:
+            name: databricks-gpt-5-5
+            permission: CAN_QUERY
 
-      # On-behalf-of user scopes (files = workspace-files API, sql = statements)
-      user_api_scopes:
-        - "files"
-        - "sql"
+        # supervisor_endpoint is created by the setup job (deploy_serving_endpoint task)
+        # and grants CAN_QUERY to the App SP directly. Not declared here to avoid
+        # chicken-and-egg failure on first deploy.
+
+        # TODO: Add Lakebase resource once postgres_projects/branches/databases
+        # are defined in the bundle. Correct format:
+        #   - name: agent_db
+        #     postgres:
+        #       branch: ${resources.postgres_branches.<branch>.name}
+        #       database: ${resources.postgres_databases.<db>.name}
+        #       permission: CAN_CONNECT_AND_CREATE
+
+      # All actions go through the App SP (no OBO needed).
+      # App SP has: USE CATALOG, CREATE SCHEMA, CAN_USE warehouse,
+      # CAN_MANAGE workspace folder (granted by setup job).
 
       permissions:
         - level: CAN_USE

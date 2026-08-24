@@ -22,6 +22,10 @@ from pyspark.sql.types import *
 # Disabling ANSI mode converts these to NULL instead of throwing.
 spark.conf.set("spark.sql.ansi.enabled", "false")
 
+# IMPORTANT: Do NOT set any spark.databricks.delta.* configurations.
+# They are NOT supported on serverless compute and will raise CONFIG_NOT_AVAILABLE.
+# If you need schema merge, use .option("mergeSchema", "true") on the write instead.
+
 # --- Safety patch: auto-fix known dbldatagen issues ---
 # 1. BooleanType + values=[True,False] causes DATATYPE_MISMATCH in CASE expression
 #    (dbldatagen stringifies the ELSE fallback → type mismatch). Strip values/weights.
@@ -45,9 +49,10 @@ SCHEMA = "{{SOURCE_SCHEMA}}"
 VERSION_SUFFIX = "{{VERSION_SUFFIX}}"  # e.g. "_v1", "_v2", or "" for unversioned
 
 
+
 def discover_tables() -> dict:
     """Discover all tables belonging to THIS version in the schema.
-    Returns {logical_name: actual_table_name} e.g. {"dim_address": "dim_address_v1"}.
+    Returns {logical_name: actual_table_name} e.g. {"dim_example": "dim_example_v1"}.
     Filters by VERSION_SUFFIX so multiple versions can coexist in the same schema."""
     all_tables = [row.tableName for row in spark.sql(f"SHOW TABLES IN `{CATALOG}`.`{SCHEMA}`").collect()]
     version_tables = [t for t in all_tables if t.endswith(VERSION_SUFFIX)] if VERSION_SUFFIX else all_tables
@@ -62,18 +67,31 @@ def discover_tables() -> dict:
 
 def get_table_col_types(table_name: str) -> dict:
     """Read actual DDL column types from the catalog. Returns {col_name: spark_type_str}.
-    Pass the ACTUAL table name (with version suffix, e.g. 'dim_address_v1')."""
-    df = spark.table(f"{CATALOG}.{SCHEMA}.{table_name}")
-    return {field.name: field.dataType.simpleString() for field in df.schema.fields}
+    Pass the ACTUAL table name (with version suffix, e.g. 'dim_example_v1').
+
+    IMPORTANT: Uses DESCRIBE TABLE (not DataFrame.schema) to preserve VARCHAR(N)
+    length metadata. DataFrame.schema.simpleString() returns 'string' for all
+    VARCHAR columns, losing the length constraint. DESCRIBE TABLE returns the
+    original DDL type like 'varchar(35)' which is needed by extract_max_length()."""
+    rows = spark.sql(f"DESCRIBE TABLE `{CATALOG}`.`{SCHEMA}`.`{table_name}`").collect()
+    result = {}
+    for row in rows:
+        col_name = row['col_name'].strip()
+        data_type = row['data_type'].strip()
+        # DESCRIBE TABLE includes partition info and blank rows after columns — stop at first empty/# row
+        if not col_name or col_name.startswith('#') or not data_type:
+            break
+        result[col_name] = data_type
+    return result
 
 
 def spark_type_for(type_str: str):
     """Map DDL type string to dbldatagen-compatible PySpark type.
     RULE: BIGINT/INT/LONG → LongType(), never StringType() with prefixed patterns."""
-    t = type_str.lower()
+    t = type_str.lower().strip()
     if t in ('bigint', 'long'):
         return LongType()
-    elif t in ('int', 'integer'):
+    elif t in ('int', 'integer', 'smallint', 'tinyint'):
         return IntegerType()
     elif t == 'string':
         return StringType()
@@ -87,8 +105,17 @@ def spark_type_for(type_str: str):
         return DoubleType()
     elif t.startswith('decimal'):
         return t  # pass as string for dbldatagen
+    elif t.startswith('varchar') or t.startswith('char'):
+        return StringType()  # handled via max_length in base_generator
     else:
         return StringType()  # safe fallback
+
+
+def extract_max_length(type_str: str) -> int:
+    """Extract max length from VARCHAR(N) or CHAR(N). Returns 0 if not constrained."""
+    import re
+    m = re.match(r'(?:var)?char\((\d+)\)', type_str.lower().strip())
+    return int(m.group(1)) if m else 0
 
 
 def date_range_for(type_str: str, begin: str, end: str) -> dict:
@@ -106,20 +133,52 @@ def date_range_for(type_str: str, begin: str, end: str) -> dict:
     return {"begin": begin, "end": end}
 
 
-def base_generator(table_name: str, rows: int) -> dg.DataGenerator:
+def base_generator(table_name: str, rows: int, unique_columns: list = None) -> dg.DataGenerator:
     """Create a DataGenerator pre-configured with CORRECT types from DDL.
     This guarantees no CAST_INVALID_INPUT errors by reading actual column types.
-    The LLM should then override specific columns with realistic values lists."""
+    Generates ALL columns — do NOT call withColumn() after this (causes duplicates).
+
+    CRITICAL: Respects VARCHAR(N) length constraints to prevent
+    DELTA_EXCEED_CHAR_VARCHAR_LIMIT errors. Uses column naming conventions
+    to generate semantically appropriate data.
+
+    Args:
+        table_name: Actual table name (with version suffix)
+        rows: Number of rows to generate
+        unique_columns: List of column names that MUST have unique values.
+                        Use for PK columns and any column that is an FK target
+                        from another table. Ensures uniqueValues=rows for these columns.
+                        Example: ["provider_npi", "member_id"]
+    """
     col_types = get_table_col_types(table_name)
+    unique_set = set(c.lower() for c in (unique_columns or []))
     gen = dg.DataGenerator(spark, name=table_name, rows=rows, seedColumnName="_id")
     for col_name, type_str in col_types.items():
         ptype = spark_type_for(type_str)
+        max_len = extract_max_length(type_str)
+        col_lower = col_name.lower()
+        needs_unique = col_lower in unique_set
+
         if ptype == LongType():
             gen = gen.withColumn(col_name, LongType(), minValue=1, maxValue=rows * 10, uniqueValues=rows, percentNulls=0.0)
         elif ptype == IntegerType():
-            gen = gen.withColumn(col_name, IntegerType(), minValue=1, maxValue=rows, percentNulls=0.0)
+            if needs_unique:
+                gen = gen.withColumn(col_name, IntegerType(), minValue=1, maxValue=rows * 10, uniqueValues=rows, percentNulls=0.0)
+            else:
+                gen = gen.withColumn(col_name, IntegerType(), minValue=1, maxValue=rows, percentNulls=0.0)
         elif ptype == StringType():
-            gen = gen.withColumn(col_name, StringType(), template=r"\\w\\w\\w\\w\\w\\w", percentNulls=0.0)
+            # If column must be unique (PK or FK target), force uniqueValues
+            kwargs = _string_col_kwargs(col_lower, max_len, rows)
+            if needs_unique:
+                # CRITICAL: cap uniqueValues to what the value space allows.
+                # For VARCHAR(N), a digit template can produce at most 10^N - 1 unique values.
+                # Exceeding this makes dbldatagen ignore the template → longer values.
+                if max_len > 0:
+                    max_possible = 10**max_len - 1
+                    kwargs["uniqueValues"] = min(rows, max_possible)
+                else:
+                    kwargs["uniqueValues"] = rows
+            gen = gen.withColumn(col_name, StringType(), **kwargs)
         elif ptype == DateType():
             gen = gen.withColumn(col_name, DateType(), begin="2020-01-01", end="2024-12-31", percentNulls=0.0)
         elif ptype == TimestampType():
@@ -129,12 +188,110 @@ def base_generator(table_name: str, rows: int) -> dg.DataGenerator:
             # CASE expression stringifies the ELSE fallback causing DATATYPE_MISMATCH.
             gen = gen.withColumn(col_name, BooleanType(), percentNulls=0.0)
         elif ptype == DoubleType():
-            gen = gen.withColumn(col_name, DoubleType(), minValue=0.0, maxValue=10000.0, percentNulls=0.0)
+            if needs_unique:
+                gen = gen.withColumn(col_name, DoubleType(), minValue=0.0, maxValue=rows * 100.0, uniqueValues=rows, percentNulls=0.0)
+            else:
+                gen = gen.withColumn(col_name, DoubleType(), minValue=0.0, maxValue=10000.0, percentNulls=0.0)
         elif isinstance(ptype, str) and 'decimal' in ptype:
             gen = gen.withColumn(col_name, ptype, minValue=0.0, maxValue=100000.0, percentNulls=0.0)
         else:
-            gen = gen.withColumn(col_name, StringType(), template=r"\\w\\w\\w\\w", percentNulls=0.0)
+            eff_len = max_len if max_len > 0 else 20
+            kwargs = {"template": _build_template(eff_len), "percentNulls": 0.0}
+            if needs_unique:
+                kwargs["uniqueValues"] = rows
+            gen = gen.withColumn(col_name, StringType(), **kwargs)
     return gen
+
+
+def _string_col_kwargs(col_name: str, max_len: int, rows: int) -> dict:
+    """Build dbldatagen kwargs for a string column based on name semantics and length.
+
+    Uses column naming conventions to produce meaningful sample data:
+    - *_id, *_key, *_code: short alphanumeric identifiers
+    - *_name, *_desc: readable text capped to max_len
+    - *_status, *_type, *_flag: values from small sets
+    - Everything else: safe template capped to max_len
+    """
+    eff_len = max_len if max_len > 0 else 50  # default cap if no VARCHAR constraint
+
+    # ID / Key / Code columns → short unique identifiers
+    if col_name.endswith(('_id', '_key', '_code', '_cd', '_nbr', '_num')):
+        id_len = min(eff_len, 12)
+        # CRITICAL: cap uniqueValues to what the template can actually produce.
+        # A template of N digits can produce at most 10^N - 1 unique values.
+        # If uniqueValues exceeds this, dbldatagen ignores the template and
+        # generates longer strings → DELTA_EXCEED_CHAR_VARCHAR_LIMIT.
+        max_unique_for_template = 10**id_len - 1
+        capped_unique = min(rows, max_unique_for_template)
+        if id_len <= 6:
+            return {"template": _build_template(id_len), "uniqueValues": capped_unique, "percentNulls": 0.0}
+        else:
+            prefix = col_name[:3].upper()
+            tpl_len = eff_len - len(prefix) - 1
+            return {"template": prefix + "-" + "\\d" * min(tpl_len, 8), "percentNulls": 0.0}
+
+    # Status / Type / Flag columns → categorical values
+    if col_name.endswith(('_status', '_type', '_flag', '_ind', '_category')):
+        return {"values": ["A", "B", "C", "D"], "percentNulls": 0.0}
+
+    # Gender / Sex columns
+    if 'gender' in col_name or 'sex' in col_name:
+        return {"values": ["M", "F", "U"], "percentNulls": 0.0}
+
+    # State / Region columns
+    if col_name in ('state', 'state_code', 'st', 'state_cd'):
+        return {"values": ["CA", "TX", "NY", "FL", "IL", "PA", "OH", "GA", "NC", "MI"], "percentNulls": 0.0}
+
+    # Name columns → readable text
+    if col_name.endswith(('_name', '_desc', '_description', '_text', '_note')):
+        return {"template": _build_template(eff_len), "percentNulls": 0.0}
+
+    # Email columns
+    if 'email' in col_name:
+        tpl = "\\w" + "@" + "\\w" + ".com"
+        return {"template": tpl[:eff_len] if len(tpl) > eff_len else tpl, "percentNulls": 0.0}
+
+    # Default: safe capped template
+    return {"template": _build_template(eff_len), "percentNulls": 0.0}
+
+
+def _build_template(max_len: int) -> str:
+    """Build a dbldatagen template string that stays within max_len characters.
+    Uses \\n (digits) instead of \\w (words) to ensure predictable length.
+    Each \\n generates exactly 1 digit; each \\x generates 1 hex char."""
+    if max_len <= 4:
+        return "\\n" * max_len
+    elif max_len <= 10:
+        return "\\x" * max_len
+    else:
+        # Mix of fixed prefix + digits to keep under limit
+        # e.g., for max_len=20: "VAL-" + 16 digits = 20 chars
+        prefix = "VAL-"
+        remaining = max_len - len(prefix)
+        return prefix + "\\n" * min(remaining, 16)
+
+
+def enforce_varchar_limits(df, table_name: str):
+    """CRITICAL SAFETY NET: Truncate ALL VARCHAR/CHAR columns to their declared max length.
+
+    This MUST be called on every DataFrame AFTER build() and AFTER any FK replacement,
+    right before writing to Delta. It prevents DELTA_EXCEED_CHAR_VARCHAR_LIMIT errors
+    regardless of how values were generated (template overflow, FK replacement, uniqueValues
+    forcing longer values, etc.).
+
+    Usage:
+        df = gen.build()
+        df = fix_fk_columns(df)       # optional FK patching
+        df = enforce_varchar_limits(df, table_name)  # ALWAYS before write
+        df.write.format("delta").mode("append").saveAsTable(...)
+    """
+    from pyspark.sql import functions as F
+    col_types = get_table_col_types(table_name)
+    for col_name, type_str in col_types.items():
+        max_len = extract_max_length(type_str)
+        if max_len > 0 and col_name in df.columns:
+            df = df.withColumn(col_name, F.substring(F.col(col_name).cast("string"), 1, max_len))
+    return df
 
 
 # Discover tables for this version — use TABLES dict for all references
@@ -142,44 +299,40 @@ TABLES = discover_tables()
 
 # COMMAND ----------
 
-# DBTITLE 1,Dimension Table: example_dim
-# PATTERN: Use base_generator() to get type-safe defaults, then override with realistic values.
-# base_generator reads DDL types — guarantees no CAST_INVALID_INPUT errors.
-table_name = TABLES["example_dim"]  # resolves to "example_dim_v1" when VERSION_SUFFIX="_v1"
-ROWS_DIM = 1000
-
-# Step 1: Create base generator (all columns pre-typed from DDL)
-gen = base_generator(table_name, ROWS_DIM)
-
-# Step 2: Override specific columns with realistic categorical values
-# (base_generator gives correct types but generic values — override for realism)
-gen = gen.withColumn("name", StringType(), values=["Alpha", "Beta", "Gamma"], percentNulls=0.0)
-gen = gen.withColumn("is_active", BooleanType(), values=[True, False], weights=[9, 1], percentNulls=0.0)
-
-# Step 3: Build and write
-df_dim = gen.build()
-df_dim.write.format("delta").mode("append").saveAsTable(f"{CATALOG}.{SCHEMA}.{table_name}")
-print(f"Written {ROWS_DIM} rows to {CATALOG}.{SCHEMA}.{table_name}")
-
-# COMMAND ----------
-
-# DBTITLE 1,Fact Table: example_fact
-# PATTERN: base_generator() + override FK columns with actual dimension values.
-fact_table = TABLES["example_fact"]  # resolves to "example_fact_v1"
-ROWS_FACT = 10000
-
-# Collect FK values from dimension table
-dim_table = TABLES["example_dim"]
-dim_ids = [row.id for row in spark.table(f"{CATALOG}.{SCHEMA}.{dim_table}").select("id").distinct().collect()]
-
-# Step 1: Base generator (types from DDL)
-gen = base_generator(fact_table, ROWS_FACT)
-
-# Step 2: Override FK column with actual dimension IDs for referential integrity
-col_types = get_table_col_types(fact_table)
-gen = gen.withColumn("dim_id", spark_type_for(col_types["dim_id"]), values=dim_ids, percentNulls=0.0)
-
-# Step 3: Build and write
-df_fact = gen.build()
-df_fact.write.format("delta").mode("append").saveAsTable(f"{CATALOG}.{SCHEMA}.{fact_table}")
-print(f"Written {ROWS_FACT} rows to {CATALOG}.{SCHEMA}.{fact_table}")
+# DBTITLE 1,Generate Data — Repeat this section for EACH table from ERD
+# ─── PATTERN (repeat for every table discovered from the ERD) ───
+#
+# RULES:
+#   1. base_generator() adds ALL columns with safe type-matched defaults from DDL.
+#   2. NEVER call withColumn() after base_generator() — it causes DUPLICATE columns.
+#   3. Generate dimension tables BEFORE fact tables.
+#   4. For FK referential integrity: after build(), replace FK column values with
+#      actual PKs sampled from the parent dimension table.
+#   5. ALWAYS pass unique_columns for PK columns and FK-target columns.
+#      A FK-target column is any column referenced by another table's FK.
+#      Without uniqueValues, dbldatagen may produce duplicates — causing
+#      FK_TARGET_NOT_UNIQUE validation failures.
+#   6. ALWAYS call enforce_varchar_limits(df, table_name) AFTER build() and FK fixes,
+#      BEFORE writing to Delta. This is the LAST line before .write.
+#      It prevents DELTA_EXCEED_CHAR_VARCHAR_LIMIT by truncating any values
+#      that exceed VARCHAR(N) constraints — regardless of how they were generated.
+#
+# --- Dimension table pattern ---
+# table_name = TABLES["<logical_name>"]
+# # unique_columns = PK columns + any column referenced as FK from another table
+# gen = base_generator(table_name, rows=1000, unique_columns=["<pk_col>"])
+# df = gen.build()
+# df = enforce_varchar_limits(df, table_name)  # MANDATORY: enforce length constraints
+# df.write.format("delta").mode("append").saveAsTable(f"{CATALOG}.{SCHEMA}.{table_name}")
+#
+# --- Fact table pattern (fix FK columns after build for referential integrity) ---
+# fact_table = TABLES["<logical_name>"]
+# gen = base_generator(fact_table, rows=10000, unique_columns=["<pk_col>"])
+# df = gen.build()
+# # Replace FK column with actual dimension PKs
+# from pyspark.sql import functions as F
+# dim_pks = spark.table(f"{CATALOG}.{SCHEMA}.{TABLES['<dim>']}").select("<pk>").distinct()
+# pk_list = [row[0] for row in dim_pks.collect()]
+# df = df.drop("<fk_col>").withColumn("<fk_col>", F.element_at(F.array([F.lit(v) for v in pk_list]), (F.monotonically_increasing_id() % len(pk_list) + 1).cast("int")))
+# df = enforce_varchar_limits(df, fact_table)  # MANDATORY: enforce length constraints
+# df.write.format("delta").mode("append").saveAsTable(f"{CATALOG}.{SCHEMA}.{fact_table}")
