@@ -275,7 +275,7 @@
             <span class="status-bar-value" style="font-family:monospace;font-size:0.72rem;">{{ run_id[:8] }}</span>
         </div>
         <div class="status-bar-item">
-            <span class="status-bar-label">Started</span>
+            <span class="status-bar-label">Duration</span>
             <span class="status-bar-value" id="started-time">&mdash;</span>
         </div>
         <div class="status-bar-progress">
@@ -311,7 +311,7 @@ const RUN_META={{ run_meta|tojson }};
     }
 })();
 
-let pollIndex=0, startTime=Date.now(), currentTab='activity';
+let pollIndex=0, startTime=Date.now(), currentTab='activity', timerInterval=null;
 let activities=[], decisions=[], artifacts=[], logs=[];
 const STEPS=[
     {id:'config',label:'Config',status:'waiting',desc:'Loading pipeline configuration'},
@@ -593,7 +593,7 @@ function updateTimer(){
     document.getElementById('elapsed-timer').textContent=str;
     document.getElementById('elapsed-display').textContent=str;
 }
-setInterval(updateTimer,1000);
+timerInterval=setInterval(updateTimer,1000);
 
 function formatDuration(s){
     if(s==null) return '';
@@ -692,10 +692,20 @@ async function pollStatus(){
             if(vEl && vEl.textContent.includes('detecting')) vEl.textContent=`v${d.version}`;
         }
         if(d.started_at){
+            // Use started_at to set startTime for the timer (first poll only)
+            if(!window._startTimeSet){
+                startTime=new Date(d.started_at).getTime();
+                window._startTimeSet=true;
+                updateTimer();
+            }
+            // Show total duration in the Duration field
             const stEl=document.getElementById('started-time');
-            if(stEl && stEl.textContent.includes('\u2014')){
-                const dt=new Date(d.started_at);
-                stEl.textContent=dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+            if(stEl){
+                if(d.duration_s){
+                    stEl.textContent=formatDuration(d.duration_s);
+                } else if(d.elapsed_s){
+                    stEl.textContent=formatDuration(d.elapsed_s);
+                }
             }
         }
 
@@ -794,9 +804,10 @@ async function pollStatus(){
         // Render UI
         renderSteps(); renderAccordion(); renderTab();
 
-        // Stop polling on terminal state
+        // Stop polling and timer on terminal state
         if(['completed','failed','cancelled'].includes(d.status)){
             clearInterval(pollInterval); pollInterval=null;
+            if(timerInterval){ clearInterval(timerInterval); timerInterval=null; }
             const st=d.status;
             document.getElementById('run-status-badge').textContent=st.charAt(0).toUpperCase()+st.slice(1);
             document.getElementById('run-status-badge').className='status-badge '+(st==='completed'?'idle':'failed');
