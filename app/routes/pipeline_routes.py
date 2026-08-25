@@ -871,6 +871,13 @@ def get_run_status(run_id):
             try:
                 recovered = run_store.load_run_full(run_id)
                 if recovered:
+                    # Zombie detection: if Lakebase says 'running' but there's
+                    # no active thread (app restarted), mark as failed so the
+                    # UI shows the "Resume All" button.
+                    if recovered.get('status') == 'running':
+                        recovered['status'] = 'failed'
+                        recovered['error'] = 'Interrupted: app restarted during execution'
+                        logger.warning(f"Zombie run {run_id}: was 'running' in Lakebase but no active thread. Showing as failed.")
                     _runs[run_id] = recovered  # Re-populate cache
                     run = recovered
                     logger.info(f"Recovered run {run_id} from Lakebase (cache miss)")
@@ -1033,9 +1040,17 @@ def rerun_from_failure(run_id):
     if not original_run:
         return jsonify({'error': {'type': 'NotFound', 'message': f'Run {run_id} not found'}}), 404
 
-    if original_run.get('status') not in ('failed', 'cancelled'):
-        return jsonify({'error': {'type': 'ValidationError',
-                                   'message': 'Can only rerun failed or cancelled pipelines'}}), 400
+    run_status = original_run.get('status')
+    # Allow rerun if failed/cancelled, OR if 'running' but no active thread
+    # (zombie: app restarted while a rerun was in progress, thread was killed)
+    if run_status not in ('failed', 'cancelled'):
+        if run_status == 'running' and run_id not in _runs:
+            # Zombie run — no active thread, safe to re-trigger
+            logger.warning(f"Zombie run detected: {run_id} status='running' but no active thread. Resetting to failed for rerun.")
+            run_store.update_run_status(run_id, 'failed', error='Interrupted: app restarted during execution')
+        else:
+            return jsonify({'error': {'type': 'ValidationError',
+                                       'message': 'Can only rerun failed or cancelled pipelines'}}), 400
 
     # Get steps to resume from
     resume_steps = run_store.get_resume_steps(run_id)
