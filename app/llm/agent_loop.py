@@ -47,7 +47,6 @@ CRITICAL_TOOLS = {
     "create_notebook",        # Can't create the notebook = can't proceed
     "write_file",             # File writes produce artifacts required by later phases
     "create_dashboard",       # Dashboard creation failure = step cannot complete
-    "create_genie_space",     # Genie space creation = step cannot complete
 }
 
 # Critical error patterns: even for non-critical tools, certain error messages
@@ -378,8 +377,6 @@ class AgentLoop:
             return args.get("display_name", "")[:MAX]
         elif tool_name == "publish_dashboard":
             return f"ID: {args.get('dashboard_id', '')[:12]}"
-        elif tool_name == "create_genie_space":
-            return args.get("title", "")[:MAX]
         elif tool_name == "describe_table":
             table = args.get("table_name", "")
             # Show just schema.table for brevity
@@ -517,7 +514,6 @@ class AgentLoop:
             "  'execute/run the notebook'       --> execute_notebook(path)",
             "  'execute SQL / run DDL'          --> execute_sql(statement)",
             "  'create dashboard'               --> create_dashboard(...)",
-            "  'create Genie space'             --> create_genie_space(...)",
             "  'list directory'                 --> list_workspace_directory(path)",
             "  'clean/remove output folder'     --> cleanup_path(path, recursive)",
             "  'describe table'                 --> describe_table(table_name)",

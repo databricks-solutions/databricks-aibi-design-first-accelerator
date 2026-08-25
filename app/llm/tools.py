@@ -157,39 +157,9 @@ TOOL_DEFINITIONS = [
             }
         }
     },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_genie_space",
-            "description": (
-                "Create or update a Genie space via the Genie API. "
-                "Provide the full serialized_space JSON with data_sources, "
-                "text_instructions, and sample_questions."
-            ),
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "title": {
-                        "type": "string",
-                        "description": "Genie space title."
-                    },
-                    "serialized_space": {
-                        "type": "string",
-                        "description": "Full serialized_space JSON string."
-                    },
-                    "space_id": {
-                        "type": "string",
-                        "description": "Existing space ID to update. Omit to create new."
-                    },
-                    "warehouse_id": {
-                        "type": "string",
-                        "description": "SQL warehouse ID for query execution."
-                    }
-                },
-                "required": ["title", "serialized_space", "warehouse_id"]
-            }
-        }
-    },
+    # NOTE: create_genie_space removed — Genie space creation is prompt-driven
+    # via the template notebook (import_notebook + execute_notebook pattern),
+    # same as synthetic data generation. See 04_create_genie_space.md.
     {
         "type": "function",
         "function": {

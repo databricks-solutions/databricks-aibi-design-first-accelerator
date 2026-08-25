@@ -128,20 +128,9 @@ class ToolExecutor:
             dashboard_id=args["dashboard_id"], warehouse_id=args["warehouse_id"])
         return f"SUCCESS: Dashboard published."
 
-    def _handle_create_genie_space(self, args: dict) -> str:
-        title = args["title"]
-        serialized = args["serialized_space"]
-        warehouse_id = args["warehouse_id"]
-        space_id = args.get("space_id")
-        if space_id:
-            result = self._genie.update_space(
-                space_id=space_id, title=title,
-                serialized_space=serialized, warehouse_id=warehouse_id)
-        else:
-            result = self._genie.create_space(
-                title=title, serialized_space=serialized, warehouse_id=warehouse_id)
-        new_id = result.get("space_id", result.get("id", "unknown"))
-        return f"SUCCESS: Genie space ID: {new_id}"
+    # NOTE: _handle_create_genie_space removed — Genie space creation is
+    # prompt-driven via the template notebook (import_notebook + execute_notebook).
+    # Same pattern as synthetic data generation. See 04_create_genie_space.md.
 
     def _handle_describe_table(self, args: dict) -> str:
         return self._handle_execute_sql({"statement": f"DESCRIBE TABLE EXTENDED {args['table_name']}"})
