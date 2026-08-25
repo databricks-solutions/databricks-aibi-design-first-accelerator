@@ -128,9 +128,18 @@ class ToolExecutor:
             dashboard_id=args["dashboard_id"], warehouse_id=args["warehouse_id"])
         return f"SUCCESS: Dashboard published."
 
-    # NOTE: _handle_create_genie_space removed — Genie space creation is
-    # prompt-driven via the template notebook (import_notebook + execute_notebook).
-    # Same pattern as synthetic data generation. See 04_create_genie_space.md.
+    def _handle_create_genie_space(self, args: dict) -> str:
+        """Redirect: Genie space creation uses the template notebook pattern."""
+        return (
+            "ERROR: create_genie_space tool is disabled. "
+            "Use the template notebook pattern instead (same as synthetic data generation): "
+            "1) Read the genie_space_notebook.py.template from the templates directory. "
+            "2) Populate cells 1-7 with the configuration (title, instructions, sample questions, example SQL, benchmarks). "
+            "3) Copy cells 8-10 verbatim (helpers, create/update API, validate). "
+            "4) Use import_notebook to save the notebook to the output folder. "
+            "5) Use execute_notebook to run it as a job (cells 8-10 call the Genie API). "
+            "This is the ONLY supported path for Genie space creation."
+        )
 
     def _handle_describe_table(self, args: dict) -> str:
         return self._handle_execute_sql({"statement": f"DESCRIBE TABLE EXTENDED {args['table_name']}"})
