@@ -359,17 +359,19 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                 else:
                     # NEW phase being added — auto-close any prior phases that are
                     # still in a non-terminal state. Phases are strictly sequential
-                    # (single-threaded agent loop), so if phase N+1 starts, phase N
+                    # (single-threaded agent loop), so if phase N+1 appears, phase N
                     # must have functionally completed even if the LLM forgot to
                     # call report_progress(status="completed") for it.
-                    if incoming_status == 'started':
-                        for prior in phases:
-                            if prior.get('status') not in ('completed', 'failed'):
-                                prior['status'] = 'completed'
-                                logger.info(
-                                    f"Auto-completing prior phase '{prior.get('phase_name')}' "
-                                    f"because new phase '{event.data.get('phase_name')}' started"
-                                )
+                    # NOTE: trigger on ANY incoming_status (not just 'started')
+                    # because the LLM often reports a phase directly as 'completed'
+                    # without a preceding 'started' call.
+                    for prior in phases:
+                        if prior.get('status') not in ('completed', 'failed'):
+                            prior['status'] = 'completed'
+                            logger.info(
+                                f"Auto-completing prior phase '{prior.get('phase_name')}' "
+                                f"because new phase '{event.data.get('phase_name')}' appeared"
+                            )
 
                     phases.append({
                         'phase_id': phase_id,
