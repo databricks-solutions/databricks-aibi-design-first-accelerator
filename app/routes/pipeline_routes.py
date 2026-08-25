@@ -883,11 +883,21 @@ def get_run_status(run_id):
     # Build step list with phases and tool_calls
     steps = []
     for step_name, step_info in run.get('step_data', {}).items():
+        step_status = step_info.get('status', 'pending')
+        phases = step_info.get('phases', [])
+        # Normalize: if step is completed, ALL its phases must be completed too.
+        # Lakebase may have stale 'running'/'pending' phase records from the
+        # original execution (auto-close doesn't always flush to Lakebase).
+        if step_status == 'completed':
+            phases = [
+                {**ph, 'status': 'completed'} if ph.get('status') not in ('completed', 'failed') else ph
+                for ph in phases
+            ]
         steps.append({
             "step_name": step_name,
-            "status": step_info.get('status', 'pending'),
+            "status": step_status,
             "duration_s": step_info.get('duration_s'),
-            "phases": step_info.get('phases', []),
+            "phases": phases,
             "tool_calls": step_info.get('tool_calls', []),
         })
 
