@@ -911,6 +911,7 @@ def get_run_status(run_id):
         "progress_pct": run.get('progress_pct', 0),
         "current_step": run.get('current_step'),
         "elapsed_s": elapsed_s,
+        "started_at": started_at,
         "error": run.get('error'),
         "domain": run.get('domain'),
         "version": run.get('version'),

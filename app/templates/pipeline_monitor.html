@@ -689,7 +689,14 @@ async function pollStatus(){
         }
         if(d.version){
             const vEl=document.getElementById('version-label');
-            if(vEl && vEl.textContent.includes('detecting')) vEl.textContent=`v${d.version}${d.version_suffix?' ('+d.version_suffix+')':''}`;
+            if(vEl && vEl.textContent.includes('detecting')) vEl.textContent=`v${d.version}`;
+        }
+        if(d.started_at){
+            const stEl=document.getElementById('started-time');
+            if(stEl && stEl.textContent.includes('\u2014')){
+                const dt=new Date(d.started_at);
+                stEl.textContent=dt.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+            }
         }
 
         // Update global status
