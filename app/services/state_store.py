@@ -402,6 +402,198 @@ class StateStore:
             (step_name,),
         )
 
+    # --- Phase-Boundary Checkpoint Persistence ---
+
+    def persist_phase_update(self, run_id: str, step_name: str, phase_data: dict) -> None:
+        """Persist a phase_update event to the phases table (write-through).
+
+        Called on every phase_update event from the agent loop. This is the
+        durable checkpoint — once a phase is persisted as 'completed', it
+        will not be re-executed on resume.
+
+        Args:
+            run_id: The run identifier.
+            step_name: Current step name.
+            phase_data: Dict from phase_update event with keys:
+                phase_id, phase_name, status, current_task, progress_pct,
+                stats (dict), happenings (list), findings (list)
+        """
+        phase_name = phase_data.get('phase_name', '')
+        status = phase_data.get('status', 'running')
+
+        data = {
+            'run_id': run_id,
+            'step_name': step_name,
+            'phase_name': phase_name,
+            'phase_id': phase_data.get('phase_id', ''),
+            'status': status,
+            'current_task': phase_data.get('current_task'),
+            'progress_pct': phase_data.get('progress_pct', 0),
+            'stats': phase_data.get('stats') or {},
+            'happenings': phase_data.get('happenings') or [],
+            'findings': phase_data.get('findings') or [],
+            'updated_at': datetime.now(timezone.utc).isoformat(),
+        }
+
+        if status == 'started':
+            data['started_at'] = datetime.now(timezone.utc).isoformat()
+        elif status in ('completed', 'failed'):
+            data['completed_at'] = datetime.now(timezone.utc).isoformat()
+
+        try:
+            self._insert('phases', data, conflict_cols=['run_id', 'step_name', 'phase_name'])
+        except Exception as e:
+            logger.warning(f"persist_phase_update failed (non-fatal): {e}")
+
+    def persist_tool_call(self, run_id: str, step_name: str, tool_data: dict) -> None:
+        """Persist a tool call event to the tool_calls table.
+
+        Called on tool_started (inserts), tool_completed/tool_failed (updates).
+
+        Args:
+            run_id: The run identifier.
+            step_name: Current step name.
+            tool_data: Dict with keys:
+                tool_name, status, args_summary, error, duration_ms, started_at
+        """
+        status = tool_data.get('status', 'running')
+        tool_name = tool_data.get('tool_name', '')
+
+        try:
+            if status == 'running':
+                # INSERT new tool_call row
+                self._insert('tool_calls', {
+                    'run_id': run_id,
+                    'step_name': step_name,
+                    'tool_name': tool_name,
+                    'status': 'running',
+                    'args_summary': (tool_data.get('args_summary') or '')[:500],
+                    'started_at': tool_data.get('started_at', datetime.now(timezone.utc).isoformat()),
+                })
+            else:
+                # UPDATE the most recent running row for this tool
+                update_data = {
+                    'status': status,
+                    'completed_at': datetime.now(timezone.utc).isoformat(),
+                }
+                if tool_data.get('duration_ms') is not None:
+                    update_data['duration_ms'] = tool_data['duration_ms']
+                if tool_data.get('error'):
+                    update_data['error'] = tool_data['error'][:500]
+
+                # Find the latest running row for this tool and update it
+                self._execute(
+                    """UPDATE public.tool_calls
+                       SET status = %s, completed_at = %s, duration_ms = %s, error = %s
+                       WHERE id = (
+                           SELECT id FROM public.tool_calls
+                           WHERE run_id = %s AND step_name = %s AND tool_name = %s AND status = 'running'
+                           ORDER BY started_at DESC LIMIT 1
+                       )""",
+                    (
+                        status,
+                        update_data['completed_at'],
+                        update_data.get('duration_ms'),
+                        update_data.get('error'),
+                        run_id, step_name, tool_name,
+                    ),
+                )
+        except Exception as e:
+            logger.warning(f"persist_tool_call failed (non-fatal): {e}")
+
+    def load_run_full(self, run_id: str) -> Optional[dict]:
+        """Load full run state from Lakebase for recovery after refresh.
+
+        Returns a dict structured identically to the in-memory _runs format
+        so the status endpoint can serve it directly.
+
+        Returns None if run_id not found.
+        """
+        run = self._execute_one(
+            "SELECT * FROM public.runs WHERE run_id = %s", (run_id,)
+        )
+        if not run:
+            return None
+
+        # Load steps
+        steps = self._execute(
+            "SELECT * FROM public.steps WHERE run_id = %s ORDER BY step_index ASC",
+            (run_id,),
+        )
+
+        # Load phases
+        phases = self._execute(
+            "SELECT * FROM public.phases WHERE run_id = %s ORDER BY step_name ASC, phase_index ASC",
+            (run_id,),
+        )
+
+        # Load recent tool calls (last 50 per step for performance)
+        tool_calls = self._execute(
+            """SELECT * FROM public.tool_calls
+               WHERE run_id = %s
+               ORDER BY step_name ASC, started_at ASC
+               LIMIT 500""",
+            (run_id,),
+        )
+
+        # Build step_data structure matching in-memory format
+        step_data = {}
+        for s in steps:
+            sname = s['step_name']
+            step_data[sname] = {
+                'step_name': sname,
+                'status': s.get('status', 'pending'),
+                'duration_s': s.get('duration_s'),
+                'phases': [],
+                'tool_calls': [],
+            }
+
+        # Attach phases to their steps
+        for p in phases:
+            sname = p.get('step_name', '')
+            if sname in step_data:
+                step_data[sname]['phases'].append({
+                    'phase_id': p.get('phase_id', ''),
+                    'phase_name': p.get('phase_name', ''),
+                    'status': p.get('status', 'pending'),
+                    'current_task': p.get('current_task'),
+                    'progress_pct': p.get('progress_pct'),
+                    'stats': p.get('stats') or {},
+                    'happenings': p.get('happenings') or [],
+                    'findings': p.get('findings') or [],
+                })
+
+        # Attach tool_calls to their steps
+        for tc in tool_calls:
+            sname = tc.get('step_name', '')
+            if sname in step_data:
+                step_data[sname]['tool_calls'].append({
+                    'tool_name': tc.get('tool_name', ''),
+                    'status': tc.get('status', 'completed'),
+                    'args_summary': tc.get('args_summary', ''),
+                    'duration_ms': tc.get('duration_ms'),
+                    'error': tc.get('error'),
+                    'started_at': tc.get('started_at').isoformat() if hasattr(tc.get('started_at'), 'isoformat') else tc.get('started_at'),
+                })
+
+        # Build the run dict in the same shape as _runs[run_id]
+        return {
+            'run_id': run_id,
+            'domain': run.get('domain', ''),
+            'status': run.get('status', 'unknown'),
+            'current_step': run.get('current_step'),
+            'progress_pct': run.get('progress_pct', 0),
+            'version': run.get('version'),
+            'version_suffix': run.get('version_suffix', ''),
+            'started_at': run.get('started_at').isoformat() if hasattr(run.get('started_at'), 'isoformat') else run.get('started_at'),
+            'completed_at': run.get('completed_at').isoformat() if hasattr(run.get('completed_at'), 'isoformat') else run.get('completed_at'),
+            'duration_s': run.get('duration_s'),
+            'error': run.get('error'),
+            'steps_completed': [s['step_name'] for s in steps if s.get('status') == 'completed'],
+            'step_data': step_data,
+            'logs': [],
+        }
+
     # --- Health ---
 
     def health_check(self) -> bool:

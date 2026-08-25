@@ -1,0 +1,51 @@
+overall_status: PASS
+status: PASS
+schema:
+  tables_expected: 8
+  tables_created: 8
+  missing_tables: []
+  unexpected_tables: []
+  columns_expected: 433
+primary_keys:
+  tested: 8
+  failures: []
+foreign_keys:
+  tested: 11
+  orphan_counts:
+    dim_address_to_dim_member: 0
+    dim_provider_to_dim_address: 0
+    dim_provider_self_assigned_provider: 0
+    dim_member_identifier_to_dim_member: 0
+    dim_member_history_to_dim_member: 0
+    fact_member_enrollment_to_dim_member: 0
+    fact_member_enrollment_to_dim_member_identifier: 0
+    fact_claim_header_to_dim_member: 0
+    fact_claim_header_to_dim_address: 0
+    fact_claim_header_to_dim_provider_by_npi: 0
+    fact_claim_detail_to_fact_claim_header: 0
+  failures: []
+cardinality:
+  tested: 11
+  failures: []
+join_stability:
+  tested: 6
+  fanout_failures: []
+semantic_constraints:
+  tested: 5
+  failures: []
+data_quality:
+  null_violations: []
+  generic_fallback_columns: []
+  unusable_dimension_columns: []
+analytical_readiness:
+  tested_join_paths: 6
+  failures: []
+row_counts:
+  dim_member: 500
+  dim_address: 350
+  dim_provider: 300
+  dim_member_identifier: 800
+  dim_member_history: 1000
+  fact_member_enrollment: 2000
+  fact_claim_header: 3000
+  fact_claim_detail: 9000

@@ -249,6 +249,9 @@
                 </div>
                 <div class="config-actions">
                     <button class="btn" onclick="hideDetail()">Cancel</button>
+                    <button class="btn" id="resume-btn" style="display:none; border-color:var(--warning-border); color:var(--warning-text);" onclick="resumeLastRun()">
+                        &#8635; Resume Last Run
+                    </button>
                     <button class="btn btn-primary" id="run-btn" onclick="launchPipeline()">
                         Run Pipeline
                     </button>
@@ -277,6 +280,9 @@ document.querySelectorAll('.domain-card').forEach(card => {
         document.getElementById('cfg-path').value = selectedPath;
         document.getElementById('detail-title').textContent = card.querySelector('.domain-name').textContent;
 
+        // Check for resumable runs (async, non-blocking)
+        checkResumableRun(selectedDomain);
+
         // Show detail panel
         document.getElementById('domain-detail').classList.add('visible');
     });
@@ -285,6 +291,59 @@ document.querySelectorAll('.domain-card').forEach(card => {
 function hideDetail() {
     document.getElementById('domain-detail').classList.remove('visible');
     document.querySelectorAll('.domain-card').forEach(c => c.classList.remove('selected'));
+}
+
+// --- Resume Last Run logic ---
+let lastResumableRun = null;
+
+async function checkResumableRun(domain) {
+    // Check localStorage first (fastest)
+    const localRunId = localStorage.getItem(`last_run_${domain}`);
+
+    // Then check Lakebase via the runs API for incomplete runs
+    try {
+        const resp = await fetch(`/api/pipeline/runs?domain=${domain}&limit=5`);
+        if (resp.ok) {
+            const runs = await resp.json();
+            // Find the most recent run that is still running or failed
+            const resumable = runs.find(r => r.status === 'running' || r.status === 'failed');
+            if (resumable) {
+                lastResumableRun = resumable;
+                const resumeBtn = document.getElementById('resume-btn');
+                const statusLabel = resumable.status === 'running' ? 'running' : 'failed';
+                const versionLabel = resumable.version_suffix || '';
+                resumeBtn.textContent = `\u21BB Resume ${versionLabel || resumable.run_id.slice(0,8)} (${statusLabel})`;
+                resumeBtn.style.display = 'inline-flex';
+                return;
+            }
+        }
+    } catch(e) { console.debug('Resume check failed:', e); }
+
+    // Fallback: check localStorage for a run_id and try the status endpoint
+    if (localRunId) {
+        try {
+            const resp = await fetch(`/api/pipeline/run/${localRunId}/status`);
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.status === 'running' || data.status === 'failed') {
+                    lastResumableRun = { run_id: localRunId, status: data.status };
+                    const resumeBtn = document.getElementById('resume-btn');
+                    resumeBtn.textContent = `\u21BB Resume ${localRunId.slice(0,8)} (${data.status})`;
+                    resumeBtn.style.display = 'inline-flex';
+                    return;
+                }
+            }
+        } catch(e) {}
+    }
+
+    // No resumable run found — hide button
+    lastResumableRun = null;
+    document.getElementById('resume-btn').style.display = 'none';
+}
+
+function resumeLastRun() {
+    if (!lastResumableRun || !selectedDomain) return;
+    window.location.href = '/domains/' + selectedDomain + '/run/' + lastResumableRun.run_id;
 }
 
 async function launchPipeline() {

@@ -3,6 +3,10 @@
 Scans workspace folders, UC schemas, and named assets (dashboards, Genie spaces)
 to find the highest existing _vN suffix, then returns the next version.
 
+Supports the **version registry** (`version_registry.yaml` in the domain root)
+for cross-environment coordination between App mode and Genie Code.
+See `00_master_prompt.md` Step 0.3 for the full contract.
+
 Used by the orchestrator when run_mode="versioned" to ensure new assets get
 a unique, incrementing version suffix without colliding with existing ones.
 
@@ -12,7 +16,10 @@ See docs/design_phase2.md Section 10 for full reference.
 import re
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Optional
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +28,8 @@ VERSION_PATTERN = re.compile(r"_v(\d+)$")
 
 # Pattern matches v1, v2, ... (folder names inside output/)
 FOLDER_VERSION_PATTERN = re.compile(r"^v(\d+)$")
+
+REGISTRY_FILENAME = "version_registry.yaml"
 
 
 # ---------------------------------------------------------------------------
@@ -32,8 +41,10 @@ class VersionInfo:
     """Resolved version information for a pipeline run."""
     version: int                # Version number (1, 2, 3, ...)
     suffix: str                 # Suffix to append ("_v1", "_v2", ...)
-    is_new: bool = True         # Whether this version doesn\'t yet exist
+    is_new: bool = True         # Whether this version doesn't yet exist
+    is_resume: bool = False     # Whether resuming an incomplete prior version
     existing_versions: list = None  # List of discovered version numbers
+    created_by: str = "app"     # "app" or "genie_code"
 
     def __post_init__(self):
         if self.existing_versions is None:
@@ -73,15 +84,23 @@ class VersionResolver:
         self._lakeview = lakeview_service
         self._genie = genie_service
 
-    def resolve(self, config, override: Optional[int] = None) -> VersionInfo:
+    def resolve(self, config, override: Optional[int] = None, run_id: str = None) -> VersionInfo:
         """Discover highest existing version and return next version info.
+
+        Resolution priority:
+        1. If override is provided, use it directly.
+        2. Check version_registry.yaml in domain root:
+           - If latest version has status 'running' or 'failed' -> RESUME that version
+           - If latest version has status 'completed' -> create next version
+        3. Fallback: scan output folders, UC schemas, dashboards, Genie spaces.
 
         Args:
             config: AcceleratorConfig with paths and asset names.
             override: Force a specific version number (skips discovery).
+            run_id: Current run_id (written to registry for new versions).
 
         Returns:
-            VersionInfo with the next version to use.
+            VersionInfo with the version to use (new or resumed).
         """
         if override is not None:
             return VersionInfo(
@@ -91,7 +110,57 @@ class VersionResolver:
                 existing_versions=[]
             )
 
-        # Collect version numbers from all sources
+        # --- PRIMARY: Check version registry ---
+        registry = self._read_registry(config.example_dir)
+        if registry and registry.get('versions'):
+            versions_list = registry['versions']
+            all_version_nums = sorted(v.get('version', 0) for v in versions_list)
+            max_version = max(all_version_nums) if all_version_nums else 0
+
+            # Check for same-environment resume:
+            # Find the latest entry created_by THIS environment that is still running/failed
+            current_env = "app"  # App mode always sets this
+            resumable = None
+            for entry in reversed(sorted(versions_list, key=lambda v: v.get('version', 0))):
+                if (entry.get('status') in ('running', 'failed')
+                        and entry.get('created_by') == current_env):
+                    resumable = entry
+                    break
+
+            if resumable:
+                # RESUME: same environment has an incomplete version
+                resume_version = resumable.get('version', 1)
+                logger.info(
+                    f"Version registry: v{resume_version} is incomplete "
+                    f"(created_by={current_env}) -> resuming"
+                )
+                return VersionInfo(
+                    version=resume_version,
+                    suffix=f"_v{resume_version}",
+                    is_new=False,
+                    is_resume=True,
+                    existing_versions=all_version_nums,
+                    created_by=current_env
+                )
+            else:
+                # NEW VERSION: either all completed, or incomplete ones belong
+                # to the other environment (not our problem to resume)
+                next_version = max_version + 1
+                logger.info(
+                    f"Version registry: max existing is v{max_version} "
+                    f"-> creating v{next_version}"
+                )
+                self._register_version(config.example_dir, registry,
+                                       next_version, run_id)
+                return VersionInfo(
+                    version=next_version,
+                    suffix=f"_v{next_version}",
+                    is_new=True,
+                    existing_versions=all_version_nums,
+                    created_by=current_env
+                )
+
+        # --- FALLBACK: No registry, scan artifacts ---
         all_versions = set()
 
         # 1. Scan output folders
@@ -131,9 +200,13 @@ class VersionResolver:
         next_version = max(all_versions) + 1 if all_versions else 1
 
         logger.info(
-            f"Version scan: found {len(all_versions)} existing versions "
+            f"Version scan (no registry): found {len(all_versions)} existing versions "
             f"({existing_sorted}), next = _v{next_version}"
         )
+
+        # Bootstrap the registry for future runs
+        self._bootstrap_registry(config.example_dir, next_version, run_id,
+                                 existing_sorted)
 
         return VersionInfo(
             version=next_version,
@@ -261,15 +334,68 @@ class VersionResolver:
     # ------------------------------------------------------------------
 
     def get_next_version_preview(self, config) -> dict:
-        """Preview what the next version would be (for UI display).
-
-        Returns:
-            Dict with version info for the UI to display.
-        """
+        """Preview what the next version would be (for UI display)."""
         info = self.resolve(config)
         return {
             "next_version": info.version,
             "next_suffix": info.suffix,
+            "is_resume": info.is_resume,
             "existing_versions": info.existing_versions,
             "existing_count": len(info.existing_versions)
         }
+
+    def mark_version_status(self, config, version, status, assets_created=None, error=None):
+        """Update registry entry for a version (completed/failed)."""
+        registry = self._read_registry(config.example_dir)
+        if not registry:
+            return
+        for entry in registry.get('versions', []):
+            if entry.get('version') == version:
+                entry['status'] = status
+                if status == 'completed':
+                    entry['completed_at'] = datetime.now(timezone.utc).isoformat()
+                    entry['assets_created'] = assets_created or {}
+                elif error:
+                    entry['error'] = error[:500]
+                break
+        self._persist_registry(config.example_dir, registry)
+
+    def _read_registry(self, example_dir):
+        """Load version_registry.yaml from domain root."""
+        path = f"{example_dir}/{REGISTRY_FILENAME}"
+        try:
+            content = self._ws.read_file(path)
+            return yaml.safe_load(content) if content else None
+        except Exception:
+            return None
+
+    def _persist_registry(self, example_dir, registry):
+        """Save version_registry.yaml to domain root."""
+        path = f"{example_dir}/{REGISTRY_FILENAME}"
+        try:
+            self._ws.write_file(path, yaml.dump(registry, default_flow_style=False, sort_keys=False))
+        except Exception as e:
+            logger.warning(f"Registry save failed: {e}")
+
+    def _register_version(self, example_dir, registry, version, run_id=None):
+        """Append new running version to registry."""
+        registry.setdefault('versions', []).append({
+            'version': version, 'status': 'running', 'created_by': 'app',
+            'run_id': run_id or '', 'started_at': datetime.now(timezone.utc).isoformat(),
+            'assets_created': {}
+        })
+        self._persist_registry(example_dir, registry)
+
+    def _bootstrap_registry(self, example_dir, next_version, run_id=None, existing=None):
+        """Create registry from scratch when none exists."""
+        domain_name = example_dir.rstrip('/').split('/')[-1]
+        registry = {'domain': domain_name, 'versions': []}
+        for v in (existing or []):
+            registry['versions'].append({'version': v, 'status': 'completed',
+                                         'created_by': 'unknown', 'run_id': '', 'started_at': ''})
+        registry['versions'].append({
+            'version': next_version, 'status': 'running', 'created_by': 'app',
+            'run_id': run_id or '', 'started_at': datetime.now(timezone.utc).isoformat(),
+            'assets_created': {}
+        })
+        self._persist_registry(example_dir, registry)

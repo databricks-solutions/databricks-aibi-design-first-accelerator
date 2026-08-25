@@ -1,0 +1,18 @@
+domain: member_claims
+versions:
+- version: 1
+  status: completed
+  created_by: unknown
+  run_id: ''
+  started_at: ''
+- version: 2
+  status: completed
+  created_by: unknown
+  run_id: ''
+  started_at: ''
+- version: 3
+  status: running
+  created_by: app
+  run_id: ''
+  started_at: '2026-08-25T13:09:18.568362+00:00'
+  assets_created: {}

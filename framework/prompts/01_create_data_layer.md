@@ -49,6 +49,53 @@ Brownfield mode uses existing Unity Catalog data and does not generate a new dat
 
 ---
 
+## State & Checkpoint Contract
+
+This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+The same rules apply in App mode and Genie Code — no backend infrastructure required.
+
+**Before executing each phase**, check whether its output artifact already exists.
+If it exists and is structurally valid → **skip** that phase and call `report_progress(status="completed")` immediately.
+If it does not exist or is corrupt → execute the phase normally.
+
+This makes the pipeline **idempotent and resumable** regardless of execution environment.
+
+**Verification flow (run at the START of this step, after loading config):**
+
+1. List the output folder.
+2. Check for `run_context.yaml` in the output folder:
+   - If it does NOT exist: this is a **FRESH RUN**. Generate a `run_id` via `execute_python` with `uuid.uuid4()`. Write `run_context.yaml` with fields: `run_id`, `domain`, `version_suffix`, `started_at` (ISO timestamp), `current_step: create_data_layer`, `status: running`, `phases_completed: []`.
+   - If it EXISTS: this is a **RESUME**. Read it and note the `phases_completed` list.
+3. For each artifact below, apply ONE cheap check:
+   - `erd_parsed.yaml` exists with non-empty `tables` array: skip parse_erd
+   - `semantic_model.yaml` exists: skip build_semantic_model
+   - Tables exist in catalog (`SHOW TABLES LIKE '%{VERSION_SUFFIX}'` returns expected count): skip generate_ddl
+   - Tables have rows > 0 (`SELECT 'tbl' t, COUNT(*) FROM tbl UNION ALL ...`): skip generate_synthetic_data
+   - `data_layer_validation.yaml` exists with `overall_status: PASS`: skip validate_data
+4. Continue from the **first phase whose artifact is missing or invalid**.
+5. After each phase completes: update `run_context.yaml` by appending to `phases_completed`.
+
+**Rules:**
+
+- Every `report_progress(status="completed")` marks a phase as done.
+- After each completed phase, **update `run_context.yaml`** to record the checkpoint (append to `phases_completed`).
+- **Never re-execute a phase whose output artifact already exists and is structurally valid.**
+- Verification is ONE cheap check per artifact. Do NOT deep-validate content beyond the checks above.
+- If `RESUME_CONTEXT` is provided in the system message (App mode), use it to accelerate. Otherwise, discover state from the output folder and `run_context.yaml`.
+
+**Artifact-as-State mapping:**
+
+| Phase | Artifact | Skip when |
+|-------|----------|----------|
+| load_config | accelerator.yaml | Always re-read (stateless) |
+| parse_erd | erd_parsed.yaml | file exists + tables array non-empty |
+| build_semantic_model | semantic_model.yaml | file exists |
+| generate_ddl | Tables in catalog | SHOW TABLES returns expected count |
+| generate_synthetic_data | Row count > 0 | SELECT COUNT(*) > 0 per table |
+| validate_data | data_layer_validation.yaml | file exists + overall_status field |
+
+---
+
 # Step 1: Load Configuration
 
 1. Read `accelerator.yaml`.

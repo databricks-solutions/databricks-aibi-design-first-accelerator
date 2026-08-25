@@ -101,6 +101,47 @@ Do not bypass `MEASURE()` with raw-table calculations merely to make a visualiza
 
 ---
 
+## State & Checkpoint Contract
+
+This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+The same rules apply in App mode and Genie Code — no backend infrastructure required.
+
+**Before executing each phase**, check whether its output artifact already exists.
+If it exists and is structurally valid → **skip** that phase and call `report_progress(status="completed")` immediately.
+If it does not exist → execute the phase normally.
+
+**Verification flow (run at the START of this step, after loading config):**
+
+1. List the output folder.
+2. Manage `run_context.yaml` per `07_state_contract.md` Section 8.
+3. For each artifact below, apply ONE cheap check:
+   - `dashboard_design.yaml` exists → skip design_dashboard
+   - `dashboard_dataset_validation.yaml` exists → skip validate_datasets
+   - Dashboard manifest (`*_dashboard_manifest.json`) exists with `dashboard_id` field → skip create_dashboard
+   - Manifest has `published: true` → skip publish_dashboard
+   - `dashboard_validation.yaml` exists → skip validate_dashboard
+3. Continue from the **first phase whose artifact is missing**.
+
+**Rules:**
+
+- Every `report_progress(status="completed")` marks a phase as done.
+- **Never re-execute a phase whose output artifact already exists and is structurally valid.**
+- For dashboards: if manifest contains a valid `dashboard_id`, **UPDATE** the existing dashboard rather than creating a new one.
+- If `RESUME_CONTEXT` is provided (App mode), use it to accelerate. Otherwise, discover state from the output folder.
+
+**Artifact-as-State mapping:**
+
+| Phase | Artifact | Skip when |
+|-------|----------|----------|
+| load_config | Config + contracts loaded | Always re-read (stateless) |
+| design_dashboard | dashboard_design.yaml | file exists |
+| validate_datasets | dashboard_dataset_validation.yaml | file exists |
+| create_dashboard | *_dashboard_manifest.json | file exists + contains dashboard_id |
+| publish_dashboard | manifest.published = true | manifest field check |
+| validate_dashboard | dashboard_validation.yaml | file exists |
+
+---
+
 # Step 1: Load Configuration and Contracts
 
 > **PROGRESS REPORT:** Call `report_progress` with:

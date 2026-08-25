@@ -4,139 +4,300 @@
 
 {% block head %}
 <style>
-/* Infrastructure cards */
-.infra-header {
+/* ─── Admin Page Layout ─── */
+.admin-content {
+    padding: 28px 32px;
+    max-width: 1400px;
+}
+
+/* Section headers */
+.section-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
 }
-.infra-header h2 { margin: 0; }
-.infra-header .subtitle { color: #6b7280; font-size: 0.85rem; margin: 4px 0 0; }
-.infra-actions {
-    display: flex;
-    gap: 8px;
+.section-header h2 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
 }
-.btn-setup {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
+.section-header .subtitle {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    margin: 3px 0 0;
 }
-.btn-setup.primary { background: #2563eb; color: #fff; }
-.btn-setup.primary:hover { background: #1d4ed8; }
-.btn-setup.primary:disabled { background: #93c5fd; cursor: not-allowed; }
-.btn-setup.secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
-.btn-setup.secondary:hover { background: #e5e7eb; }
 
-/* Status grid */
+/* ─── Infrastructure Status Cards ─── */
 .infra-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
+    gap: 14px;
+    margin-bottom: 32px;
 }
 .infra-card {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    padding: 20px;
-    transition: border-color 0.2s;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 20px;
+    box-shadow: var(--shadow-card);
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-.infra-card:hover { border-color: #d1d5db; }
+.infra-card:hover { border-color: var(--border-active); box-shadow: var(--shadow-lg); }
 .infra-card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 .infra-card-title {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     font-weight: 600;
-    color: #111827;
+    color: var(--text-primary);
 }
 .infra-status-dot {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: #d1d5db;
+    background: var(--text-muted);
+    flex-shrink: 0;
 }
-.infra-status-dot.ready { background: #16a34a; }
-.infra-status-dot.error { background: #dc2626; }
-.infra-status-dot.running { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
-.infra-status-dot.unknown { background: #9ca3af; }
+.infra-status-dot.ready { background: var(--success); }
+.infra-status-dot.error { background: var(--danger); }
+.infra-status-dot.running { background: var(--warning); animation: pulse-dot 1.5s infinite; }
+.infra-status-dot.unknown { background: var(--text-muted); }
 @keyframes pulse-dot {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.4; }
 }
 .infra-card-status {
     font-size: 0.78rem;
-    color: #6b7280;
-    margin-bottom: 8px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
 }
 .infra-card-detail {
-    font-size: 0.75rem;
-    color: #9ca3af;
-    font-family: monospace;
-    word-break: break-all;
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+.infra-card-detail.wrap {
+    white-space: normal;
+    word-break: break-word;
 }
 .infra-card-action {
     margin-top: 12px;
 }
-.btn-card-action {
-    padding: 5px 12px;
-    border: 1px solid #e5e7eb;
-    border-radius: 6px;
-    background: #fff;
-    font-size: 0.75rem;
-    color: #374151;
+
+/* ─── Setup Job Panel ─── */
+.setup-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    margin-bottom: 32px;
+    box-shadow: var(--shadow-card);
+}
+.setup-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+.setup-panel-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+.setup-panel-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.setup-select {
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-family: var(--font-ui);
+    background: var(--bg-card);
+    color: var(--text-primary);
     cursor: pointer;
 }
-.btn-card-action:hover { background: #f9fafb; }
+.setup-select:focus { outline: none; border-color: var(--primary); }
 
-/* Job run status */
+/* Task DAG visualization */
+.task-dag {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.task-track {
+    margin-bottom: 8px;
+}
+.task-track-label {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+    padding-left: 4px;
+}
+.task-chain {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+}
+.task-node {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-subtle);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: all 0.2s;
+    min-width: 120px;
+}
+.task-node .task-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+.task-node.pending .task-dot { background: var(--text-muted); }
+.task-node.running .task-dot { background: var(--warning); animation: pulse-dot 1.5s infinite; }
+.task-node.running { border-color: var(--warning-border); background: var(--warning-soft); }
+.task-node.completed .task-dot { background: var(--success); }
+.task-node.completed { border-color: var(--success-border); background: var(--success-soft); }
+.task-node.failed .task-dot { background: var(--danger); }
+.task-node.failed { border-color: var(--danger-border); background: var(--danger-soft); }
+.task-node.skipped { opacity: 0.5; }
+.task-arrow {
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    padding: 0 6px;
+    user-select: none;
+}
+
+/* Status banner */
 .setup-status {
-    background: #f9fafb;
-    border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
+    background: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-top: 16px;
     display: none;
 }
 .setup-status.visible { display: block; }
 .setup-status .status-text {
-    font-size: 0.85rem;
-    color: #374151;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    font-weight: 500;
 }
 .setup-status .status-detail {
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin-top: 4px;
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-top: 3px;
 }
 
-/* Spinner animation for delete button */
+/* ─── Buttons ─── */
+.btn-setup {
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: var(--font-ui);
+}
+.btn-setup.primary { background: var(--primary); color: #fff; }
+.btn-setup.primary:hover { background: var(--primary-hover); }
+.btn-setup.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-setup.danger { background: var(--danger); color: #fff; }
+.btn-setup.danger:hover { opacity: 0.9; }
+.btn-setup.danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-setup.secondary {
+    background: var(--bg-subtle);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+}
+.btn-setup.secondary:hover { background: var(--bg-card); border-color: var(--text-muted); }
+
+.btn-card-action {
+    padding: 5px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    font-size: 0.72rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-family: var(--font-ui);
+    transition: all 0.15s;
+}
+.btn-card-action:hover { background: var(--bg-subtle); border-color: var(--text-muted); }
+
+/* ─── Pipeline Runs Table ─── */
+.runs-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-card);
+}
+.runs-panel table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+}
+.runs-panel thead tr {
+    background: var(--bg-subtle);
+}
+.runs-panel th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--border);
+}
+.runs-panel td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+}
+.runs-panel tbody tr:last-child td { border-bottom: none; }
+.runs-panel tbody tr:hover { background: var(--bg-subtle); }
+
+/* Spinner animation */
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="infra-header">
+<div class="admin-content">
+
+<!-- Section: Infrastructure Status -->
+<div class="section-header">
     <div>
         <h2>Infrastructure</h2>
         <p class="subtitle">One-time workspace setup. Run after first deploy.</p>
     </div>
 </div>
 
-<!-- Setup job status banner -->
-<div class="setup-status" id="setup-banner">
-    <div class="status-text" id="setup-banner-text">Setup running...</div>
-    <div class="status-detail" id="setup-banner-detail"></div>
-</div>
-
-<!-- Infrastructure status cards (ordered by setup flow) -->
 <div class="infra-grid">
     <div class="infra-card" id="card-lakebase">
         <div class="infra-card-header">
@@ -145,8 +306,7 @@
         </div>
         <div class="infra-card-status" id="status-lakebase">Checking...</div>
         <div class="infra-card-detail" id="detail-lakebase">Postgres project, database, schema tables</div>
-        <div class="infra-card-detail" id="detail-lakebase-project" style="margin-top:4px;color:#6b7280;"></div>
-        <div class="infra-card-action" id="lakebase-actions"></div>
+        <div class="infra-card-detail" id="detail-lakebase-project" style="margin-top:4px;"></div>
     </div>
 
     <div class="infra-card" id="card-metadata">
@@ -155,8 +315,8 @@
             <span class="infra-status-dot unknown" id="dot-metadata"></span>
         </div>
         <div class="infra-card-status" id="status-metadata">Checking...</div>
-        <div class="infra-card-detail" id="detail-metadata">step_phases_config seeded (15 phase definitions)</div>
-        <div class="infra-card-detail" id="detail-metadata-access" style="margin-top:4px;color:#6b7280;"></div>
+        <div class="infra-card-detail" id="detail-metadata">step_phases_config seeded</div>
+        <div class="infra-card-detail" id="detail-metadata-access" style="margin-top:4px;"></div>
     </div>
 
     <div class="infra-card" id="card-perms">
@@ -165,8 +325,8 @@
             <span class="infra-status-dot unknown" id="dot-perms"></span>
         </div>
         <div class="infra-card-status" id="status-perms">Checking...</div>
-        <div class="infra-card-detail" id="detail-perms-sp" style="color:#6b7280;font-size:0.8rem;"></div>
-        <div class="infra-card-detail" id="detail-perms-access" style="margin-top:2px;"></div>
+        <div class="infra-card-detail" id="detail-perms-sp"></div>
+        <div class="infra-card-detail wrap" id="detail-perms-access" style="margin-top:3px;"></div>
     </div>
 
     <div class="infra-card" id="card-uc">
@@ -175,47 +335,141 @@
             <span class="infra-status-dot unknown" id="dot-uc"></span>
         </div>
         <div class="infra-card-status" id="status-uc">Checking...</div>
-        <div class="infra-card-detail" id="detail-uc-sp" style="color:#6b7280;font-size:0.8rem;"></div>
-        <div class="infra-card-detail" id="detail-uc-access" style="margin-top:2px;"></div>
+        <div class="infra-card-detail" id="detail-uc-sp"></div>
+        <div class="infra-card-detail wrap" id="detail-uc-access" style="margin-top:3px;"></div>
     </div>
 </div>
 
-<!-- Pipeline Runs Section -->
-<div style="margin-top:32px;">
-    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
-        <div>
-            <h2 style="margin:0; font-size:1.1rem;">Pipeline Runs</h2>
-            <p class="subtitle">Latest run per domain version</p>
-        </div>
-        <div>
-            <select id="runs-domain-filter" style="padding:6px 12px; border:1px solid #e5e7eb; border-radius:6px; font-size:0.82rem; color:#374151; background:#fff;">
-                <option value="">All Domains</option>
+<!-- Section: Setup Job Execution -->
+<div class="setup-panel">
+    <div class="setup-panel-header">
+        <span class="setup-panel-title">Setup Job</span>
+        <div class="setup-panel-controls">
+            <select class="setup-select" id="setup-action">
+                <option value="create">Create / Migrate</option>
+                <option value="purge_and_create">Purge &amp; Recreate</option>
             </select>
+            <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer;">
+                <input type="checkbox" id="setup-deploy-agent" style="cursor:pointer;">
+                Deploy Agent
+            </label>
+            <button class="btn-setup primary" id="btn-run-setup" onclick="runSetup()">Run Setup</button>
         </div>
     </div>
-    <div style="background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:0; overflow:hidden;">
-        <table style="width:100%; border-collapse:collapse; font-size:0.82rem;" id="runs-table">
-            <thead>
-                <tr style="background:#f9fafb;">
-                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Domain</th>
-                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Version</th>
-                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Started</th>
-                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Duration</th>
-                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Actions</th>
-                    <th style="text-align:left; padding:10px 14px; font-size:0.72rem; font-weight:600; color:#6b7280; text-transform:uppercase; border-bottom:2px solid #e5e7eb;">Status</th>
-                </tr>
-            </thead>
-            <tbody id="admin-runs-tbody">
-                <tr><td colspan="6" style="text-align:center; padding:24px; color:#9ca3af;">Loading runs...</td></tr>
-            </tbody>
-        </table>
+
+    <!-- Task DAG -->
+    <div class="task-dag">
+        <div class="task-track">
+            <div class="task-track-label">Track A — Lakebase + Metadata</div>
+            <div class="task-chain">
+                <div class="task-node pending" id="task-cleanup_lakebase">
+                    <span class="task-dot"></span>
+                    <span>Cleanup</span>
+                </div>
+                <span class="task-arrow">→</span>
+                <div class="task-node pending" id="task-create_lakebase">
+                    <span class="task-dot"></span>
+                    <span>Create Lakebase</span>
+                </div>
+                <span class="task-arrow">→</span>
+                <div class="task-node pending" id="task-setup_metadata_tables">
+                    <span class="task-dot"></span>
+                    <span>Seed Metadata</span>
+                </div>
+            </div>
+        </div>
+        <div class="task-track">
+            <div class="task-track-label">Track B — Permissions</div>
+            <div class="task-chain">
+                <div class="task-node pending" id="task-grant_workspace_folder_access">
+                    <span class="task-dot"></span>
+                    <span>Workspace Perms</span>
+                </div>
+                <span class="task-arrow">&amp;</span>
+                <div class="task-node pending" id="task-grant_uc_catalog_access">
+                    <span class="task-dot"></span>
+                    <span>UC Catalog Access</span>
+                </div>
+            </div>
+        </div>
+        <div class="task-track" id="track-c-agent" style="opacity:0.4;">
+            <div class="task-track-label">Track C — Agent Model (optional)</div>
+            <div class="task-chain">
+                <div class="task-node pending" id="task-check_deploy_agent">
+                    <span class="task-dot"></span>
+                    <span>Gate</span>
+                </div>
+                <span class="task-arrow">→</span>
+                <div class="task-node pending" id="task-create_model_schema">
+                    <span class="task-dot"></span>
+                    <span>Model Schema</span>
+                </div>
+                <span class="task-arrow">→</span>
+                <div class="task-node pending" id="task-register_supervisor_model">
+                    <span class="task-dot"></span>
+                    <span>Register Model</span>
+                </div>
+                <span class="task-arrow">→</span>
+                <div class="task-node pending" id="task-deploy_serving_endpoint">
+                    <span class="task-dot"></span>
+                    <span>Deploy Endpoint</span>
+                </div>
+                <span class="task-arrow">→</span>
+                <div class="task-node pending" id="task-configure_gateway">
+                    <span class="task-dot"></span>
+                    <span>Configure Gateway</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status banner (shown during execution) -->
+    <div class="setup-status" id="setup-banner">
+        <div class="status-text" id="setup-banner-text">Setup running...</div>
+        <div class="status-detail" id="setup-banner-detail"></div>
     </div>
 </div>
+
+<!-- Section: Pipeline Runs -->
+<div class="section-header" style="margin-top:8px;">
+    <div>
+        <h2>Pipeline Runs</h2>
+        <p class="subtitle">Latest run per domain version</p>
+    </div>
+    <div>
+        <select class="setup-select" id="runs-domain-filter">
+            <option value="">All Domains</option>
+        </select>
+    </div>
+</div>
+
+<div class="runs-panel">
+    <table id="runs-table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th>Version</th>
+                <th>Started</th>
+                <th>Duration</th>
+                <th>Actions</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="admin-runs-tbody">
+            <tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Loading runs...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+</div><!-- /.admin-content -->
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Load infrastructure status on page load
+// ═══════════════════════════════════════════════════
+// Infrastructure Status
+// ═══════════════════════════════════════════════════
+
 async function loadStatus() {
     try {
         const res = await fetch('/api/admin/setup-status');
@@ -227,18 +481,14 @@ async function loadStatus() {
         updateCard('metadata', data.metadata || {});
         updateCard('lakebase', data.lakebase || {});
 
-        // 3. Workspace Permissions: SP id + folder
+        // Workspace Permissions detail
         const perms = data.permissions || {};
         const permsSp = document.getElementById('detail-perms-sp');
         const permsAccess = document.getElementById('detail-perms-access');
         permsSp.textContent = perms.sp_id ? `SP: ${perms.sp_id}` : '';
-        if (perms.folder) {
-            permsAccess.textContent = `Folder: ${perms.folder}`;
-        } else {
-            permsAccess.textContent = '';
-        }
+        permsAccess.textContent = perms.folder ? `Folder: ${perms.folder}` : '';
 
-        // 4. Unity Catalog Access: SP id + catalog + schemas
+        // Unity Catalog Access detail
         const uc = data.uc_access || {};
         const ucSp = document.getElementById('detail-uc-sp');
         const ucAccess = document.getElementById('detail-uc-access');
@@ -246,21 +496,21 @@ async function loadStatus() {
         if (uc.catalog) {
             let text = `Catalog: ${uc.catalog}`;
             if (uc.schemas && uc.schemas.length > 0) {
-                text += ` | Schemas: ${uc.schemas.slice(0, 4).join(', ')}${uc.schema_count > 4 ? ' (+' + (uc.schema_count - 4) + ' more)' : ''}`;
+                text += ` | Schemas: ${uc.schemas.slice(0, 3).join(', ')}${uc.schema_count > 3 ? ' (+' + (uc.schema_count - 3) + ')' : ''}`;
             }
             ucAccess.textContent = text;
         } else {
             ucAccess.textContent = '';
         }
 
-        // Show SP Lakebase access under Phase Config
+        // SP Lakebase access under Phase Config
         const access = data.lakebase_access || {};
         const accessEl = document.getElementById('detail-metadata-access');
         if (access.status === 'ready') {
             const accessPerms = (access.membership || []).join(', ');
-            accessEl.innerHTML = `<span style="color:#059669;">SP Access:</span> ${accessPerms}`;
+            accessEl.innerHTML = `<span style="color:var(--success-text);">SP Access:</span> ${accessPerms}`;
         } else if (access.status === 'warning') {
-            accessEl.innerHTML = `<span style="color:#d97706;">⚠ ${access.message || 'SP role missing'}</span>`;
+            accessEl.innerHTML = `<span style="color:var(--warning-text);">⚠ ${access.message || 'SP role missing'}</span>`;
         } else {
             accessEl.textContent = '';
         }
@@ -268,26 +518,12 @@ async function loadStatus() {
         // Lakebase project state
         const lbState = (data.lakebase || {}).project_state || 'unknown';
         const config = data.config || {};
+        const projectEl = document.getElementById('detail-lakebase-project');
         if (lbState === 'not_found') {
-            document.getElementById('detail-lakebase-project').textContent = '';
+            projectEl.textContent = '';
         } else {
             const stateLabel = lbState === 'active' ? '(active)' : lbState === 'soft_deleted' ? '(soft-deleted)' : '';
-            document.getElementById('detail-lakebase-project').textContent = `Project: ${config.lakebase_project_id || 'aibi-studio'} ${stateLabel}`;
-        }
-
-        // Show context-appropriate actions for Lakebase card
-        const lakebaseActions = document.getElementById('lakebase-actions');
-        const projectState = (data.lakebase || {}).project_state || 'not_found';
-        if (projectState === 'active' || projectState === 'no_endpoints' || projectState === 'soft_deleted') {
-            // Project exists — only option is to purge and recreate
-            lakebaseActions.innerHTML = `
-                <button class="btn-card-action" onclick="confirmPurgeAndCreate()" style="color:#dc2626;border-color:#fecaca;">Purge &amp; Recreate</button>
-            `;
-        } else {
-            // No project — only option is to create
-            lakebaseActions.innerHTML = `
-                <button class="btn-card-action" onclick="runSetup('create')" style="color:#2563eb;border-color:#bfdbfe;">Create</button>
-            `;
+            projectEl.textContent = `Project: ${config.lakebase_project_id || 'aibi-studio'} ${stateLabel}`;
         }
     } catch (e) {
         console.warn('Failed to load infra status:', e);
@@ -309,7 +545,7 @@ function updateCard(id, info) {
     } else if (state === 'not_provisioned') {
         if (status) status.textContent = 'Not provisioned';
     } else {
-        if (status) status.textContent = 'Unknown';
+        if (status) status.textContent = 'Checking...';
     }
 
     if (info.detail && detail) {
@@ -317,58 +553,79 @@ function updateCard(id, info) {
     }
 }
 
-function confirmPurgeAndCreate() {
-    runSetup('purge_and_create');
+loadStatus();
+
+// ═══════════════════════════════════════════════════
+// Setup Job — Task DAG
+// ═══════════════════════════════════════════════════
+
+const TASK_KEYS = [
+    'cleanup_lakebase',
+    'create_lakebase',
+    'setup_metadata_tables',
+    'grant_workspace_folder_access',
+    'grant_uc_catalog_access',
+    'check_deploy_agent',
+    'create_model_schema',
+    'register_supervisor_model',
+    'deploy_serving_endpoint',
+    'configure_gateway'
+];
+
+function resetTaskNodes() {
+    TASK_KEYS.forEach(key => {
+        const el = document.getElementById(`task-${key}`);
+        if (el) el.className = 'task-node pending';
+    });
 }
 
-function grayOutCards() {
-    // Reset all status cards to "resetting" state while setup job runs
-    ['lakebase', 'metadata', 'perms', 'uc'].forEach(id => {
-        const dot = document.getElementById(`dot-${id}`);
-        const status = document.getElementById(`status-${id}`);
-        if (dot) dot.className = 'infra-status-dot unknown';
-        if (status) status.textContent = 'Resetting...';
-    });
-    // Clear detail lines
-    ['detail-metadata-access', 'detail-perms-sp', 'detail-perms-access',
-     'detail-uc-sp', 'detail-uc-access'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = '';
-    });
+function setTaskStatus(taskKey, status) {
+    const el = document.getElementById(`task-${taskKey}`);
+    if (!el) return;
+    el.className = `task-node ${status}`;
 }
 
-async function runSetup(action) {
-    // Disable all action buttons and gray out status cards
-    document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
-    grayOutCards();
+// Toggle Track C visibility based on checkbox
+document.getElementById('setup-deploy-agent').addEventListener('change', (e) => {
+    const trackC = document.getElementById('track-c-agent');
+    trackC.style.opacity = e.target.checked ? '1' : '0.4';
+});
+
+async function runSetup() {
+    const action = document.getElementById('setup-action').value;
+    const deployAgent = document.getElementById('setup-deploy-agent').checked;
+    const btn = document.getElementById('btn-run-setup');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    resetTaskNodes();
+
+    // If action is "create", cleanup task will be skipped
+    if (action === 'create') {
+        setTaskStatus('cleanup_lakebase', 'skipped');
+    }
+    // If deploy_agent is false, Track C is skipped
+    if (!deployAgent) {
+        ['check_deploy_agent', 'create_model_schema', 'register_supervisor_model',
+         'deploy_serving_endpoint', 'configure_gateway'].forEach(k => setTaskStatus(k, 'skipped'));
+    }
 
     try {
-        const res = await fetch(`/api/admin/run-setup?action=${action}`, { method: 'POST' });
+        const params = new URLSearchParams({ action, deploy_agent: deployAgent.toString() });
+        const res = await fetch(`/api/admin/run-setup?${params}`, { method: 'POST' });
         if (res.ok) {
             const data = await res.json();
-            showBanner(`Setup job triggered (action=${action}, run_id: ${data.run_id})`, 'Polling for completion...');
+            showBanner(`Setup job triggered (action=${action})`, `Run ID: ${data.run_id}`);
             pollJobRun(data.job_id, data.run_id);
         } else {
             const err = await res.json();
             showBanner(`Failed: ${err.error || 'Unknown error'}`, '', true);
-            document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
+            btn.disabled = false;
+            btn.textContent = 'Run Setup';
         }
     } catch (e) {
         showBanner(`Connection error: ${e.message}`, '', true);
-        document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
-    }
-}
-
-async function runTask(jobKey) {
-    try {
-        const res = await fetch(`/api/admin/run-setup?job=${jobKey}`, { method: 'POST' });
-        if (res.ok) {
-            const data = await res.json();
-            showBanner(`Job '${jobKey}' triggered`, `run_id: ${data.run_id}`);
-            pollJobRun(data.job_id, data.run_id);
-        }
-    } catch (e) {
-        showBanner(`Error: ${e.message}`, '', true);
+        btn.disabled = false;
+        btn.textContent = 'Run Setup';
     }
 }
 
@@ -377,8 +634,7 @@ function showBanner(text, detail, isError) {
     banner.classList.add('visible');
     document.getElementById('setup-banner-text').textContent = text;
     document.getElementById('setup-banner-detail').textContent = detail || '';
-    if (isError) banner.style.borderColor = '#fecaca';
-    else banner.style.borderColor = '#e5e7eb';
+    banner.style.borderColor = isError ? 'var(--danger-border)' : 'var(--border)';
 }
 
 async function pollJobRun(jobId, runId) {
@@ -388,30 +644,49 @@ async function pollJobRun(jobId, runId) {
             if (!res.ok) return;
             const data = await res.json();
 
+            // Update task node states from task-level status
+            if (data.tasks && Array.isArray(data.tasks)) {
+                data.tasks.forEach(task => {
+                    const key = task.task_key;
+                    if (!key) return;
+                    const state = (task.state || '').toLowerCase();
+                    if (state === 'running' || state === 'pending') {
+                        setTaskStatus(key, state);
+                    } else if (state === 'succeeded' || state === 'success') {
+                        setTaskStatus(key, 'completed');
+                    } else if (state === 'failed' || state === 'timed_out') {
+                        setTaskStatus(key, 'failed');
+                    } else if (state === 'skipped' || state === 'excluded' || state === 'upstream_failed') {
+                        setTaskStatus(key, 'skipped');
+                    }
+                });
+            }
+
             if (data.state === 'TERMINATED') {
                 clearInterval(interval);
+                const btn = document.getElementById('btn-run-setup');
+                btn.disabled = false;
+                btn.textContent = 'Run Setup';
                 if (data.result_state === 'SUCCESS') {
                     showBanner('Setup completed successfully!', 'Refreshing status...');
-                    // Re-enable buttons and refresh status after Lakebase settles
-                    setTimeout(() => {
-                        document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
-                        loadStatus();
-                    }, 3000);
+                    setTimeout(() => loadStatus(), 3000);
                 } else {
                     showBanner(`Setup failed: ${data.state_message || data.result_state}`, '', true);
-                    document.querySelectorAll('.btn-card-action').forEach(b => { b.disabled = false; b.style.opacity = '1'; });
-                    loadStatus();  // Refresh to show actual state
+                    loadStatus();
                 }
             } else {
-                showBanner(`Running... (${data.state})`, `Tasks: ${data.tasks_completed || 0}/${data.tasks_total || '?'}`);
+                const completed = data.tasks_completed || 0;
+                const total = data.tasks_total || TASK_KEYS.length;
+                showBanner(`Running... (${data.state})`, `Tasks: ${completed}/${total}`);
             }
         } catch (e) {}
-    }, 5000);
+    }, 4000);
 }
 
-loadStatus();
+// ═══════════════════════════════════════════════════
+// Pipeline Runs
+// ═══════════════════════════════════════════════════
 
-// --- Pipeline Runs (latest per domain+version) ---
 let allRuns = [];
 let domainFilter = '';
 
@@ -436,7 +711,6 @@ function populateDomainFilter() {
 
 function renderRuns() {
     const filtered = domainFilter ? allRuns.filter(r => r.domain === domainFilter) : allRuns;
-    // Group by domain+version, keep only latest run per group
     const latestMap = {};
     const retryCount = {};
     filtered.forEach(run => {
@@ -450,33 +724,32 @@ function renderRuns() {
     const latest = Object.values(latestMap).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
     const tbody = document.getElementById('admin-runs-tbody');
     if (latest.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#9ca3af;">No pipeline runs yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No pipeline runs yet.</td></tr>';
         return;
     }
-    const td = 'padding:10px 14px; border-bottom:1px solid #f0f0f0;';
     tbody.innerHTML = latest.map(run => {
         const key = `${run.domain}|${run.version_suffix || ''}`;
         const retries = retryCount[key] - 1;
         const version = (run.version_suffix || '').replace(/^_/, '') || '-';
         const started = run.started_at ? new Date(run.started_at).toLocaleString() : '-';
         const duration = run.duration_s ? `${Number(run.duration_s).toFixed(1)}s` : '-';
-        const statusColor = run.status === 'completed' ? '#16a34a' : run.status === 'failed' ? '#dc2626' : run.status === 'running' ? '#f59e0b' : '#9ca3af';
-        const retryBadge = retries > 0 ? ` <span title="${retries} previous attempt(s)" style="font-size:0.68rem; background:#fef3c7; color:#92400e; padding:1px 6px; border-radius:8px; cursor:help;">${retries} retry</span>` : '';
-        let actions = `<a href="/run/${run.run_id}" style="color:#2563eb; text-decoration:none; font-size:0.78rem;">View</a>`;
+        const statusColor = run.status === 'completed' ? 'var(--success)' : run.status === 'failed' ? 'var(--danger)' : run.status === 'running' ? 'var(--warning)' : 'var(--text-muted)';
+        const retryBadge = retries > 0 ? ` <span title="${retries} previous attempt(s)" style="font-size:0.65rem; background:var(--warning-soft); color:var(--warning-text); padding:1px 6px; border-radius:8px; border:1px solid var(--warning-border); cursor:help;">${retries} retry</span>` : '';
+        let actions = `<a href="/run/${run.run_id}" style="color:var(--primary); text-decoration:none; font-size:0.75rem;">View</a>`;
         if (run.status === 'failed') {
-            actions += ` <button onclick="rerunFromAdmin('${run.run_id}')" style="margin-left:6px; padding:2px 8px; border:1px solid #e5e7eb; border-radius:4px; background:#fff; font-size:0.72rem; cursor:pointer;">Rerun</button>`;
+            actions += ` <button onclick="rerunFromAdmin('${run.run_id}')" class="btn-card-action" style="margin-left:6px;">Rerun</button>`;
         }
         if (run.status !== 'running') {
             const btnId = `del-${run.domain}-${(run.version_suffix||'').replace(/[^a-z0-9]/gi,'')}`;
-            actions += ` <button id="${btnId}" onclick="requestCleanup('${run.domain}', '${run.version_suffix || ''}', '${btnId}')" style="margin-left:6px; padding:2px 8px; border:1px solid #fecaca; border-radius:4px; background:#fff; font-size:0.72rem; cursor:pointer; color:#dc2626;" title="Remove this version">Delete</button>`;
+            actions += ` <button id="${btnId}" onclick="requestCleanup('${run.domain}', '${run.version_suffix || ''}', '${btnId}')" class="btn-card-action" style="margin-left:6px; color:var(--danger-text); border-color:var(--danger-border);" title="Remove this version">Delete</button>`;
         }
         return `<tr>
-            <td style="${td}">${(run.domain || '').replace(/_/g, ' ')}</td>
-            <td style="${td}">${version}</td>
-            <td style="${td}">${started}</td>
-            <td style="${td}">${duration}</td>
-            <td style="${td}">${actions}</td>
-            <td style="${td}"><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${statusColor}; margin-right:6px;"></span>${run.status}${retryBadge}</td>
+            <td>${(run.domain || '').replace(/_/g, ' ')}</td>
+            <td>${version}</td>
+            <td>${started}</td>
+            <td>${duration}</td>
+            <td>${actions}</td>
+            <td><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${statusColor}; margin-right:6px;"></span>${run.status}${retryBadge}</td>
         </tr>`;
     }).join('');
 }

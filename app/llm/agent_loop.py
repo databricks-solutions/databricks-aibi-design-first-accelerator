@@ -37,6 +37,30 @@ MAX_ITERATIONS = 80
 # Max consecutive tool errors before hard fail (prevents token waste on unfixable issues)
 MAX_CONSECUTIVE_ERRORS = 3
 
+# Critical tools: a single failure is immediately fatal because skipping
+# leaves the system in an inconsistent state that cannot self-correct.
+# The LLM must NOT be allowed to silently adapt around these failures.
+CRITICAL_TOOLS = {
+    "execute_sql",            # DDL failures (CREATE SCHEMA, CREATE TABLE) = broken data layer
+    "execute_python",         # Python code generates artifacts (YAML, configs) needed downstream
+    "execute_notebook",       # Notebook execution (data generation, ETL) = missing data
+    "create_notebook",        # Can't create the notebook = can't proceed
+    "write_file",             # File writes produce artifacts required by later phases
+    "create_dashboard",       # Dashboard creation failure = step cannot complete
+    "create_genie_space",     # Genie space creation = step cannot complete
+}
+
+# Critical error patterns: even for non-critical tools, certain error messages
+# indicate unrecoverable state (e.g., permission denied, quota exceeded).
+CRITICAL_ERROR_PATTERNS = [
+    "PermissionDenied",
+    "PERMISSION_DENIED",
+    "RESOURCE_EXHAUSTED",
+    "QUOTA_EXCEEDED",
+    "INTERNAL_ERROR",
+    "schema already exists",   # Shouldn't hit this but if we do, something is off
+]
+
 
 @dataclass
 class AgentResult:
@@ -194,14 +218,51 @@ class AgentLoop:
                 result_str = self._executor.execute(tool_name, tool_args)
                 duration_ms = int((time.time() - start_ts) * 1000)
 
-                # Track errors for cost control (two mechanisms)
+                # Track errors for cost control (three mechanisms)
                 is_error = result_str.startswith("ERROR") or result_str.startswith("SQL ERROR") or result_str.startswith("NOTEBOOK ERROR")
                 if is_error:
                     consecutive_errors += 1
-                    # Per-tool error tracking (never resets — catches repeated failures
-                    # of the same tool even when other tools succeed in between)
                     per_tool_errors[tool_name] = per_tool_errors.get(tool_name, 0) + 1
 
+                    # --- CRITICAL TOOL CHECK (immediate halt) ---
+                    # Certain tools leave the system inconsistent if they fail;
+                    # the LLM must NOT be allowed to silently adapt around them.
+                    # Exception: read-only SQL (SELECT/SHOW/DESCRIBE) is non-critical.
+                    is_critical = False
+                    if tool_name in CRITICAL_TOOLS:
+                        # For execute_sql, only DDL/DML is critical (not reads)
+                        if tool_name == "execute_sql":
+                            stmt = tool_args.get("statement", "").strip().upper()
+                            is_critical = not stmt.startswith(("SELECT", "SHOW", "DESCRIBE", "DESC"))
+                        else:
+                            is_critical = True
+
+                    # Check for critical error patterns (any tool)
+                    if not is_critical:
+                        for pattern in CRITICAL_ERROR_PATTERNS:
+                            if pattern in result_str:
+                                is_critical = True
+                                break
+
+                    if is_critical:
+                        logger.error(
+                            f"CRITICAL tool failure — halting immediately. "
+                            f"Tool: {tool_name}, Error: {result_str[:500]}"
+                        )
+                        if callback:
+                            callback("critical_failure", {
+                                "tool": tool_name,
+                                "error": result_str[:1000],
+                                "iteration": iterations,
+                            })
+                        return AgentResult(
+                            success=False,
+                            error=f"Critical failure in '{tool_name}': {result_str[:1000]}",
+                            iterations=iterations,
+                            tool_calls_made=tool_calls_made,
+                        )
+
+                    # --- NON-CRITICAL: budget-based halt ---
                     # Hard fail: 3 consecutive errors OR same tool failed 3 times total
                     if consecutive_errors >= MAX_CONSECUTIVE_ERRORS:
                         logger.error(
@@ -596,6 +657,30 @@ class AgentLoop:
             parts.append("  Total Step 6 tool calls: 2-3 max (write readme + write manifest + report_progress).")
             parts.append("- If you find yourself calling read_workspace_file during validation, STOP.")
             parts.append("  You already have that data. Use it from context.")
+
+        # Inject RESUME_CONTEXT when resuming from a prior checkpoint (App-mode optimization).
+        # The step prompts already encode artifact-as-state verification unconditionally.
+        # This context accelerates the process by pre-identifying what's done.
+        resume_context = context_vars.get('RESUME_CONTEXT')
+        if resume_context:
+            parts.append("")
+            parts.append("RESUME_CONTEXT (App-mode optimization — pre-identified completed work):")
+            parts.append(f"  run_id: {resume_context.get('run_id', 'N/A')}")
+            parts.append(f"  last_completed_step: {resume_context.get('last_completed_step', 'N/A')}")
+            parts.append(f"  current_step: {resume_context.get('current_step', 'N/A')}")
+            artifacts = resume_context.get('artifacts_written', [])
+            if artifacts:
+                parts.append("  artifacts_written (verify these exist, skip phases if valid):")
+                for a in artifacts:
+                    parts.append(f"    - {a}")
+            findings = resume_context.get('prior_findings', [])
+            if findings:
+                parts.append("  prior_findings:")
+                for f in findings:
+                    parts.append(f"    - {f}")
+            parts.append("")
+            parts.append("  Use this context to skip listing the output folder — verify the")
+            parts.append("  artifacts above directly, then continue from the first incomplete phase.")
 
         if supplement:
             parts.append("")

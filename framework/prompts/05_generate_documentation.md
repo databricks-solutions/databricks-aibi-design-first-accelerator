@@ -47,6 +47,37 @@ Do not present planned assets as successfully created assets.
 
 ---
 
+## State & Checkpoint Contract
+
+This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+The same rules apply in App mode and Genie Code — no backend infrastructure required.
+
+**Before executing each phase**, check whether its output artifact already exists.
+If it exists and is structurally valid → **skip** that phase and call `report_progress(status="completed")` immediately.
+If it does not exist → execute the phase normally.
+
+**Verification flow (run at the START of this step, after loading config):**
+
+1. List the output folder.
+2. Manage `run_context.yaml` per `07_state_contract.md` Section 8.
+3. For each artifact below, apply ONE cheap check:
+   - `readme.md` exists: skip generate_documentation
+   - `run_manifest.json` exists: skip generate_manifest
+4. Continue from the **first phase whose artifact is missing**.
+5. On step completion, set `status: completed` in `run_context.yaml`.
+
+**Note:** Documentation is always safe to regenerate (idempotent overwrite). On explicit re-run, ignore existing artifacts and regenerate.
+
+**Artifact-as-State mapping:**
+
+| Phase | Artifact | Skip when |
+|-------|----------|----------|
+| gather_artifacts | Artifacts loaded | Always re-read (stateless) |
+| generate_documentation | readme.md | file exists in output folder |
+| generate_manifest | run_manifest.json | file exists |
+
+---
+
 # Step 1: Load Configuration
 
 > **PROGRESS REPORT:** Call `report_progress` with:

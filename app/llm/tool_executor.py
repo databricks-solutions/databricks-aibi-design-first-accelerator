@@ -147,8 +147,23 @@ class ToolExecutor:
         return self._handle_execute_sql({"statement": f"DESCRIBE TABLE EXTENDED {args['table_name']}"})
 
     def _handle_execute_python(self, args: dict) -> str:
-        result = self._sql.execute_python(args["code"])
-        return result or "SUCCESS: Python code executed."
+        """Run a Python snippet in a subprocess and return its stdout."""
+        import subprocess as _sp
+        code = args.get("code", "")
+        if not code.strip():
+            return "ERROR: No code provided."
+        try:
+            proc = _sp.run(
+                ["python", "-c", code],
+                capture_output=True, text=True, timeout=30
+            )
+            if proc.returncode != 0:
+                return f"ERROR: {proc.stderr.strip()}"
+            return proc.stdout.strip() or "SUCCESS: executed (no output)."
+        except _sp.TimeoutExpired:
+            return "ERROR: Python execution timed out (30s limit)."
+        except Exception as e:
+            return f"ERROR: {type(e).__name__}: {e}"
 
     def _handle_call_vision_model(self, args: dict) -> str:
         image_path = args["image_path"]

@@ -1,0 +1,78 @@
+volume: low
+row_counts:
+  dim_member: 500
+  dim_address: 350
+  dim_provider: 300
+  dim_member_identifier: 800
+  dim_member_history: 1000
+  fact_member_enrollment: 2000
+  fact_claim_header: 3000
+  fact_claim_detail: 9000
+volume_targets_reference:
+  low: {dimension: 100-500, fact: 500-5000, detail_fact: 2000-10000}
+generation_order:
+  - dim_member
+  - dim_address
+  - dim_provider
+  - dim_member_identifier
+  - dim_member_history
+  - fact_member_enrollment
+  - fact_claim_header
+  - fact_claim_detail
+key_strategies:
+  dim_member.member_sk: {generation_strategy: SEQUENTIAL_ID, start: 1, unique: true}
+  dim_address.address_key: {generation_strategy: SEQUENTIAL_ID, start: 1, unique: true}
+  dim_provider.provider_sk: {generation_strategy: SEQUENTIAL_ID, start: 1, unique: true}
+  dim_provider.provider_npi: {generation_strategy: SEQUENTIAL_ID, prefix: NPI, length: 10, unique: true}
+  dim_member_identifier.mbr_identifier_sk: {generation_strategy: SEQUENTIAL_ID, start: 1, unique: true}
+  fact_member_enrollment.enrollment_sk: {generation_strategy: SEQUENTIAL_ID, prefix: ENR, length: 12, unique: true}
+  fact_claim_header.clm_header_sk: {generation_strategy: SEQUENTIAL_ID, start: 1, unique: true}
+  fact_claim_header.clm_claim_id: {generation_strategy: SEQUENTIAL_ID, prefix: CLM, length: 12, unique: true}
+  fact_claim_detail: {generation_strategy: DERIVED_COMPOSITE, columns: [clm_dtl_claim_id, clm_dtl_line_nbr], unique: true}
+fk_strategies:
+  - {child_table: dim_address, child_columns: [entity_dimension_key], parent_table: dim_member, parent_columns: [member_sk], strategy: PARENT_KEY_SAMPLE, confidence: MEDIUM}
+  - {child_table: dim_provider, child_columns: [provider_address_sk], parent_table: dim_address, parent_columns: [address_key], strategy: PARENT_KEY_SAMPLE, confidence: MEDIUM}
+  - {child_table: dim_provider, child_columns: [assigned_provider_sk], parent_table: dim_provider, parent_columns: [provider_sk], strategy: PARENT_KEY_SAMPLE, confidence: MEDIUM}
+  - {child_table: dim_member_identifier, child_columns: [member_sk], parent_table: dim_member, parent_columns: [member_sk], strategy: PARENT_KEY_SAMPLE, confidence: HIGH}
+  - {child_table: dim_member_history, child_columns: [member_sk], parent_table: dim_member, parent_columns: [member_sk], strategy: PARENT_KEY_SAMPLE, confidence: HIGH}
+  - {child_table: fact_member_enrollment, child_columns: [member_sk], parent_table: dim_member, parent_columns: [member_sk], strategy: PARENT_KEY_SAMPLE, confidence: HIGH}
+  - {child_table: fact_member_enrollment, child_columns: [id_type, id_value], parent_table: dim_member_identifier, parent_columns: [id_type, id_value], strategy: PARENT_KEY_SAMPLE_COMPOSITE, confidence: MEDIUM}
+  - {child_table: fact_claim_header, child_columns: [clm_member_sk], parent_table: dim_member, parent_columns: [member_sk], strategy: PARENT_KEY_SAMPLE, confidence: HIGH}
+  - {child_table: fact_claim_header, child_columns: [clm_service_facility_address_sk], parent_table: dim_address, parent_columns: [address_key], strategy: PARENT_KEY_SAMPLE, confidence: MEDIUM}
+  - {child_table: fact_claim_header, child_columns: [clm_operating_provider_npi], parent_table: dim_provider, parent_columns: [provider_npi], strategy: PARENT_KEY_SAMPLE, confidence: MEDIUM}
+  - {child_table: fact_claim_detail, child_columns: [clm_dtl_claim_id], parent_table: fact_claim_header, parent_columns: [clm_claim_id], strategy: PARENT_KEY_SAMPLE_WITH_LINE_MULTIPLIER, confidence: MEDIUM}
+domain_distributions:
+  line_of_business:
+    generation_strategy: WEIGHTED_CATEGORICAL
+    values: [COMMERCIAL, MEDICARE, MEDICAID, TRICARE, EXCHANGE]
+    weights: [0.35, 0.24, 0.23, 0.08, 0.10]
+  state:
+    generation_strategy: WEIGHTED_CATEGORICAL
+    values: [CA, TX, NY, FL, IL, PA, OH, GA, NC, AZ, WA]
+    weights: [0.18, 0.16, 0.16, 0.12, 0.08, 0.07, 0.06, 0.06, 0.05, 0.03, 0.03]
+  claim_type:
+    generation_strategy: WEIGHTED_CATEGORICAL
+    values: [INSTITUTIONAL, PROFESSIONAL, PHARMACY, DENTAL, VISION]
+    weights: [0.12, 0.45, 0.28, 0.10, 0.05]
+    paid_amount_profiles:
+      INSTITUTIONAL: {min: 8000, max: 95000, avg_hint: 45000, denial_rate: 0.28}
+      PROFESSIONAL: {min: 80, max: 4500, avg_hint: 650, denial_rate: 0.11}
+      PHARMACY: {min: 15, max: 1600, avg_hint: 350, denial_rate: 0.06}
+      DENTAL: {min: 75, max: 2200, avg_hint: 420, denial_rate: 0.08}
+      VISION: {min: 30, max: 900, avg_hint: 180, denial_rate: 0.03}
+  statuses:
+    claim_line_status: {generation_strategy: WEIGHTED_CATEGORICAL, values: [PAID, DENIED, PENDED, ADJUSTED], weights: [0.72, 0.14, 0.08, 0.06]}
+    adjudication_status: {generation_strategy: WEIGHTED_CATEGORICAL, values: [APPROVED, DENIED, PENDING, IN_REVIEW], weights: [0.70, 0.16, 0.09, 0.05]}
+    enrollment_status: {generation_strategy: WEIGHTED_CATEGORICAL, values: [ACTIVE, TERMINATED, PENDING, COBRA], weights: [0.78, 0.14, 0.05, 0.03]}
+semantic_constraints:
+  - {type: STRUCTURAL, expression: child FK values must exist in parent PK/domain for every relationship, confidence: HIGH, rationale: ERD relationships}
+  - {type: TEMPORAL, expression: valid_from_date <= valid_to_date where both exist, confidence: HIGH, rationale: validity period columns}
+  - {type: TEMPORAL, expression: effective_date <= termination_date where both exist, confidence: HIGH, rationale: enrollment coverage period}
+  - {type: STATISTICAL, expression: claim type volumes and paid amounts are skewed by category, confidence: MEDIUM, rationale: demo-quality dashboard distributions}
+column_generation_defaults:
+  all_columns: every DDL column generated by base_generator then domain-adjusted by Spark-native transformations
+  categorical_values: concrete healthcare/member-claims values; no generic A/B/C placeholders in final analytical columns
+  free_text: controlled short domain values or deterministic prefixes; no random word templates
+  varchar_limits: enforce_varchar_limits called as final transformation before write
+fallbacks:
+  generic_fallback_columns: []

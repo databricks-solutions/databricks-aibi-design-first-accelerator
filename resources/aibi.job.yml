@@ -43,6 +43,8 @@ resources:
           default: ${var.gateway_model}
         - name: action
           default: "create"
+        - name: deploy_agent
+          default: "false"
 
       tasks:
         # --- Step 1: Clean up existing Lakebase project (only runs on purge_and_create) ---
@@ -101,10 +103,23 @@ resources:
               action: "{{job.parameters.action}}"
 
         # --- Track B: Agent Model (parallel to Track A) ---
+        # Controlled by deploy_agent parameter (default: false)
+        # Set deploy_agent=true to provision the supervisor serving endpoint
+
+        # Gate: skip Track B unless deploy_agent=true
+        - task_key: check_deploy_agent
+          description: "Gate for Track B — skips agent deployment unless deploy_agent=true"
+          condition_task:
+            op: EQUAL_TO
+            left: "{{job.parameters.deploy_agent}}"
+            right: "true"
 
         # B1: Create model schema
         - task_key: create_model_schema
           description: "Create UC schema for the supervisor MLflow model"
+          depends_on:
+            - task_key: check_deploy_agent
+              outcome: "true"
           notebook_task:
             notebook_path: "../notebooks/agent/create_model_schema.py"
             base_parameters:
@@ -141,10 +156,11 @@ resources:
               app_name: "{{job.parameters.app_name}}"
               force_recreate: "false"
 
-        # B4: Configure AI Gateway overlay on LLM endpoint (no dependency —
-        #     targets the pre-existing databricks-gpt-5-5, not the supervisor endpoint)
+        # B4: Configure AI Gateway overlay on LLM endpoint
         - task_key: configure_gateway
           description: "Apply AI Gateway overlay (rate limits, inference tables) on the LLM endpoint"
+          depends_on:
+            - task_key: deploy_serving_endpoint
           notebook_task:
             notebook_path: "../notebooks/agent/configure_gateway.py"
             base_parameters:

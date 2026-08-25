@@ -227,6 +227,39 @@ else:
         """,
         "CREATE INDEX IF NOT EXISTS idx_events_run_seq ON events(run_id, event_id)",
         "CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status) WHERE status IN ('running', 'pending')",
+        # ─── State Persistence Enhancement (07_state_contract.md) ───
+        # Enhance runs table for real-time progress tracking
+        "ALTER TABLE runs ADD COLUMN IF NOT EXISTS progress_pct INT DEFAULT 0",
+        "ALTER TABLE runs ADD COLUMN IF NOT EXISTS current_step TEXT",
+        "ALTER TABLE runs ADD COLUMN IF NOT EXISTS run_manifest JSONB",
+        "ALTER TABLE runs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ",
+        # Enhance steps table with duration
+        "ALTER TABLE steps ADD COLUMN IF NOT EXISTS duration_s FLOAT",
+        "ALTER TABLE steps ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ",
+        # Enhance phases table with rich report_progress fields
+        "ALTER TABLE phases ADD COLUMN IF NOT EXISTS phase_id TEXT",
+        "ALTER TABLE phases ADD COLUMN IF NOT EXISTS current_task TEXT",
+        "ALTER TABLE phases ADD COLUMN IF NOT EXISTS progress_pct INT DEFAULT 0",
+        "ALTER TABLE phases ADD COLUMN IF NOT EXISTS stats JSONB",
+        "ALTER TABLE phases ADD COLUMN IF NOT EXISTS happenings JSONB",
+        "ALTER TABLE phases ADD COLUMN IF NOT EXISTS findings JSONB",
+        "ALTER TABLE phases ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ",
+        # New tool_calls table for full debuggability
+        """
+        CREATE TABLE IF NOT EXISTS tool_calls (
+            id           BIGSERIAL PRIMARY KEY,
+            run_id       TEXT NOT NULL REFERENCES runs(run_id),
+            step_name    TEXT NOT NULL,
+            tool_name    TEXT NOT NULL,
+            status       TEXT NOT NULL DEFAULT 'running',
+            args_summary TEXT,
+            error        TEXT,
+            duration_ms  INT,
+            started_at   TIMESTAMPTZ DEFAULT now(),
+            completed_at TIMESTAMPTZ
+        )
+        """,
+        "CREATE INDEX IF NOT EXISTS idx_tool_calls_run_step ON tool_calls(run_id, step_name, started_at DESC)",
     ]
 
     conn = pg8000.connect(
@@ -315,7 +348,9 @@ else:
             grant_statements = [
                 f'GRANT USAGE ON SCHEMA public TO "{sp_role_name}"',
                 f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{sp_role_name}"',
+                f'GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "{sp_role_name}"',
                 f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "{sp_role_name}"',
+                f'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO "{sp_role_name}"',
             ]
             conn2 = pg8000.connect(
                 host=endpoint_host,
@@ -355,4 +390,3 @@ else:
         "endpoint_host": endpoint_host,
         "database": db_name,
     }))
-

@@ -239,6 +239,7 @@ def run_setup():
         {status: 'triggered', run_id, job_id}
     """
     action = request.args.get("action", "create")  # create, purge_and_create
+    deploy_agent = request.args.get("deploy_agent", "false")  # true/false
 
     try:
         w = _get_workspace_client()
@@ -257,7 +258,7 @@ def run_setup():
         # The action param is passed to downstream tasks (metadata/perms skip on purge)
         run = w.jobs.run_now(
             job_id=job_id,
-            job_parameters={"action": action}
+            job_parameters={"action": action, "deploy_agent": deploy_agent}
         )
         logger.info(f"Setup job triggered: job_id={job_id}, run_id={run.run_id}")
 
@@ -293,6 +294,29 @@ def job_status(run_id):
             if t.state and t.state.life_cycle_state and "TERMINATED" in str(t.state.life_cycle_state)
         )
 
+        # Build per-task status for DAG visualization
+        tasks_detail = []
+        for t in (run.tasks or []):
+            t_lifecycle = t.state.life_cycle_state if t.state else None
+            t_result = t.state.result_state if t.state else None
+            t_lifecycle_str = t_lifecycle.value if hasattr(t_lifecycle, 'value') else str(t_lifecycle or 'PENDING')
+            t_result_str = t_result.value if hasattr(t_result, 'value') else str(t_result) if t_result else None
+            # Map to frontend states: pending, running, succeeded, failed, skipped
+            if t_lifecycle_str == 'TERMINATED':
+                state = t_result_str.lower() if t_result_str else 'succeeded'
+            elif t_lifecycle_str in ('RUNNING', 'PENDING'):
+                state = t_lifecycle_str.lower()
+            elif t_lifecycle_str in ('SKIPPED', 'EXCLUDED'):
+                state = 'skipped'
+            elif t_lifecycle_str == 'INTERNAL_ERROR':
+                state = 'failed'
+            else:
+                state = 'pending'
+            tasks_detail.append({
+                'task_key': t.task_key,
+                'state': state,
+            })
+
         # Extract enum .value to get clean strings (e.g. "TERMINATED" not "LifeCycleState.TERMINATED")
         life_cycle = run.state.life_cycle_state if run.state else None
         result = run.state.result_state if run.state else None
@@ -302,6 +326,7 @@ def job_status(run_id):
             "state_message": run.state.state_message if run.state else None,
             "tasks_total": tasks_total,
             "tasks_completed": tasks_completed,
+            "tasks": tasks_detail,
         })
 
     except Exception as e:

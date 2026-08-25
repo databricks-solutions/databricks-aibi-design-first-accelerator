@@ -113,6 +113,44 @@ Do not compensate by querying raw tables or recreating KPI formulas inside Genie
 
 ---
 
+## State & Checkpoint Contract
+
+This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+The same rules apply in App mode and Genie Code — no backend infrastructure required.
+
+**Before executing each phase**, check whether its output artifact already exists.
+If it exists and is structurally valid → **skip** that phase and call `report_progress(status="completed")` immediately.
+If it does not exist → execute the phase normally.
+
+**Verification flow (run at the START of this step, after loading config):**
+
+1. List the output folder.
+2. Manage `run_context.yaml` per `07_state_contract.md` Section 8.
+3. For each artifact below, apply ONE cheap check:
+   - `genie_semantic_inventory.yaml` exists: skip build_inventory
+   - Genie manifest (`*_genie_manifest.json`) exists with `space_id` field: skip create_genie_space
+   - `genie_benchmark_validation.yaml` exists: skip validate_genie
+4. Continue from the **first phase whose artifact is missing**.
+5. Maintain `run_context.yaml` at each phase boundary (see contract).
+
+**Rules:**
+
+- Every `report_progress(status="completed")` marks a phase as done.
+- **Never re-execute a phase whose output artifact already exists and is structurally valid.**
+- For Genie spaces: if manifest contains a valid `space_id`, **UPDATE** the existing space rather than creating a new one.
+- If `RESUME_CONTEXT` is provided (App mode), use it to accelerate. Otherwise, discover state from the output folder.
+
+**Artifact-as-State mapping:**
+
+| Phase | Artifact | Skip when |
+|-------|----------|----------|
+| load_config | Config + contracts loaded | Always re-read (stateless) |
+| build_inventory | genie_semantic_inventory.yaml | file exists |
+| create_genie_space | *_genie_manifest.json | file exists + contains space_id |
+| validate_genie | genie_benchmark_validation.yaml | file exists |
+
+---
+
 # KPI-Driven Genie Design (Mandatory)
 
 Genie Space configuration is ENTIRELY driven by two sources:

@@ -267,6 +267,11 @@ class PipelineRunner:
         resume_step = resume_from.get("step_name") if resume_from else None
         resume_step_reached = (resume_step is None)  # True if no resume = run all
 
+        # Build RESUME_CONTEXT for the LLM if resuming from a prior checkpoint
+        self._resume_context = None
+        if resume_from:
+            self._resume_context = self._build_resume_context(run.run_id, resume_from)
+
         logger.info(
             f"Pipeline started: run_id={run.run_id}, domain={domain}, "
             f"steps={steps_to_run}, resume_from={resume_from}"
@@ -624,6 +629,87 @@ class PipelineRunner:
                 suggestion=suggestion,
                 phases=phase_results,
             )
+
+    def _build_resume_context(self, run_id: str, resume_from: dict) -> dict:
+        """Build RESUME_CONTEXT dict for the LLM when resuming from a checkpoint.
+
+        Queries the run_store (Lakebase) for completed phases and their findings,
+        constructs a context object that tells the LLM what was already done.
+
+        Args:
+            run_id: Current run ID.
+            resume_from: Dict with at least {"step_name": str}.
+
+        Returns:
+            Dict suitable for injection into agent_loop system message.
+        """
+        if not self._run_store:
+            return None
+
+        try:
+            run_data = self._run_store.get_run(run_id)
+            if not run_data:
+                return None
+
+            # Find last completed step and phase
+            completed_steps = []
+            all_findings = []
+            artifacts_written = []
+
+            steps_data = run_data.get('steps', {})
+            for sname, sinfo in steps_data.items():
+                if isinstance(sinfo, dict) and sinfo.get('status') == 'completed':
+                    completed_steps.append(sname)
+
+            # Collect phase findings from completed phases
+            phases_data = run_data.get('phases', {})
+            for key, pinfo in phases_data.items():
+                if isinstance(pinfo, dict) and pinfo.get('status') == 'completed':
+                    findings = pinfo.get('findings')
+                    if findings:
+                        if isinstance(findings, list):
+                            all_findings.extend(findings)
+                        elif isinstance(findings, str):
+                            all_findings.append(findings)
+
+            # Derive artifacts from step name conventions
+            artifact_map = {
+                'create_data_layer': [
+                    'erd_parsed.yaml', 'semantic_model.yaml',
+                    'data_layer_validation.yaml'
+                ],
+                'create_metric_views': [
+                    'schema_profile.yaml', 'kpi_metric_mapping.yaml',
+                    'metric_view_design.yaml', 'metric_view_validation.yaml'
+                ],
+                'create_dashboards': [
+                    'dashboard_design.yaml', 'dashboard_dataset_validation.yaml'
+                ],
+                'create_genie_space': [
+                    'genie_semantic_inventory.yaml'
+                ],
+                'generate_documentation': [
+                    'readme.md', 'run_manifest.json'
+                ],
+            }
+            for step in completed_steps:
+                artifacts_written.extend(artifact_map.get(step, []))
+
+            last_completed_step = completed_steps[-1] if completed_steps else None
+            resume_step = resume_from.get('step_name', '')
+
+            return {
+                'run_id': run_id,
+                'last_completed_step': last_completed_step,
+                'last_completed_phase': None,  # Phase-level resume not yet implemented
+                'current_step': f"{resume_step} (restarting from beginning of step)",
+                'artifacts_written': artifacts_written,
+                'prior_findings': all_findings[:20],  # Cap at 20 to avoid token bloat
+            }
+
+        except Exception as e:
+            logger.warning(f"Failed to build RESUME_CONTEXT: {e}")
+            return None
 
     def _emit(self, callback, event_type: str, data: dict) -> None:
         """Emit a pipeline event via callback (if provided)."""

@@ -182,6 +182,51 @@ def _finalize_run_manifest(run_id, run, domain, run_mode, config, services, run_
         log.warning(f"Failed to finalize run_manifest: {e}")
 
 
+def _persist_phase_to_lakebase(run_store, run_id, step, event_data, incoming_status, phases):
+    """Write-through: persist phase_update event to Lakebase (non-blocking on failure).
+
+    Also persists auto-completed prior phases when a new phase starts.
+    """
+    try:
+        # Persist the current phase event
+        run_store.persist_phase_update(run_id, step, event_data)
+
+        # If we auto-completed prior phases, persist those too
+        if incoming_status == 'started':
+            for prior in phases:
+                if prior.get('status') == 'completed' and prior.get('phase_id') != event_data.get('phase_id'):
+                    # Only persist if it was just auto-completed (no completed_at yet in Lakebase)
+                    run_store.persist_phase_update(run_id, step, {
+                        'phase_id': prior.get('phase_id', ''),
+                        'phase_name': prior.get('phase_name', ''),
+                        'status': 'completed',
+                        'stats': prior.get('stats', {}),
+                        'findings': prior.get('findings', []),
+                    })
+    except Exception as e:
+        logger.warning(f"_persist_phase_to_lakebase failed (non-fatal): {e}")
+
+
+def _persist_tool_to_lakebase(run_store, run_id, step, tool_name, event_type, event_data):
+    """Write-through: persist tool call event to Lakebase (non-blocking on failure)."""
+    try:
+        status_map = {
+            'tool_started': 'running',
+            'tool_completed': 'completed',
+            'tool_failed': 'failed',
+        }
+        run_store.persist_tool_call(run_id, step, {
+            'tool_name': tool_name,
+            'status': status_map.get(event_type, 'running'),
+            'args_summary': event_data.get('args_summary', ''),
+            'duration_ms': event_data.get('duration_ms'),
+            'error': event_data.get('error', '')[:500] if event_data.get('error') else None,
+            'started_at': event_data.get('started_at'),
+        })
+    except Exception as e:
+        logger.warning(f"_persist_tool_to_lakebase failed (non-fatal): {e}")
+
+
 def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: str,
                               version_override, user_token: str = "",
                               resume_from: dict = None):
@@ -337,6 +382,10 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                         'findings': event.data.get('findings', []),
                     })
                 run['step_data'][step]['phases'] = phases
+
+                # ── DURABLE CHECKPOINT: write-through to Lakebase ──
+                _persist_phase_to_lakebase(run_store, run_id, step, event.data, incoming_status, phases)
+
         elif event.event_type in ("tool_started", "tool_completed", "tool_failed"):
             # Track agent tool calls in a SEPARATE list (not phases) — these are
             # low-level implementation details, not user-facing progress events.
@@ -379,6 +428,10 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                             'duration_ms': event.data.get('duration_ms'),
                             'error': event.data.get('error', '')[:500],
                         })
+
+                # Write-through: persist tool call to Lakebase
+                _persist_tool_to_lakebase(run_store, run_id, step, tool_name, event.event_type, event.data)
+
         elif event.event_type == "pipeline_completed":
             run['status'] = event.data.get('status', 'completed')
             run['progress_pct'] = 100
@@ -473,6 +526,14 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                 config.assets.genie_notebook = config.assets.genie_notebook + suffix
             run['version'] = version_info.version
             run['version_suffix'] = version_info.suffix
+
+        # Populate run metadata for UI status bar
+        catalog_target = getattr(config.catalog, 'target', '') or '' if hasattr(config, 'catalog') else ''
+        if '.' in catalog_target:
+            run['catalog'], run['schema'] = catalog_target.split('.', 1)
+        else:
+            run['catalog'] = catalog_target
+            run['schema'] = getattr(config, 'schema', '') or ''
 
         # Validate config
         errors = loader.validate(config)
@@ -666,18 +727,31 @@ def get_status(run_id):
 
 @pipeline_bp.route('/cancel/<run_id>', methods=['POST'])
 def cancel_run(run_id):
-    """Request cancellation of a running pipeline."""
+    """Request cancellation of a running pipeline.
+
+    Sets status to 'cancelled' immediately (not 'cancelling') so the frontend
+    can transition the button to Resume All without waiting for the runner to exit.
+    The background thread will notice the cancelled status and stop gracefully.
+    """
     run = _runs.get(run_id)
     if not run:
         return jsonify({'error': {'type': 'NotFound', 'message': f'Run {run_id} not found'}}), 404
 
-    run['status'] = 'cancelling'
+    run['status'] = 'cancelled'
     runner = _runners.get(run_id)
     if runner:
         runner.cancel()
 
-    logger.info(f"Pipeline cancel requested: run_id={run_id}")
-    return jsonify({'run_id': run_id, 'status': 'cancelling'})
+    # Persist to Lakebase so resume works even after server restart
+    run_store = _get_state_store()
+    if run_store:
+        try:
+            run_store.update_run_status(run_id, 'cancelled')
+        except Exception as e:
+            logger.warning(f"Failed to persist cancel to Lakebase: {e}")
+
+    logger.info(f"Pipeline cancelled: run_id={run_id}")
+    return jsonify({'run_id': run_id, 'status': 'cancelled'})
 
 
 @pipeline_bp.route('/stream/<run_id>')
@@ -787,6 +861,21 @@ def get_run_status(run_id):
     """
     run = _runs.get(run_id)
     if not run:
+        # Lakebase fallback: hydrate from durable state on cache miss
+        # (happens after server restart, worker recycling, or browser refresh
+        # when the run is no longer in the in-memory dict)
+        run_store = _get_state_store()
+        if run_store:
+            try:
+                recovered = run_store.load_run_full(run_id)
+                if recovered:
+                    _runs[run_id] = recovered  # Re-populate cache
+                    run = recovered
+                    logger.info(f"Recovered run {run_id} from Lakebase (cache miss)")
+            except Exception as e:
+                logger.warning(f"Lakebase fallback failed for {run_id}: {e}")
+
+    if not run:
         return jsonify({"error": "Run not found"}), 404
 
     # Build step list with phases and tool_calls
@@ -824,6 +913,8 @@ def get_run_status(run_id):
         "domain": run.get('domain'),
         "version": run.get('version'),
         "version_suffix": run.get('version_suffix', ''),
+        "catalog": run.get('catalog', ''),
+        "schema": run.get('schema', ''),
         "steps": steps,
     })
 
@@ -929,9 +1020,9 @@ def rerun_from_failure(run_id):
     if not original_run:
         return jsonify({'error': {'type': 'NotFound', 'message': f'Run {run_id} not found'}}), 404
 
-    if original_run.get('status') != 'failed':
+    if original_run.get('status') not in ('failed', 'cancelled'):
         return jsonify({'error': {'type': 'ValidationError',
-                                   'message': 'Can only rerun failed pipelines'}}), 400
+                                   'message': 'Can only rerun failed or cancelled pipelines'}}), 400
 
     # Get steps to resume from
     resume_steps = run_store.get_resume_steps(run_id)

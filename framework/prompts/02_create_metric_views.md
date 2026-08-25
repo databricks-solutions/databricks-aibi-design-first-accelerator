@@ -56,6 +56,48 @@ No Metric View YAML may be generated until this chain has been established.
 
 ---
 
+## State & Checkpoint Contract
+
+This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+The same rules apply in App mode and Genie Code — no backend infrastructure required.
+
+**Before executing each phase**, check whether its output artifact already exists.
+If it exists and is structurally valid → **skip** that phase and call `report_progress(status="completed")` immediately.
+If it does not exist → execute the phase normally.
+
+**Verification flow (run at the START of this step, after loading config):**
+
+1. List the output folder.
+2. Check for `run_context.yaml` (see `07_state_contract.md` Section 8 for format).
+   If absent, create it with a new run_id. If present, read it and update `current_step`.
+3. For each artifact below, apply ONE cheap check:
+   - `schema_profile.yaml` exists: skip profile_schema
+   - `kpi_metric_mapping.yaml` exists: skip map_kpis
+   - `metric_view_design.yaml` exists: skip design_metric_views
+   - Metric views exist in catalog (`SHOW VIEWS IN {SCHEMA} LIKE '%{VERSION_SUFFIX}'`): skip generate_metric_views
+   - `metric_view_validation.yaml` exists with status field: skip validate_metric_views
+4. Continue from the **first phase whose artifact is missing**.
+5. After each phase completes, append to `phases_completed` in `run_context.yaml`.
+
+**Rules:**
+
+- Every `report_progress(status="completed")` marks a phase as done.
+- After each completed phase, update `run_context.yaml` (append to `phases_completed`).
+- **Never re-execute a phase whose output artifact already exists and is structurally valid.**
+- If `RESUME_CONTEXT` is provided (App mode), use it to accelerate. Otherwise, discover state from the output folder and `run_context.yaml`.
+
+**Artifact-as-State mapping:**
+
+| Phase | Artifact | Skip when |
+|-------|----------|----------|
+| profile_schema | schema_profile.yaml | file exists |
+| map_kpis | kpi_metric_mapping.yaml | file exists |
+| design_metric_views | metric_view_design.yaml | file exists |
+| generate_metric_views | Views in catalog | SHOW VIEWS returns expected names |
+| validate_metric_views | metric_view_validation.yaml | file exists + status field |
+
+---
+
 # Step 1: Load Inputs
 
 > **PROGRESS REPORT:** Call `report_progress` with:

@@ -345,6 +345,49 @@ and Genie Code re-runs.
 
 ---
 
+## 6. State & Checkpoint Contract (Artifact-as-State)
+
+The pipeline is **idempotent and resumable** via artifact-as-state checkpointing.
+This works identically in **App mode** and **Genie Code** — no backend infrastructure required.
+
+**Core rule:** Before executing any phase, check whether its output artifact already exists in the output folder. If it exists and is structurally valid → **skip** that phase. If not → execute normally.
+
+**How it works:**
+
+1. At the start of each step, **list the output folder** to discover existing artifacts.
+2. For each phase, apply the **one cheap check** defined in that step's Artifact-as-State table.
+3. Skip phases whose artifacts are already valid. Continue from the first incomplete phase.
+4. Call `report_progress(status="completed")` for skipped phases (so the UI and audit trail stay consistent).
+
+**Rules:**
+
+- **Never re-execute a phase whose output artifact already exists and is structurally valid.**
+- Artifacts ARE the state. They are the single source of truth in both environments.
+- Each step prompt (01–05) defines its own Artifact-as-State table with exact verification checks.
+- In App mode, an optional `RESUME_CONTEXT` in the system message may pre-identify completed phases (performance optimization). In Genie Code, discover state from the output folder.
+- For deployed assets (dashboards, Genie spaces): if manifest contains a valid ID, **UPDATE** existing rather than creating new.
+
+**Checkpoint granularity:**
+
+```text
+Step level:  step_started → step_completed   (coarse — 6 per run)
+Phase level: report_progress completed       (fine — 4-6 per step, ~30 per run)
+```
+
+Phases are the **resume unit**. Steps are the **restart unit**.
+
+**`run_context.yaml` — the environment-agnostic state file:**
+
+At the start of each run, the LLM checks for `run_context.yaml` in the output folder:
+- If absent: fresh run. Generate a UUID `run_id`, initialize the file.
+- If present: resume. Read it, verify artifacts, skip completed phases.
+
+The file tracks: `run_id`, `domain`, `version_suffix`, `current_step`, `status`, and `phases_completed` (list of step+phase entries with timestamps).
+
+This works identically in App mode and Genie Code. See `07_state_contract.md` Section 8 for the full schema and flow.
+
+---
+
 # Step 0: Load and Resolve Configuration
 
 <!-- @tool
@@ -458,53 +501,164 @@ templates                           # optional (uses framework defaults)
 
 # Step 0.3: Resolve Version
 
-List folders under:
+## Version Registry
+
+The pipeline uses a **version registry** to coordinate version numbering across
+App mode and Genie Code. Both environments read and update the same file.
+
+Registry location:
 
 ```text
-{EXAMPLE_DIR}/{workspace.output_subpath}/
+{EXAMPLE_DIR}/version_registry.yaml
 ```
 
-Default:
+### Registry Schema
 
-```text
-generated_outputs/
+```yaml
+# version_registry.yaml — single source of truth for version coordination
+domain: member_claims
+versions:
+  - version: 1
+    status: completed       # running | completed | failed
+    created_by: app         # app | genie_code
+    run_id: "550e8400-..."
+    started_at: "2024-01-15T10:00:00Z"
+    completed_at: "2024-01-15T11:30:00Z"
+    assets_created:
+      tables: 8
+      metric_views: 3
+      dashboards: 2
+      genie_spaces: 1
+  - version: 2
+    status: running
+    created_by: genie_code
+    run_id: "660f9500-..."
+    started_at: "2024-01-16T14:00:00Z"
+    assets_created: {}
 ```
 
-If `workspace.short_name` is configured, use the resolved output-subpath rules below before listing versions.
+### Version Resolution Algorithm
 
-Find folders matching:
+**Key principle: Resume ONLY within the same environment. Cross-environment always creates a new version.**
 
-```regex
-^v[0-9]+$
-```
+A partial run from the App should never be resumed by Genie Code (and vice versa).
+Each environment owns its own incomplete work. Cross-environment coordination is
+limited to: "I see version N exists, so I create version N+1."
 
-Examples:
+1. Read `{EXAMPLE_DIR}/version_registry.yaml`.
 
-```text
-v1
-v2
-v9
-```
+2. **If registry does NOT exist** (first-ever run):
+   - Fall back to folder scanning: list folders under `{OUTPUT_BASE}/` matching `^v[0-9]+$`
+   - Set `NEXT_VERSION = max(existing) + 1` (or `1` if none exist)
+   - Create `version_registry.yaml` with the new version entry
 
-Extract integer values.
+3. **If registry EXISTS**, read the `versions` list:
 
-Set:
+   a. Find the **latest entry** (highest version number).
 
-```text
-NEXT_VERSION = max(existing versions) + 1
-```
+   b. Check if this is a **same-environment resume**:
+      - Latest entry has `status: running` or `status: failed`
+      - AND `created_by` matches the current execution context
+      - THEN this is a **RESUME**: set `NEXT_VERSION = latest.version`
 
-If no version folders exist:
+   c. Otherwise (completed, OR different `created_by`):
+      - This is a **new version**. Set `NEXT_VERSION = max(all versions) + 1`.
+      - A partial run from the other environment stays as-is (it can be resumed
+        by that environment later, or cleaned up manually).
 
-```text
-NEXT_VERSION = 1
-```
+4. **Register the new/resumed version**:
+   - If resuming: no registry change needed (entry already exists as `running`)
+   - If new: append a new entry with:
+     ```yaml
+     version: {NEXT_VERSION}
+     status: running
+     created_by: app  # or genie_code
+     run_id: <from run_context.yaml or newly generated>
+     started_at: <ISO timestamp>
+     assets_created: {}
+     ```
+   - Save `version_registry.yaml`
 
-Set:
+5. Set:
 
 ```text
 VERSION_SUFFIX = "_v{NEXT_VERSION}"
 ```
+
+### Detecting Execution Context
+
+To populate `created_by`:
+- **App mode**: If environment variable `DATABRICKS_APP_PORT` exists or `RESUME_CONTEXT` is in the system message, set `created_by: app`.
+- **Genie Code**: Otherwise, set `created_by: genie_code`.
+
+### On Run Completion
+
+At the end of a successful run (after `05_generate_documentation` completes), update the registry:
+
+```yaml
+status: completed
+completed_at: <ISO timestamp>
+assets_created:
+  tables: <count>
+  metric_views: <count>
+  dashboards: <count>
+  genie_spaces: <count>
+```
+
+On failure, update:
+
+```yaml
+status: failed
+```
+
+### Cross-Environment Coordination Examples
+
+**Normal flow (no interruption):**
+```text
+1. App creates v1 (completed) → Genie Code sees v1 completed → creates v2
+2. Genie Code completes v2    → App sees v2 completed → creates v3
+```
+
+**App interrupted, Genie Code takes over (NEW version, not resume):**
+```text
+1. App starts v1 (running, created_by:app)
+2. App gets interrupted — v1 is partial (tables 1-4 created, 5-8 missing)
+3. Genie Code runs next:
+   - Reads registry: latest is v1, status=running, created_by=app
+   - created_by != genie_code → NOT my run to resume
+   - Creates v2 as a FRESH version (v1 stays partial)
+4. Later, App runs again:
+   - Reads registry: v1=running/app, v2=running/genie_code
+   - Finds v1 with created_by=app → RESUMES v1
+```
+
+**Same environment resume:**
+```text
+1. Genie Code starts v2 (running, created_by:genie_code)
+2. Genie Code interrupted
+3. Genie Code runs again:
+   - Reads registry: latest is v2, status=running, created_by=genie_code
+   - created_by matches → RESUME v2
+   - Navigates to v2 output folder, reads run_context.yaml, verifies artifacts
+```
+
+### What "Not Inconsistent" Means
+
+Even when a version is partial (interrupted), the system is NOT in an inconsistent state:
+- Each version's output folder is **self-contained** (v1/ and v2/ are independent)
+- The version_registry accurately reflects reality (v1=running, v2=completed)
+- Catalog assets are version-suffixed (`claims_v1`, `claims_v2`) so they don't collide
+- A partial version can be resumed later or deleted via the Admin page cleanup
+
+### Legacy Fallback (No Registry)
+
+If `version_registry.yaml` does not exist (pre-registry runs), fall back to:
+
+1. List folders under `{OUTPUT_BASE}/` matching `^v[0-9]+$`
+2. Extract integer values
+3. Set `NEXT_VERSION = max(existing versions) + 1`
+4. If no version folders exist: `NEXT_VERSION = 1`
+5. Create `version_registry.yaml` with the new entry
 
 Example:
 
@@ -2226,9 +2380,26 @@ The only normal exceptions are explicitly idempotent operations such as:
 ```text
 DROP IF EXISTS
 delete nonexistent current-run output artifact
+SELECT/SHOW/DESCRIBE returning empty results
 ```
 
 where allowed.
+
+## Critical Tool Failures (Immediate HALT)
+
+See `07_state_contract.md` Section 11 for the full contract.
+
+If any of these tools return an ERROR, **halt immediately** — do NOT adapt or skip:
+- `execute_sql` (DDL/DML only — not SELECT/SHOW/DESCRIBE)
+- `execute_python`
+- `execute_notebook`
+- `create_notebook`
+- `write_file`
+- `create_dashboard`
+- `create_genie_space`
+
+On critical failure: `report_step_complete(status="failed")` with the error.
+Do NOT call subsequent phase tools. Do NOT invent workarounds.
 
 ---
 

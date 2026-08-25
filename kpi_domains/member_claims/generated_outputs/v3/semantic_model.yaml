@@ -1,0 +1,105 @@
+physical_model:
+  catalog: aw_serverless_stable_catalog
+  schema: aibi_member_claims
+  version_suffix: _v3
+  source_contract: erd_parsed.yaml
+summary:
+  tables: 8
+  facts: 3
+  dimensions: 3
+  bridges: 1
+  snapshots: 1
+  relationships_resolved: 11
+generation_order:
+  - dim_member
+  - dim_address
+  - dim_provider
+  - dim_member_identifier
+  - dim_member_history
+  - fact_member_enrollment
+  - fact_claim_header
+  - fact_claim_detail
+tables:
+  dim_member:
+    business_entity: member
+    grain: one row represents one current member dimension record keyed by member_sk
+    semantic_role: DIMENSION
+    primary_key: [member_sk]
+    fk_targets: [member_sk]
+  dim_address:
+    business_entity: address
+    grain: one row represents one address record keyed by address_key for an entity/address type
+    semantic_role: DIMENSION
+    primary_key: [address_key]
+    fk_targets: [address_key]
+  dim_provider:
+    business_entity: provider
+    grain: one row represents one provider dimension record/version keyed by provider_sk
+    semantic_role: DIMENSION
+    primary_key: [provider_sk]
+    fk_targets: [provider_sk, provider_npi]
+  dim_member_identifier:
+    business_entity: member_identifier
+    grain: one row represents one identifier type/value assigned to a member
+    semantic_role: BRIDGE
+    primary_key: [mbr_identifier_sk]
+    fk_targets: [id_type, id_value]
+  dim_member_history:
+    business_entity: member_history
+    grain: one row represents one historical member version for a member and validity period
+    semantic_role: SNAPSHOT
+    primary_key: [mbr_history_sk]
+    fk_targets: []
+  fact_member_enrollment:
+    business_entity: member_enrollment
+    grain: one row represents one member enrollment source event or coverage period keyed by enrollment_sk
+    semantic_role: FACT
+    primary_key: [enrollment_sk]
+    fk_targets: []
+  fact_claim_header:
+    business_entity: claim_header
+    grain: one row represents one claim header keyed by clm_header_sk with business claim identifier clm_claim_id
+    semantic_role: FACT
+    primary_key: [clm_header_sk]
+    fk_targets: [clm_claim_id]
+  fact_claim_detail:
+    business_entity: claim_detail
+    grain: one row represents one claim service/detail line identified by clm_dtl_claim_id and clm_dtl_line_nbr
+    semantic_role: FACT
+    primary_key: [clm_dtl_claim_id, clm_dtl_line_nbr]
+    fk_targets: []
+column_semantics:
+  rules_applied:
+    - columns ending _sk or _key and listed in primary_key are PRIMARY_KEY/BUSINESS_IDENTIFIER
+    - columns listed in relationships are FOREIGN_KEY
+    - date/timestamp columns are DATE or TIMESTAMP
+    - amount/amt/pct/qty/days columns are MEASURE with SUM or AVG as appropriate
+    - status/type/flag/ind/category/lob/state/sex/race columns are CATEGORICAL_ATTRIBUTE or STATUS
+  measures:
+    fact_claim_detail:
+      additive_sum: [clm_dtl_allowed_amt, clm_dtl_billed_amt, clm_dtl_deduct_amt, clm_dtl_net_amt, clm_dtl_paid_amt, clm_dtl_actual_paid_amt, clm_dtl_not_covered_amt, clm_dtl_co_insurance_amt, clm_dtl_other_adjustments_amt, clm_dtl_cob_savings, clm_dtl_oic_paid_amt, clm_dtl_oic_allowed_amt, clm_dtl_interest_amt, clm_dtl_prompt_pay_discount_amt, clm_dtl_interest_discount_amt, clm_dtl_copay_amt]
+      quantities: [clm_dtl_procedure_qty, clm_dtl_paid_days, clm_dtl_anesthesia_time_units]
+    fact_claim_header:
+      quantities: [clm_covered_days, clm_birth_weight]
+      non_additive_rates: [clm_pcp_wthld_pct]
+relationships:
+  - {name: dim_address_to_dim_member, left_grain: address, right_grain: member, source_table: dim_address, source_columns: [entity_dimension_key], target_table: dim_member, target_columns: [member_sk], cardinality: N:1, expected_row_behavior: many addresses may join to one member, fanout_risk: FANOUT_RISK when joining member to address}
+  - {name: dim_provider_to_dim_address, left_grain: provider, right_grain: address, source_table: dim_provider, source_columns: [provider_address_sk], target_table: dim_address, target_columns: [address_key], cardinality: N:1, expected_row_behavior: provider joins to one address, fanout_risk: NONE for provider-to-address}
+  - {name: dim_provider_self_assigned_provider, left_grain: provider, right_grain: provider, source_table: dim_provider, source_columns: [assigned_provider_sk], target_table: dim_provider, target_columns: [provider_sk], cardinality: N:1, expected_row_behavior: provider may join to assigned provider, fanout_risk: NONE if target unique}
+  - {name: dim_member_identifier_to_dim_member, left_grain: identifier, right_grain: member, source_table: dim_member_identifier, source_columns: [member_sk], target_table: dim_member, target_columns: [member_sk], cardinality: N:1, expected_row_behavior: identifiers join to one member, fanout_risk: FANOUT_RISK when joining member to identifiers}
+  - {name: dim_member_history_to_dim_member, left_grain: historical member version, right_grain: member, source_table: dim_member_history, source_columns: [member_sk], target_table: dim_member, target_columns: [member_sk], cardinality: N:1, expected_row_behavior: history versions join to one member, fanout_risk: FANOUT_RISK when joining member to history}
+  - {name: fact_member_enrollment_to_dim_member, left_grain: enrollment event/period, right_grain: member, source_table: fact_member_enrollment, source_columns: [member_sk], target_table: dim_member, target_columns: [member_sk], cardinality: N:1, expected_row_behavior: enrollment rows join to one member, fanout_risk: NONE for fact-to-dim}
+  - {name: fact_member_enrollment_to_dim_member_identifier, left_grain: enrollment event/period, right_grain: member identifier, source_table: fact_member_enrollment, source_columns: [id_type, id_value], target_table: dim_member_identifier, target_columns: [id_type, id_value], cardinality: N:1, expected_row_behavior: enrollment rows join to one identifier, fanout_risk: NONE if identifier pair unique}
+  - {name: fact_claim_header_to_dim_member, left_grain: claim header, right_grain: member, source_table: fact_claim_header, source_columns: [clm_member_sk], target_table: dim_member, target_columns: [member_sk], cardinality: N:1, expected_row_behavior: claim joins to one member, fanout_risk: NONE for fact-to-dim}
+  - {name: fact_claim_header_to_dim_address, left_grain: claim header, right_grain: address, source_table: fact_claim_header, source_columns: [clm_service_facility_address_sk], target_table: dim_address, target_columns: [address_key], cardinality: N:1, expected_row_behavior: claim joins to one service facility address, fanout_risk: NONE for fact-to-dim}
+  - {name: fact_claim_header_to_dim_provider_by_npi, left_grain: claim header, right_grain: provider, source_table: fact_claim_header, source_columns: [clm_operating_provider_npi], target_table: dim_provider, target_columns: [provider_npi], cardinality: N:1, expected_row_behavior: claim joins to one provider by NPI, fanout_risk: NONE if provider_npi unique}
+  - {name: fact_claim_detail_to_fact_claim_header, left_grain: claim detail line, right_grain: claim header, source_table: fact_claim_detail, source_columns: [clm_dtl_claim_id], target_table: fact_claim_header, target_columns: [clm_claim_id], cardinality: N:1, expected_row_behavior: multiple detail lines join to one claim header, fanout_risk: NONE for detail-to-header; header-to-detail intentionally multiplies}
+analytical_model:
+  primary_facts: [fact_claim_detail, fact_claim_header, fact_member_enrollment]
+  shared_dimensions: [dim_member, dim_address, dim_provider]
+  critical_join_paths:
+    - fact_claim_detail -> fact_claim_header -> dim_member
+    - fact_claim_header -> dim_member
+    - fact_member_enrollment -> dim_member
+    - fact_claim_header -> dim_provider
+    - fact_claim_header -> dim_address
