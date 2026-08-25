@@ -248,40 +248,6 @@
 }
 .btn-card-action:hover { background: var(--bg-subtle); border-color: var(--text-muted); }
 
-/* ─── Pipeline Runs Table ─── */
-.runs-panel {
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    box-shadow: var(--shadow-card);
-}
-.runs-panel table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.8rem;
-}
-.runs-panel thead tr {
-    background: var(--bg-subtle);
-}
-.runs-panel th {
-    text-align: left;
-    padding: 10px 14px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    border-bottom: 1px solid var(--border);
-}
-.runs-panel td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--border-subtle);
-    color: var(--text-primary);
-}
-.runs-panel tbody tr:last-child td { border-bottom: none; }
-.runs-panel tbody tr:hover { background: var(--bg-subtle); }
-
 /* Spinner animation */
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 </style>
@@ -430,36 +396,7 @@
     </div>
 </div>
 
-<!-- Section: Pipeline Runs -->
-<div class="section-header" style="margin-top:8px;">
-    <div>
-        <h2>Pipeline Runs</h2>
-        <p class="subtitle">Latest run per domain version</p>
-    </div>
-    <div>
-        <select class="setup-select" id="runs-domain-filter">
-            <option value="">All Domains</option>
-        </select>
-    </div>
-</div>
-
-<div class="runs-panel">
-    <table id="runs-table">
-        <thead>
-            <tr>
-                <th>Domain</th>
-                <th>Version</th>
-                <th>Started</th>
-                <th>Duration</th>
-                <th>Actions</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody id="admin-runs-tbody">
-            <tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">Loading runs...</td></tr>
-        </tbody>
-    </table>
-</div>
+<!-- Pipeline Runs: moved to dedicated /runs page (Runs nav item) -->
 
 <!-- Section: Version Cleanup -->
 <div class="section-header" style="margin-top:8px;">
@@ -833,126 +770,6 @@ async function pollJobRun(jobId, runId) {
         } catch (e) {}
     }, 4000);
 }
-
-// ═══════════════════════════════════════════════════
-// Pipeline Runs
-// ═══════════════════════════════════════════════════
-
-let allRuns = [];
-let domainFilter = '';
-
-async function loadRuns() {
-    try {
-        const res = await fetch('/api/pipeline/runs');
-        if (!res.ok) throw new Error('Failed');
-        allRuns = await res.json();
-        populateDomainFilter();
-        renderRuns();
-    } catch(e) {
-        document.getElementById('admin-runs-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:#dc2626;">Failed to load runs</td></tr>';
-    }
-}
-
-function populateDomainFilter() {
-    const select = document.getElementById('runs-domain-filter');
-    const domains = [...new Set(allRuns.map(r => r.domain).filter(Boolean))];
-    const current = select.value;
-    select.innerHTML = '<option value="">All Domains</option>' + domains.map(d => `<option value="${d}" ${d === current ? 'selected' : ''}>${d.replace(/_/g, ' ')}</option>`).join('');
-}
-
-function renderRuns() {
-    const filtered = domainFilter ? allRuns.filter(r => r.domain === domainFilter) : allRuns;
-    const latestMap = {};
-    const retryCount = {};
-    filtered.forEach(run => {
-        const key = `${run.domain}|${run.version_suffix || ''}`;
-        if (!retryCount[key]) retryCount[key] = 0;
-        retryCount[key]++;
-        if (!latestMap[key] || (run.started_at || '') > (latestMap[key].started_at || '')) {
-            latestMap[key] = run;
-        }
-    });
-    const latest = Object.values(latestMap).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
-    const tbody = document.getElementById('admin-runs-tbody');
-    if (latest.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">No pipeline runs yet.</td></tr>';
-        return;
-    }
-    tbody.innerHTML = latest.map(run => {
-        const key = `${run.domain}|${run.version_suffix || ''}`;
-        const retries = retryCount[key] - 1;
-        const version = (run.version_suffix || '').replace(/^_/, '') || '-';
-        const started = run.started_at ? new Date(run.started_at).toLocaleString() : '-';
-        const duration = run.duration_s ? `${Number(run.duration_s).toFixed(1)}s` : '-';
-        const statusColor = run.status === 'completed' ? 'var(--success)' : run.status === 'failed' ? 'var(--danger)' : run.status === 'running' ? 'var(--warning)' : 'var(--text-muted)';
-        const retryBadge = retries > 0 ? ` <span title="${retries} previous attempt(s)" style="font-size:0.65rem; background:var(--warning-soft); color:var(--warning-text); padding:1px 6px; border-radius:8px; border:1px solid var(--warning-border); cursor:help;">${retries} retry</span>` : '';
-        let actions = `<a href="/run/${run.run_id}" style="color:var(--primary); text-decoration:none; font-size:0.75rem;">View</a>`;
-        if (run.status === 'failed') {
-            actions += ` <button onclick="rerunFromAdmin('${run.run_id}')" class="btn-card-action" style="margin-left:6px;">Rerun</button>`;
-        }
-        if (run.status !== 'running') {
-            const btnId = `del-${run.domain}-${(run.version_suffix||'').replace(/[^a-z0-9]/gi,'')}`;
-            actions += ` <button id="${btnId}" onclick="requestCleanup('${run.domain}', '${run.version_suffix || ''}', '${btnId}')" class="btn-card-action" style="margin-left:6px; color:var(--danger-text); border-color:var(--danger-border);" title="Remove this version">Delete</button>`;
-        }
-        return `<tr>
-            <td>${(run.domain || '').replace(/_/g, ' ')}</td>
-            <td>${version}</td>
-            <td>${started}</td>
-            <td>${duration}</td>
-            <td>${actions}</td>
-            <td><span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${statusColor}; margin-right:6px;"></span>${run.status}${retryBadge}</td>
-        </tr>`;
-    }).join('');
-}
-
-async function rerunFromAdmin(runId) {
-    const res = await fetch(`/api/pipeline/rerun/${runId}`, {method:'POST'});
-    if (res.ok) { const d = await res.json(); window.location.href = `/run/${d.run_id}`; }
-}
-
-async function requestCleanup(domain, versionSuffix, btnId) {
-    const btn = document.getElementById(btnId);
-    if (!btn || btn.disabled) return;
-    // Switch to deleting state
-    btn.disabled = true;
-    btn.innerHTML = `<span style="display:inline-flex;align-items:center;gap:4px;"><svg width="12" height="12" viewBox="0 0 24 24" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke="#dc2626" stroke-width="3" fill="none" stroke-dasharray="31 31" stroke-linecap="round"/></svg>Deleting...</span>`;
-    btn.style.color = '#9ca3af';
-    btn.style.borderColor = '#e5e7eb';
-    btn.style.cursor = 'default';
-    try {
-        const res = await fetch('/api/pipeline/cleanup', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({domain: domain, version_suffix: versionSuffix})
-        });
-        const data = await res.json();
-        if (res.ok) {
-            const c = data.cleaned || {};
-            btn.innerHTML = `<span style="color:#059669;">&#x2713; Removed</span>`;
-            btn.style.borderColor = '#bbf7d0';
-            // Remove row after brief delay
-            setTimeout(() => loadRuns(), 1500);
-        } else {
-            btn.innerHTML = `<span style="color:#dc2626;">Failed</span>`;
-            btn.disabled = false;
-            btn.style.cursor = 'pointer';
-            setTimeout(() => { btn.innerHTML = 'Delete'; btn.style.color = '#dc2626'; btn.style.borderColor = '#fecaca'; }, 3000);
-        }
-    } catch(e) {
-        btn.innerHTML = `<span style="color:#dc2626;">Error</span>`;
-        btn.disabled = false;
-        btn.style.cursor = 'pointer';
-        setTimeout(() => { btn.innerHTML = 'Delete'; btn.style.color = '#dc2626'; btn.style.borderColor = '#fecaca'; }, 3000);
-    }
-}
-
-document.getElementById('runs-domain-filter').addEventListener('change', (e) => {
-    domainFilter = e.target.value;
-    renderRuns();
-});
-
-loadRuns();
-setInterval(loadRuns, 15000);
 
 // ═══════════════════════════════════════════════════
 // Version Cleanup

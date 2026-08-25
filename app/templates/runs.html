@@ -39,19 +39,27 @@
     .run-domain { font-weight: 500; }
     .run-id { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
     .run-duration { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); }
-    .run-error { font-size: 0.75rem; color: var(--danger-text); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .run-action a {
-        padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
-        font-size: 0.78rem; color: var(--primary); text-decoration: none; font-weight: 500;
+    .run-error { font-size: 0.72rem; color: var(--danger-text); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .run-actions { display: flex; gap: 6px; align-items: center; }
+    .run-actions a, .run-actions button {
+        padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+        font-size: 0.75rem; color: var(--primary); text-decoration: none; font-weight: 500;
+        background: transparent; cursor: pointer;
     }
-    .run-action a:hover { background: var(--primary-soft); border-color: var(--primary); }
+    .run-actions a:hover, .run-actions button:hover { background: var(--primary-soft); border-color: var(--primary); }
+    .run-actions button.delete { color: var(--danger-text); border-color: var(--danger-border); }
+    .run-actions button.delete:hover { background: var(--danger-soft); }
+    .run-actions button:disabled { opacity: 0.5; cursor: default; }
     .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
     .empty-state h3 { font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 8px; }
 </style>
 
 <div class="runs-container">
     <div class="runs-header">
-        <h2>Pipeline Runs</h2>
+        <div>
+            <h2>Pipeline Runs</h2>
+            <p style="margin:2px 0 0; font-size:0.78rem; color:var(--text-muted);">Latest run per domain version</p>
+        </div>
         <div class="runs-filter">
             <select id="filter-domain" onchange="loadRuns()">
                 <option value="">All Domains</option>
@@ -75,8 +83,7 @@
                 <th>Started</th>
                 <th>Duration</th>
                 <th>Error</th>
-                <th>Run ID</th>
-                <th></th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody id="runs-body">
