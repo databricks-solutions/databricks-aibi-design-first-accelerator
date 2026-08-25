@@ -815,18 +815,20 @@ If a SQL pattern references a column that does not appear in `genie_semantic_inv
 
 # Step 6.2: SQL Validation (BATCH — saves 15+ tool calls)
 
-**CRITICAL EFFICIENCY RULE:** Do NOT validate example SQL queries one-by-one. Batch them:
+**CRITICAL EFFICIENCY RULE:** Do NOT validate example SQL queries one-by-one. Batch validate using this safe pattern:
 
 ```sql
--- Validate all example SQLs in 2-3 batches
-SELECT 'q1' AS qid, * FROM (SELECT MEASURE(total_paid) AS total_paid FROM metric_view) LIMIT 2
+-- Wrap each query as an existence check (always returns 1 column — compatible for UNION ALL)
+SELECT 'q1' AS qid, CASE WHEN cnt > 0 THEN 'PASS' ELSE 'EMPTY' END AS status FROM (SELECT COUNT(*) AS cnt FROM (SELECT MEASURE(total_paid) AS total_paid FROM metric_view))
 UNION ALL
-SELECT 'q2', * FROM (SELECT claim_type, MEASURE(total_paid) AS total_paid FROM metric_view GROUP BY ALL) LIMIT 2
+SELECT 'q2', CASE WHEN cnt > 0 THEN 'PASS' ELSE 'EMPTY' END FROM (SELECT COUNT(*) AS cnt FROM (SELECT claim_type, MEASURE(total_paid) AS total_paid FROM metric_view GROUP BY ALL))
 UNION ALL
-... (group queries with compatible column shapes)
+SELECT 'q3', CASE WHEN cnt > 0 THEN 'PASS' ELSE 'EMPTY' END FROM (SELECT COUNT(*) AS cnt FROM (SELECT service_month, MEASURE(claim_count) FROM metric_view GROUP BY ALL))
 ```
 
-For queries with incompatible output shapes, group into 2-3 separate batch calls.
+**Why this pattern works:** Every SELECT in the UNION ALL returns exactly 2 columns (`qid STRING, status STRING`) regardless of how many columns the inner query produces. This avoids UNION column-count mismatch errors.
+
+**DO NOT use `SELECT *, ...` in UNION ALL batches** — different queries have different column counts and will cause PARSE_SYNTAX_ERROR.
 
 This reduces 15-20 individual `execute_sql` calls to 2-3 batched validations.
 
