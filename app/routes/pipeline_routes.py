@@ -1060,13 +1060,16 @@ def rerun_from_failure(run_id):
             sname = s.get('step_name') or s.get('name')
             if s.get('status') == 'completed':
                 completed_steps.append(sname)
-                # Preserve completed step info including phases from Delta
+                # Preserve completed step info including phases from Delta.
+                # Force all phases to 'completed' — the step itself is completed
+                # so all its phases must also be completed (Lakebase may still
+                # have stale 'running' status from the original execution).
                 phases = []
                 step_phases = run_store.get_phases_for_step(run_id, sname)
                 for p in step_phases:
                     phases.append({
                         'phase_name': p.get('phase_name'),
-                        'status': p.get('status', 'completed'),
+                        'status': 'completed',
                         'duration_ms': p.get('duration_ms'),
                     })
                 step_data[sname] = {
