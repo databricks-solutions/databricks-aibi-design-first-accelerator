@@ -342,8 +342,25 @@ async function checkResumableRun(domain) {
     document.getElementById('resume-btn').style.display = 'none';
 }
 
-function resumeLastRun() {
+async function resumeLastRun() {
     if (!lastResumableRun || !selectedDomain) return;
+    const btn = document.getElementById('resume-btn');
+    btn.disabled = true;
+    btn.textContent = 'Resuming\u2026';
+    try {
+        // Trigger the rerun BEFORE navigating so the pipeline is already
+        // running when the user lands on the monitor page.
+        const res = await fetch(`/api/pipeline/rerun/${lastResumableRun.run_id}`, {method: 'POST'});
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error?.message || 'Resume failed');
+        }
+    } catch(e) {
+        // If rerun fails (e.g. already running), still navigate — monitor page
+        // will show current state and the user can retry from there.
+        console.warn('Rerun trigger failed:', e.message);
+    }
+    // Navigate to the pipeline monitor (run is now starting or already active)
     window.location.href = '/domains/' + selectedDomain + '/run/' + lastResumableRun.run_id;
 }
 
