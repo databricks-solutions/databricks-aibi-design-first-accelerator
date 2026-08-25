@@ -159,17 +159,21 @@ accelerator.yaml
 
 and apply name suffix resolution from Step 0 of `00_master_prompt.md`.
 
-Read:
+Load the **Lakeview API contract** (`lakeview_dashboard_api.md`):
 
-```text
-{EXAMPLE_DIR}/{paths.framework_root}/inputs/lakeview_dashboard_api.md
-```
+1. **Check first:** If the system message already contains a section labeled
+   `--- BEGIN inputs/lakeview_dashboard_api.md ---` (injected as SUPPLEMENTARY REFERENCE),
+   the file is already loaded — skip the read and proceed.
+2. **Otherwise read it** from:
+   ```text
+   {deploy_root}/framework/inputs/lakeview_dashboard_api.md
+   ```
 
 This file is **MANDATORY**.
 
 ### HARD GATE: lakeview_dashboard_api.md Must Be Loaded
 
-If `lakeview_dashboard_api.md` cannot be read or does not exist:
+If `lakeview_dashboard_api.md` is neither in the system supplement NOR readable from the path above:
 
 ```text
 ❌ EXECUTION HALTED
@@ -232,7 +236,7 @@ Do not randomly modify JSON fields until the API accepts the request.
 The following sequence is MANDATORY and non-negotiable:
 
 ```text
-1. Read lakeview_dashboard_api.md            (JSON structure authority)
+1. Load lakeview_dashboard_api.md            (JSON structure authority — check supplement first, then read from {deploy_root}/framework/inputs/)
 2. Read accelerator.yaml assets.dashboards[] (how many dashboards, what names)
 3. Read kpi_spec Dashboard Mapping           (which KPIs go on which dashboard/page)
 4. Create dashboard_design.yaml              (full design contract with pages, widgets, filters)
@@ -604,6 +608,21 @@ For ratio measures, use one of:
    SELECT MEASURE(denial_rate) AS denial_rate FROM metric_view
    ```
    (This dataset won't respond to filters — acceptable for headline KPIs)
+
+### Rule 3b: SQL Generation Quality (Prevents Syntax Errors on First Execution)
+
+When generating dataset SQL — especially UNION ALL queries:
+
+1. **Column count alignment**: Every SELECT in a UNION ALL MUST have the exact same number of columns. Count them before writing UNION.
+2. **No trailing commas**: Never leave a comma before FROM, UNION, or a closing parenthesis.
+3. **Complete column names**: Never truncate or abbreviate column identifiers. Use the full column name as it appears in the metric view schema.
+4. **One dataset per execute_sql**: Execute each dataset SQL individually for validation. Do NOT combine multiple unrelated datasets into one multi-statement call.
+5. **Alias all computed columns**: Every expression (`SUM(...)`, `CASE WHEN...`, literals) must have an explicit `AS alias`.
+
+If a generated SQL exceeds ~30 lines, mentally verify the structure before calling `execute_sql`:
+- Count the columns in the first SELECT
+- Confirm every subsequent SELECT in the UNION has the same count
+- Confirm no dangling commas
 
 ### Rule 4: Mandatory Dataset SQL Validation
 

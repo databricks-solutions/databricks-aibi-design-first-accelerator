@@ -2363,6 +2363,20 @@ Do not provide vague failure messages.
 
 ---
 
+# SQL Generation Quality Rules
+
+Before calling `execute_sql`, verify the generated SQL meets these constraints:
+
+1. **UNION ALL alignment**: Every SELECT in a UNION ALL must have the same number of columns. Count them.
+2. **No trailing commas**: Never leave a comma immediately before `FROM`, `WHERE`, `GROUP BY`, `UNION`, `)`, or end-of-statement.
+3. **Complete identifiers**: Never truncate column or table names. Use the full identifier.
+4. **Explicit aliases**: Every computed expression or literal must have `AS alias_name`.
+5. **Balanced parentheses**: Every `(` must have a matching `)`. Count them in subqueries.
+
+If you detect your generated SQL exceeds 30 lines, pause and verify structure mentally before executing.
+
+---
+
 # No Silent Failures
 
 Never catch and ignore:

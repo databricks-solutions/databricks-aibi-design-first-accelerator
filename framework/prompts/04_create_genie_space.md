@@ -212,11 +212,15 @@ accelerator.yaml
 
 with version/suffix resolution applied.
 
-Read:
+Load the **Genie Space configuration contract** (`genie_space_configuration.md`):
 
-```text
-{EXAMPLE_DIR}/{paths.framework_root}/inputs/genie_space_configuration.md
-```
+1. **Check first:** If the system message already contains a section labeled
+   `--- BEGIN inputs/genie_space_configuration.md ---` (injected as SUPPLEMENTARY REFERENCE),
+   the file is already loaded — skip the read and proceed.
+2. **Otherwise read it** from:
+   ```text
+   {deploy_root}/framework/inputs/genie_space_configuration.md
+   ```
 
 This file is mandatory.
 
@@ -232,6 +236,8 @@ It is the project-level contract for:
 Do not construct `serialized_space` from model memory.
 
 ### If `genie_space_configuration.md` is missing
+
+If the file is neither in the system supplement NOR readable from the path above:
 
 ```text
 ❌ EXECUTION HALTED
