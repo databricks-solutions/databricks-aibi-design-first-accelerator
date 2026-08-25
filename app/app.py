@@ -82,13 +82,8 @@ def create_app():
 
     @application.route('/runs')
     def runs_page():
-        """Runs history page."""
-        return render_template('domains.html', active_page='runs')  # TODO: dedicated runs template
-
-    @application.route('/catalog')
-    def catalog_page():
-        """Catalog browser page."""
-        return render_template('domains.html', active_page='catalog')  # TODO: dedicated catalog template
+        """Pipeline runs history page."""
+        return render_template('runs.html', active_page='runs')
 
     @application.route('/alerts')
     def alerts_page():

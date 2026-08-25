@@ -1,0 +1,185 @@
+{% extends 'layout.html' %}
+{% block title %}Pipeline Runs — AI/BI Studio{% endblock %}
+{% block breadcrumb %}<span class="current">Pipeline Runs</span>{% endblock %}
+
+{% block top_bar_right %}
+<span class="status-badge idle">All Runs</span>
+{% endblock %}
+
+{% block content %}
+<style>
+    .runs-container { padding: 32px; max-width: 1200px; }
+    .runs-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .runs-header h2 { font-size: 1.25rem; font-weight: 600; color: var(--text-primary); margin: 0; }
+    .runs-filter { display: flex; gap: 12px; align-items: center; }
+    .runs-filter select, .runs-filter input {
+        padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+        font-size: 0.82rem; background: var(--bg-card); color: var(--text-primary);
+    }
+    .runs-table { width: 100%; border-collapse: collapse; }
+    .runs-table th {
+        text-align: left; padding: 10px 14px; font-size: 0.72rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted);
+        border-bottom: 1px solid var(--border);
+    }
+    .runs-table td {
+        padding: 12px 14px; font-size: 0.84rem; color: var(--text-primary);
+        border-bottom: 1px solid var(--border-subtle);
+    }
+    .runs-table tr:hover { background: var(--bg-subtle); }
+    .run-status {
+        display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+        border-radius: 12px; font-size: 0.75rem; font-weight: 500;
+    }
+    .run-status.completed { background: var(--success-soft); color: var(--success-text); }
+    .run-status.running { background: var(--primary-soft); color: var(--primary); }
+    .run-status.failed { background: var(--danger-soft); color: var(--danger-text); }
+    .run-status.cancelled { background: var(--warning-soft); color: var(--warning-text); }
+    .run-version { font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; color: var(--primary); }
+    .run-domain { font-weight: 500; }
+    .run-id { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
+    .run-duration { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); }
+    .run-error { font-size: 0.75rem; color: var(--danger-text); max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .run-action a {
+        padding: 4px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+        font-size: 0.78rem; color: var(--primary); text-decoration: none; font-weight: 500;
+    }
+    .run-action a:hover { background: var(--primary-soft); border-color: var(--primary); }
+    .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+    .empty-state h3 { font-size: 1.1rem; color: var(--text-secondary); margin-bottom: 8px; }
+</style>
+
+<div class="runs-container">
+    <div class="runs-header">
+        <h2>Pipeline Runs</h2>
+        <div class="runs-filter">
+            <select id="filter-domain" onchange="loadRuns()">
+                <option value="">All Domains</option>
+            </select>
+            <select id="filter-status" onchange="filterTable()">
+                <option value="">All Statuses</option>
+                <option value="completed">Completed</option>
+                <option value="running">Running</option>
+                <option value="failed">Failed</option>
+                <option value="cancelled">Cancelled</option>
+            </select>
+        </div>
+    </div>
+
+    <table class="runs-table" id="runs-table">
+        <thead>
+            <tr>
+                <th>Domain</th>
+                <th>Version</th>
+                <th>Status</th>
+                <th>Started</th>
+                <th>Duration</th>
+                <th>Error</th>
+                <th>Run ID</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="runs-body">
+        </tbody>
+    </table>
+
+    <div class="empty-state" id="empty-state" style="display:none;">
+        <h3>No pipeline runs found</h3>
+        <p>Start a run from the KPI Domains page</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allRuns = [];
+
+async function loadRuns() {
+    const domain = document.getElementById('filter-domain').value;
+    const url = domain ? `/api/pipeline/runs?domain=${domain}&limit=100` : '/api/pipeline/runs?limit=100';
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('Failed to fetch runs');
+        allRuns = await resp.json();
+        populateDomainFilter(allRuns);
+        filterTable();
+    } catch(e) {
+        console.error('Failed to load runs:', e);
+        document.getElementById('empty-state').style.display = 'block';
+    }
+}
+
+function populateDomainFilter(runs) {
+    const select = document.getElementById('filter-domain');
+    const current = select.value;
+    const domains = [...new Set(runs.map(r => r.domain).filter(Boolean))];
+    // Keep "All Domains" + add discovered ones
+    const opts = ['<option value="">All Domains</option>'];
+    domains.sort().forEach(d => {
+        const label = d.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        opts.push(`<option value="${d}" ${d===current?'selected':''}>${label}</option>`);
+    });
+    select.innerHTML = opts.join('');
+}
+
+function filterTable() {
+    const statusFilter = document.getElementById('filter-status').value;
+    const filtered = statusFilter ? allRuns.filter(r => r.status === statusFilter) : allRuns;
+    renderTable(filtered);
+}
+
+function renderTable(runs) {
+    const tbody = document.getElementById('runs-body');
+    const empty = document.getElementById('empty-state');
+
+    if (!runs || runs.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    tbody.innerHTML = runs.map(r => {
+        const domain = (r.domain || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const version = r.version ? `v${r.version}` : '—';
+        const status = r.status || 'unknown';
+        const started = r.started_at ? new Date(r.started_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
+        const duration = r.duration_s ? formatDuration(r.duration_s) : '—';
+        const error = r.error ? `<span class="run-error" title="${escHtml(r.error)}">${escHtml(r.error)}</span>` : '';
+        const runId = (r.run_id || '').slice(0, 8);
+        const viewUrl = `/domains/${r.domain}/run/${r.run_id}`;
+
+        return `<tr>
+            <td class="run-domain">${escHtml(domain)}</td>
+            <td><span class="run-version">${version}</span></td>
+            <td><span class="run-status ${status}">${status}</span></td>
+            <td>${started}</td>
+            <td class="run-duration">${duration}</td>
+            <td>${error}</td>
+            <td class="run-id">${runId}</td>
+            <td class="run-action"><a href="${viewUrl}">View</a></td>
+        </tr>`;
+    }).join('');
+}
+
+function formatDuration(seconds) {
+    if (!seconds) return '—';
+    const m = Math.floor(seconds / 60);
+    const s = Math.round(seconds % 60);
+    if (m > 60) {
+        const h = Math.floor(m / 60);
+        return `${h}h ${m%60}m`;
+    }
+    return m > 0 ? `${m}m ${s}s` : `${s}s`;
+}
+
+function escHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+}
+
+// Load on page ready
+loadRuns();
+</script>
+{% endblock %}

@@ -311,8 +311,8 @@ async function checkResumableRun(domain) {
                 lastResumableRun = resumable;
                 const resumeBtn = document.getElementById('resume-btn');
                 const statusLabel = resumable.status === 'running' ? 'running' : 'failed';
-                const versionLabel = resumable.version_suffix || '';
-                resumeBtn.textContent = `\u21BB Resume ${versionLabel || resumable.run_id.slice(0,8)} (${statusLabel})`;
+                const versionLabel = resumable.version ? `v${resumable.version}` : resumable.run_id.slice(0,8);
+                resumeBtn.textContent = `\u21BB Resume ${versionLabel} (${statusLabel})`;
                 resumeBtn.style.display = 'inline-flex';
                 return;
             }
@@ -328,7 +328,8 @@ async function checkResumableRun(domain) {
                 if (data.status === 'running' || data.status === 'failed') {
                     lastResumableRun = { run_id: localRunId, status: data.status };
                     const resumeBtn = document.getElementById('resume-btn');
-                    resumeBtn.textContent = `\u21BB Resume ${localRunId.slice(0,8)} (${data.status})`;
+                    const vLabel = data.version ? `v${data.version}` : localRunId.slice(0,8);
+                    resumeBtn.textContent = `\u21BB Resume ${vLabel} (${data.status})`;
                     resumeBtn.style.display = 'inline-flex';
                     return;
                 }
