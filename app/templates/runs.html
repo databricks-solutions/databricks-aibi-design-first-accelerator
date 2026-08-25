@@ -16,7 +16,7 @@
         padding: 6px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm);
         font-size: 0.82rem; background: var(--bg-card); color: var(--text-primary);
     }
-    .runs-table { width: 100%; border-collapse: collapse; }
+    .runs-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .runs-table th {
         text-align: left; padding: 10px 14px; font-size: 0.72rem; font-weight: 600;
         text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-muted);
@@ -39,7 +39,7 @@
     .run-domain { font-weight: 500; }
     .run-id { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); }
     .run-duration { font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-secondary); }
-    .run-error { font-size: 0.72rem; color: var(--danger-text); max-width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .run-error { display: inline-block; font-size: 0.72rem; color: var(--danger-text); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .run-actions { display: flex; gap: 6px; align-items: center; }
     .run-actions a, .run-actions button {
         padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -77,13 +77,13 @@
     <table class="runs-table" id="runs-table">
         <thead>
             <tr>
-                <th>Domain</th>
-                <th>Version</th>
-                <th>Status</th>
-                <th>Started</th>
-                <th>Duration</th>
-                <th>Error</th>
-                <th>Actions</th>
+                <th style="width:12%">Domain</th>
+                <th style="width:8%">Version</th>
+                <th style="width:10%">Status</th>
+                <th style="width:14%">Started</th>
+                <th style="width:10%">Duration</th>
+                <th style="width:30%">Error</th>
+                <th style="width:16%">Actions</th>
             </tr>
         </thead>
         <tbody id="runs-body">
@@ -131,8 +131,17 @@ function populateDomainFilter(runs) {
 
 function filterTable() {
     const statusFilter = document.getElementById('filter-status').value;
-    const filtered = statusFilter ? allRuns.filter(r => r.status === statusFilter) : allRuns;
-    renderTable(filtered);
+    let filtered = statusFilter ? allRuns.filter(r => r.status === statusFilter) : allRuns;
+    // Group by domain+version, show latest per group
+    const latestMap = {};
+    filtered.forEach(run => {
+        const key = `${run.domain}|${run.version_suffix || ''}`;
+        if (!latestMap[key] || (run.started_at || '') > (latestMap[key].started_at || '')) {
+            latestMap[key] = run;
+        }
+    });
+    const latest = Object.values(latestMap).sort((a, b) => (b.started_at || '').localeCompare(a.started_at || ''));
+    renderTable(latest);
 }
 
 function renderTable(runs) {
@@ -153,8 +162,11 @@ function renderTable(runs) {
         const started = r.started_at ? new Date(r.started_at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
         const duration = r.duration_s ? formatDuration(r.duration_s) : '—';
         const error = r.error ? `<span class="run-error" title="${escHtml(r.error)}">${escHtml(r.error)}</span>` : '';
-        const runId = (r.run_id || '').slice(0, 8);
         const viewUrl = `/domains/${r.domain}/run/${r.run_id}`;
+        const btnId = `del-${(r.run_id||'').slice(0,8)}`;
+        const deleteBtn = r.status !== 'running'
+            ? `<button id="${btnId}" class="delete" onclick="deleteRun('${r.domain}','${r.version_suffix||''}','${btnId}')">Delete</button>`
+            : '';
 
         return `<tr>
             <td class="run-domain">${escHtml(domain)}</td>
@@ -163,8 +175,7 @@ function renderTable(runs) {
             <td>${started}</td>
             <td class="run-duration">${duration}</td>
             <td>${error}</td>
-            <td class="run-id">${runId}</td>
-            <td class="run-action"><a href="${viewUrl}">View</a></td>
+            <td class="run-actions"><a href="${viewUrl}">View</a>${deleteBtn}</td>
         </tr>`;
     }).join('');
 }
@@ -186,7 +197,38 @@ function escHtml(str) {
     return div.innerHTML;
 }
 
+async function deleteRun(domain, versionSuffix, btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn || btn.disabled) return;
+    const label = (domain||'').replace(/_/g,' ') + ' ' + (versionSuffix ? versionSuffix.replace(/^_/,'v') : 'default');
+    if (!confirm('Delete "' + label + '"?\nThis removes tables, dashboards, and Genie spaces for this version.')) return;
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+    try {
+        const res = await fetch('/api/pipeline/cleanup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({domain, version_suffix: versionSuffix})
+        });
+        if (res.ok) {
+            btn.textContent = '✓ Done';
+            btn.style.color = 'var(--success-text)';
+            btn.style.borderColor = 'var(--success)';
+            setTimeout(() => loadRuns(), 1200);
+        } else {
+            btn.textContent = 'Failed';
+            btn.disabled = false;
+            setTimeout(() => { btn.textContent = 'Delete'; }, 3000);
+        }
+    } catch(e) {
+        btn.textContent = 'Error';
+        btn.disabled = false;
+        setTimeout(() => { btn.textContent = 'Delete'; }, 3000);
+    }
+}
+
 // Load on page ready
 loadRuns();
+setInterval(loadRuns, 15000);
 </script>
 {% endblock %}
