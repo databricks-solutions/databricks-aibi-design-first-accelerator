@@ -737,6 +737,18 @@ def cancel_run(run_id):
     """
     run = _runs.get(run_id)
     if not run:
+        # Zombie scenario: run exists in Lakebase but not in memory.
+        # Allow cancel (just update Lakebase status directly).
+        run_store = _get_state_store()
+        if run_store:
+            try:
+                existing = run_store.get_run(run_id)
+                if existing and existing.get('status') in ('running', 'pending'):
+                    run_store.update_run_status(run_id, 'cancelled')
+                    logger.info(f"Zombie run cancelled via Lakebase: run_id={run_id}")
+                    return jsonify({'run_id': run_id, 'status': 'cancelled'})
+            except Exception as e:
+                logger.warning(f"Cancel fallback failed: {e}")
         return jsonify({'error': {'type': 'NotFound', 'message': f'Run {run_id} not found'}}), 404
 
     run['status'] = 'cancelled'
@@ -963,6 +975,13 @@ def list_runs():
 
     try:
         runs = run_store.list_runs(limit=limit, domain=domain)
+        # Zombie detection: runs showing 'running' in Lakebase but with no
+        # active thread in memory are zombies from a prior app restart.
+        # Show them as 'failed' so the UI renders "Resume" instead of "Running".
+        for r in runs:
+            if r.get('status') == 'running' and r.get('run_id') not in _runs:
+                r['status'] = 'failed'
+                r['error'] = r.get('error') or 'Interrupted: app restarted during execution'
         return jsonify(runs)
     except Exception as e:
         logger.warning(f"list_runs failed: {e}")
