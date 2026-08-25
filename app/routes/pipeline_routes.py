@@ -1163,26 +1163,32 @@ def get_step_logs(run_id, step_name):
 
 @pipeline_bp.route('/cleanup', methods=['POST'])
 def cleanup_version():
-    """Delete all assets for a specific domain version.
+    """Remove all assets for one or more domain versions.
 
     Removes: schema tables with version suffix, output folder,
     dashboards, genie space, and run records.
 
-    Request JSON:
-        domain (str): Domain name (e.g. 'member_claims')
-        version_suffix (str): Version suffix (e.g. '_v5')
+    Request JSON (supports two formats):
+        Format 1 (single version - legacy):
+            domain (str): Domain name (e.g. 'member_claims')
+            version_suffix (str): Version suffix (e.g. '_v5')
+
+        Format 2 (multi-version, from Admin UI):
+            domain (str): Domain name
+            versions_to_clean (str): "3" or "1,2,3" or "all"
 
     Returns:
-        {status: 'completed', cleaned: {tables, folder, dashboards, genie, runs}}
+        {status: 'completed', domain, versions_cleaned: [...], results: [...]}
     """
     data = request.get_json(force=True)
     domain = data.get('domain')
     version_suffix = data.get('version_suffix', '')
+    versions_to_clean = data.get('versions_to_clean', '')
 
     if not domain:
         return jsonify({'error': 'domain is required'}), 400
-    if not version_suffix:
-        return jsonify({'error': 'version_suffix is required'}), 400
+    if not version_suffix and not versions_to_clean:
+        return jsonify({'error': 'version_suffix or versions_to_clean is required'}), 400
 
     from config import get_config
     from services.cleanup_service import CleanupService
@@ -1194,14 +1200,66 @@ def cleanup_version():
     service = CleanupService(workspace_root=workspace_root, warehouse_id=warehouse_id)
     run_store = _get_state_store()
 
-    result = service.run_cleanup(domain=domain, version_suffix=version_suffix, run_store=run_store)
+    # Resolve version suffixes to process
+    suffixes_to_clean = []
+    if versions_to_clean:
+        if versions_to_clean.strip().lower() == 'all':
+            # Discover all versions from the version registry or runs
+            try:
+                domain_root = f"{workspace_root}/kpi_domains/{domain}"
+                import yaml
+                registry_path = f"{domain_root}/version_registry.yaml"
+                from services.workspace_service import WorkspaceService
+                ws = WorkspaceService()
+                registry_content = ws.read_file(registry_path)
+                if registry_content:
+                    registry = yaml.safe_load(registry_content)
+                    for entry in registry.get('versions', []):
+                        v = entry.get('version')
+                        if v:
+                            suffixes_to_clean.append(f"_v{v}")
+            except Exception as e:
+                logger.warning(f"Could not read version registry for 'all': {e}")
+                # Fallback: try to discover from runs
+                if run_store:
+                    try:
+                        runs = run_store.list_runs(domain=domain, limit=100)
+                        versions_seen = set()
+                        for r in runs:
+                            vs = r.get('version_suffix') or r.get('version')
+                            if vs:
+                                suffix = vs if vs.startswith('_v') else f"_v{vs}"
+                                versions_seen.add(suffix)
+                        suffixes_to_clean = sorted(versions_seen)
+                    except Exception:
+                        pass
+        else:
+            # Parse comma-separated version numbers
+            for part in versions_to_clean.split(','):
+                part = part.strip()
+                if part.isdigit():
+                    suffixes_to_clean.append(f"_v{part}")
+    else:
+        suffixes_to_clean = [version_suffix]
 
-    logger.info(f"Cleanup API completed for {domain}{version_suffix}: {result}")
+    if not suffixes_to_clean:
+        return jsonify({'error': 'No versions resolved. Check domain has existing versions.'}), 400
+
+    # Run cleanup for each version suffix
+    all_results = []
+    for suffix in suffixes_to_clean:
+        try:
+            result = service.run_cleanup(domain=domain, version_suffix=suffix, run_store=run_store)
+            all_results.append({'version_suffix': suffix, 'status': 'completed', **result})
+        except Exception as e:
+            all_results.append({'version_suffix': suffix, 'status': 'failed', 'error': str(e)[:200]})
+
+    logger.info(f"Cleanup API completed for {domain} versions={suffixes_to_clean}: {len(all_results)} processed")
     return jsonify({
         'status': 'completed',
         'domain': domain,
-        'version_suffix': version_suffix,
-        **result,
+        'versions_cleaned': suffixes_to_clean,
+        'results': all_results,
     })
 
 

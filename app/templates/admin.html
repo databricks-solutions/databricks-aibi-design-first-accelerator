@@ -461,6 +461,157 @@
     </table>
 </div>
 
+<!-- Section: Version Cleanup -->
+<div class="section-header" style="margin-top:8px;">
+    <div>
+        <h2>Version Cleanup</h2>
+        <p class="subtitle">Reclaim resources by removing version artifacts</p>
+    </div>
+</div>
+
+<div class="infra-card" style="padding:20px;">
+    <div style="display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="flex:1; min-width:160px;">
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Domain</label>
+            <select class="setup-select" id="cleanup-domain" style="width:100%;">
+                <option value="">Select domain...</option>
+            </select>
+        </div>
+        <div style="flex:1; min-width:160px;">
+            <label style="display:block; font-size:0.75rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px;">Versions</label>
+            <input type="text" id="cleanup-versions" placeholder='e.g. "3" or "1,2,3" or "all"' style="width:100%; padding:7px 12px; border:1px solid var(--border); border-radius:var(--radius-sm); font-size:0.84rem; background:var(--bg-card); color:var(--text-primary);">
+        </div>
+        <div>
+            <button class="btn-setup" id="cleanup-btn" onclick="runCleanup()" style="background:var(--danger); border-color:var(--danger);">
+                Cleanup Versions
+            </button>
+        </div>
+    </div>
+    <div id="cleanup-status" style="margin-top:12px; font-size:0.82rem; color:var(--text-secondary); display:none;"></div>
+    <p style="margin-top:12px; font-size:0.75rem; color:var(--text-muted);">
+        Removes tables, output folders, dashboards, and Genie spaces for specified versions.
+        Uses <code>08_cleanup_versions.md</code> prompt (works from Genie Code too).
+    </p>
+</div>
+
+<!-- Section: Tools & Models Reference -->
+<div class="section-header" style="margin-top:8px;">
+    <div>
+        <h2>Tools &amp; Models</h2>
+        <p class="subtitle">Supervisor agent toolset and model assignments</p>
+    </div>
+</div>
+
+<div class="infra-card" style="padding:20px;">
+    <table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+        <thead>
+            <tr style="border-bottom:2px solid var(--border);">
+                <th style="text-align:left; padding:8px 12px; font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Tool</th>
+                <th style="text-align:left; padding:8px 12px; font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Model</th>
+                <th style="text-align:left; padding:8px 12px; font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Purpose</th>
+                <th style="text-align:left; padding:8px 12px; font-size:0.72rem; font-weight:600; color:var(--text-muted); text-transform:uppercase;">Used In Steps</th>
+            </tr>
+        </thead>
+        <tbody style="color:var(--text-primary);">
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">Supervisor Agent (LLM)</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">databricks-gpt-5-5</td>
+                <td style="padding:8px 12px;">Orchestrates all tool calls, reasoning, planning</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">All steps</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">call_vision_model</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">databricks-gpt-5-5</td>
+                <td style="padding:8px 12px;">Parse ERD images, extract tables/columns/relationships</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Data Layer</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">execute_sql</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (SQL Warehouse)</td>
+                <td style="padding:8px 12px;">DDL, DML, metric view creation, dataset validation</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Data Layer, Metrics, Dashboards, Genie</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">execute_python</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (subprocess)</td>
+                <td style="padding:8px 12px;">Generate YAML artifacts, data transformations</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Metrics, Documentation</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">execute_notebook</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Jobs API)</td>
+                <td style="padding:8px 12px;">Run ETL notebooks (DDL, synthetic data via dbldatagen)</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Data Layer</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">import_notebook</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Workspace API)</td>
+                <td style="padding:8px 12px;">Import generated notebooks to workspace</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Data Layer</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">create_dashboard</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Lakeview API)</td>
+                <td style="padding:8px 12px;">Create Lakeview dashboards with serialized JSON</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Dashboards</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">publish_dashboard</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Lakeview API)</td>
+                <td style="padding:8px 12px;">Publish draft dashboards for sharing</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Dashboards</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">create_genie_space</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Genie API)</td>
+                <td style="padding:8px 12px;">Create AI-powered Genie data rooms</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Genie Space</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">read_workspace_file</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Workspace API)</td>
+                <td style="padding:8px 12px;">Read configs, prompts, YAML artifacts, KPI specs</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">All steps</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">write_workspace_file</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Workspace API)</td>
+                <td style="padding:8px 12px;">Write YAML artifacts, validation results, docs</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">All steps</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">describe_table</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (SQL Warehouse)</td>
+                <td style="padding:8px 12px;">Inspect table schemas for metric view design</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Metrics, Dashboards, Genie</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">cleanup_path</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (Workspace API)</td>
+                <td style="padding:8px 12px;">Remove temporary or versioned output folders</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">Cleanup</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border-subtle);">
+                <td style="padding:8px 12px; font-weight:500;">report_progress</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (internal)</td>
+                <td style="padding:8px 12px;">Report phase progress to UI monitoring</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">All steps</td>
+            </tr>
+            <tr>
+                <td style="padding:8px 12px; font-weight:500;">report_step_complete</td>
+                <td style="padding:8px 12px; font-family:var(--font-mono); font-size:0.78rem;">— (internal)</td>
+                <td style="padding:8px 12px;">Signal step completion to orchestrator</td>
+                <td style="padding:8px 12px; font-size:0.75rem; color:var(--text-secondary);">All steps</td>
+            </tr>
+        </tbody>
+    </table>
+    <p style="margin-top:16px; font-size:0.75rem; color:var(--text-muted);">
+        All LLM reasoning uses <strong>databricks-gpt-5-5</strong> (configurable via <code>LLM_ENDPOINT_NAME</code> env var).
+        Vision calls use <strong>databricks-gpt-5-5</strong> (configurable via <code>VISION_ENDPOINT_NAME</code>).
+        Tool execution is deterministic (no LLM) — only the supervisor agent's planning/reasoning loop uses the model.
+    </p>
+</div>
+
 </div><!-- /.admin-content -->
 {% endblock %}
 
@@ -802,5 +953,63 @@ document.getElementById('runs-domain-filter').addEventListener('change', (e) => 
 
 loadRuns();
 setInterval(loadRuns, 15000);
+
+// ═══════════════════════════════════════════════════
+// Version Cleanup
+// ═══════════════════════════════════════════════════
+
+async function populateCleanupDomains() {
+    try {
+        const res = await fetch('/api/domains');
+        if (!res.ok) return;
+        const data = await res.json();
+        const select = document.getElementById('cleanup-domain');
+        const domains = data.domains || [];
+        select.innerHTML = '<option value="">Select domain...</option>' +
+            domains.map(d => `<option value="${d.name}">${(d.display_name || d.name)}</option>`).join('');
+    } catch(e) { console.debug('Failed to populate cleanup domains', e); }
+}
+
+async function runCleanup() {
+    const domain = document.getElementById('cleanup-domain').value;
+    const versions = document.getElementById('cleanup-versions').value.trim();
+    const statusEl = document.getElementById('cleanup-status');
+
+    if (!domain) { alert('Please select a domain'); return; }
+    if (!versions) { alert('Please specify versions (e.g. "3" or "1,2,3" or "all")'); return; }
+
+    const confirmed = confirm('This will remove artifacts for version(s) [' + versions + '] in domain "' + domain + '". Continue?');
+    if (!confirmed) return;
+
+    const btn = document.getElementById('cleanup-btn');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Initiating version cleanup...';
+
+    try {
+        const res = await fetch('/api/pipeline/cleanup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ domain, versions_to_clean: versions })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            statusEl.textContent = 'Cleanup started: ' + (data.run_id || 'processing') + '. Check Runs page for progress.';
+            statusEl.style.color = 'var(--success-text)';
+        } else {
+            statusEl.textContent = 'Error: ' + (data.error || 'Unknown error');
+            statusEl.style.color = 'var(--danger-text)';
+        }
+    } catch(e) {
+        statusEl.textContent = 'Error: ' + e.message;
+        statusEl.style.color = 'var(--danger-text)';
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Cleanup Versions';
+    }
+}
+
+populateCleanupDomains();
 </script>
 {% endblock %}
