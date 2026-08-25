@@ -286,23 +286,19 @@ class StateStore:
     def reset_steps_for_rerun(self, run_id: str, step_names: list) -> None:
         """Reset steps and their phases to pending for rerun."""
         for step_name in step_names:
+            # steps table columns: run_id, step_name, step_index, status, error, started_at, completed_at
             self._update("steps", {"run_id": run_id, "step_name": step_name}, {
                 "status": "pending",
                 "started_at": None,
                 "completed_at": None,
-                "duration_s": None,
                 "error": None,
-                "error_detail": None,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
             })
+            # phases table columns: run_id, step_name, phase_name, phase_index, status, error, started_at, completed_at
             self._update("phases", {"run_id": run_id, "step_name": step_name}, {
                 "status": "pending",
                 "started_at": None,
                 "completed_at": None,
-                "duration_ms": None,
                 "error": None,
-                "error_detail": None,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
             })
 
     # --- Phases ---
