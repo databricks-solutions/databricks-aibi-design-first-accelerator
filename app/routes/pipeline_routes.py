@@ -889,7 +889,13 @@ def get_run_status(run_id):
                     if recovered.get('status') == 'running':
                         recovered['status'] = 'failed'
                         recovered['error'] = 'Interrupted: app restarted during execution'
-                        logger.warning(f"Zombie run {run_id}: was 'running' in Lakebase but no active thread. Showing as failed.")
+                        # Persist to Lakebase so rerun endpoint also sees 'failed'
+                        try:
+                            run_store.update_run_status(run_id, 'failed',
+                                                       error='Interrupted: app restarted during execution')
+                        except Exception as persist_err:
+                            logger.warning(f"Failed to persist zombie reset: {persist_err}")
+                        logger.warning(f"Zombie run {run_id}: was 'running' in Lakebase but no active thread. Reset to failed.")
                     _runs[run_id] = recovered  # Re-populate cache
                     run = recovered
                     logger.info(f"Recovered run {run_id} from Lakebase (cache miss)")
