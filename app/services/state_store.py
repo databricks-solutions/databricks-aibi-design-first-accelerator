@@ -204,15 +204,16 @@ class StateStore:
     # steps table: run_id, step_name, step_index, status, error, started_at, completed_at
 
     def upsert_step(self, run_id: str, step_name: str, step_index: int = 0, **fields) -> None:
-        # Only include columns that exist in the steps table
-        valid_cols = {'status', 'error', 'started_at', 'completed_at'}
+        # steps table: run_id, step_name, step_index, status, error, started_at, completed_at, duration_s, updated_at
+        valid_cols = {'status', 'error', 'started_at', 'completed_at', 'duration_s', 'updated_at'}
         filtered = {k: v for k, v in fields.items() if k in valid_cols}
         data = {"run_id": run_id, "step_name": step_name, "step_index": step_index, **filtered}
         self._insert("steps", data, conflict_cols=["run_id", "step_name"])
 
     def update_step(self, run_id: str, step_name: str, status: str, **kwargs) -> None:
         """Convenience: update step status with optional fields."""
-        valid_cols = {'status', 'error', 'started_at', 'completed_at'}
+        # steps table: run_id, step_name, step_index, status, error, started_at, completed_at, duration_s, updated_at
+        valid_cols = {'status', 'error', 'started_at', 'completed_at', 'duration_s', 'updated_at'}
         kwargs["status"] = status
         if status == "running":
             kwargs.setdefault("started_at", datetime.now(timezone.utc).isoformat())
@@ -224,10 +225,13 @@ class StateStore:
     def update_run_status(self, run_id: str, status: str, **kwargs) -> None:
         """Convenience: update run status with optional fields."""
         # runs table: run_id, domain, run_mode, status, version, version_suffix,
-        #             total_steps, retry_count, config_json, error, created_at, started_at, completed_at
+        #             total_steps, retry_count, config_json, error, created_at, started_at, completed_at,
+        #             progress_pct, current_step, run_manifest, updated_at
         valid_cols = {'status', 'error', 'started_at', 'completed_at', 'version',
-                      'version_suffix', 'total_steps', 'retry_count', 'config_json'}
+                      'version_suffix', 'total_steps', 'retry_count', 'config_json',
+                      'progress_pct', 'current_step', 'run_manifest', 'updated_at'}
         kwargs["status"] = status
+        kwargs["updated_at"] = datetime.now(timezone.utc).isoformat()
         if status == "running" and "started_at" not in kwargs:
             kwargs["started_at"] = datetime.now(timezone.utc).isoformat()
         elif status in ("completed", "failed"):
@@ -315,7 +319,12 @@ class StateStore:
     def update_phase(self, run_id: str, step_name: str, phase_name: str,
                      status: str, **kwargs) -> None:
         """Update a phase record (called by PipelineRunner during execution)."""
-        valid_cols = {'status', 'error', 'started_at', 'completed_at'}
+        # phases table: run_id, step_name, phase_name, phase_index, status, error,
+        #   started_at, completed_at, phase_id, current_task, progress_pct, stats,
+        #   happenings, findings, updated_at
+        valid_cols = {'status', 'error', 'started_at', 'completed_at', 'phase_id',
+                      'current_task', 'progress_pct', 'stats', 'happenings',
+                      'findings', 'updated_at'}
         kwargs['status'] = status
         if status == 'running':
             kwargs.setdefault('started_at', datetime.now(timezone.utc).isoformat())
@@ -332,8 +341,8 @@ class StateStore:
         })
         event_id = row.get("event_id", 0) if row else 0
         if event_id:
+            # Update runs.updated_at as a heartbeat (no event_seq column exists)
             self._update("runs", {"run_id": run_id}, {
-                "event_seq": event_id,
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             })
         return event_id
@@ -347,19 +356,16 @@ class StateStore:
     # --- Step Logs ---
 
     def append_log(self, run_id: str, step_name: str, line: str) -> None:
-        existing = self._select("step_logs", {"run_id": run_id, "step_name": step_name})
-        if existing:
-            new_text = existing[0].get("log_text", "") + line + "\n"
-            self._update("step_logs", {"run_id": run_id, "step_name": step_name}, {
-                "log_text": new_text,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            })
-        else:
-            self._insert("step_logs", {"run_id": run_id, "step_name": step_name, "log_text": line + "\n"})
+        # step_logs table: run_id, step_name, line, created_at (append-only, no PK)
+        self._insert("step_logs", {"run_id": run_id, "step_name": step_name, "line": line})
 
     def get_step_log(self, run_id: str, step_name: str) -> str:
-        rows = self._select("step_logs", {"run_id": run_id, "step_name": step_name})
-        return rows[0]["log_text"] if rows else ""
+        # step_logs is append-only rows with 'line' column
+        rows = self._execute(
+            "SELECT line FROM public.step_logs WHERE run_id = %s AND step_name = %s ORDER BY created_at ASC",
+            (run_id, step_name),
+        )
+        return "\n".join(r["line"] for r in rows)
 
     # --- Resume & Recovery ---
 
