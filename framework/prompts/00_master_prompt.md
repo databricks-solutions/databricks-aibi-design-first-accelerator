@@ -73,6 +73,22 @@ This prompt can be invoked from:
 
 In both patterns, the pipeline contract and stage prompts are identical. Only the execution mechanism differs.
 
+### Strict Execution Guardrails
+
+These rules are **non-negotiable** and override any creative shortcuts the agent might attempt:
+
+1. **Follow each step prompt EXACTLY as written.** Do NOT improvise, skip, reorder, or substitute steps with alternative approaches. Each step prompt is the SOLE authority for its implementation.
+
+2. **Fresh run = ignore prior versions.** When running as a fresh run (not a resume), do NOT reference, reuse, extract from, or build upon artifacts from prior version folders (v1, v2, v3, etc.). Only check for artifacts in the CURRENT version's OUTPUT_FOLDER for resume/skip logic.
+
+3. **No inference from existing workspace files.** Do NOT scan the workspace for prior dashboard exports, notebook outputs, or generated files to "reuse" or "extract widget specs from." Build everything from scratch using the process defined in the step prompts.
+
+4. **Templates are prescriptive.** When a step prompt says to read a template file and follow its structure, do exactly that. Do not substitute the template's approach with your own implementation.
+
+5. **Do NOT take shortcuts.** Even if you see faster paths (existing dashboards to clone, prior SQL to copy, cached results to reuse), follow the step prompt's prescribed workflow. The pipeline's value is in its validated, repeatable process — not speed.
+
+6. **Artifact-as-State applies ONLY to the current version.** The checkpoint/skip logic (Section 6) checks `OUTPUT_FOLDER` for the current run's artifacts. Finding artifacts in a different version's folder is NOT grounds to skip a phase.
+
 ---
 
 # Global Execution Principles
