@@ -4,9 +4,10 @@
 #
 # CRITICAL RULES (from lakeview_dashboard_api.md):
 # 1. Datasets use "queryLines" (array), NOT "query" (string)
-# 2. Text widgets: use "textboxSpec": {"value": "<markdown>"} structure.
-#    NEVER use "multilineTextboxSpec" as a plain string — this causes
-#    'failed to parse serialized dashboard'. The API requires an object.
+# 2. Text widgets: use "multilineTextboxSpec": {"value": "<markdown>"} (OBJECT, not string).
+#    WRONG: "multilineTextboxSpec": "## Title" → 'failed to parse serialized dashboard'
+#    WRONG: "textboxSpec": {"value": ...} → 'missing spec, textbox_spec, multilineTextboxSpec'
+#    CORRECT: "multilineTextboxSpec": {"value": "## Title"} → works
 # 3. Counter widgets: spec.version = 2
 # 4. Bar/Line/Pie charts: spec.version = 3
 # 5. Filter widgets: spec.version = 2 (NOT 1), MUST include "queryName"
@@ -209,23 +210,23 @@ def build_dataset(name: str, sql: str, display_name: str = "") -> dict:
 def build_text_widget(name: str, markdown: str, position: dict) -> dict:
     """Build a text/title widget.
 
-    CRITICAL: The Lakeview API rejects multilineTextboxSpec as a plain string.
-    It MUST be a dict with 'content' as an array of line strings.
-    A plain string like "## Title" causes 'failed to parse serialized dashboard'.
+    CRITICAL: The Lakeview API field is `multilineTextboxSpec` and it MUST be
+    an OBJECT {"value": "<markdown>"}, NOT a plain string.
 
-    This function handles the conversion automatically.
+    Passing a plain string like `"multilineTextboxSpec": "## Title"` causes:
+        'failed to parse serialized dashboard'
+
+    Passing wrong key like `textboxSpec` or `textbox_spec` causes:
+        'missing spec, textbox_spec, multilineTextboxSpec, or imageSpec'
+
+    The ONLY working format (verified):
+        "multilineTextboxSpec": {"value": "## Title"}
     """
-    # Convert markdown string to the required object format
-    if isinstance(markdown, str):
-        content_lines = markdown.split('\n')
-    else:
-        content_lines = markdown  # already a list
+    text_value = markdown if isinstance(markdown, str) else '\n'.join(markdown)
     return {
         "widget": {
             "name": name,
-            "textboxSpec": {
-                "value": markdown if isinstance(markdown, str) else '\n'.join(markdown)
-            },
+            "multilineTextboxSpec": {"value": text_value},
         },
         "position": position,
     }

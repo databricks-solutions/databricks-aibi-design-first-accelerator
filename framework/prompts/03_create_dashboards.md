@@ -69,7 +69,7 @@ The following actions are STRICTLY FORBIDDEN:
 10. **DO NOT improvise or use custom logic** — this prompt defines the EXACT sequence. Do NOT substitute your own dashboard creation workflow, skip gates, or collapse multiple steps into a single API call. Every numbered step in this prompt exists because prior runs failed when it was skipped.
 11. **DO NOT use `query` (string) in dataset objects** — MUST use `queryLines` (array of strings) per `lakeview_dashboard_api.md`. Using `query` causes silent rendering failures.
 12. **DO NOT call `w.lakeview.create()` before Steps 1-11 are complete** — the design contract, dataset validation YAML, and preflight structural validation MUST all exist first. Jumping to API creation "because the dashboard seems simple" is the #1 cause of dashboard failures.
-13. **DO NOT use `multilineTextboxSpec` as a plain string for text widgets** — the Lakeview API rejects plain strings and returns `'failed to parse serialized dashboard'`. Use `"textboxSpec": {"value": "<markdown>"}` instead. The template's `build_text_widget()` handles this correctly; always use it.
+13. **DO NOT use `multilineTextboxSpec` as a plain string for text widgets** — the Lakeview API rejects plain strings and returns `'failed to parse serialized dashboard'`. The field MUST be an object: `"multilineTextboxSpec": {"value": "<markdown>"}`. Also NEVER use `textboxSpec` or `textbox_spec` (wrong key names). The template's `build_text_widget()` handles this correctly; always use it.
 
 ### HARD STOP RULE: No Divergence from This Prompt
 
