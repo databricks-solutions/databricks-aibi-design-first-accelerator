@@ -37,6 +37,233 @@ A title-only or minimally configured Genie Space is invalid.
 
 ---
 
+## ENFORCEMENT HEADER
+
+<!-- @enforcement
+  pattern: notebook_execution_for_genie
+  template_required: genie_notebook (templates.genie_notebook from accelerator.yaml, if configured)
+  api_method: Genie Management API (POST /api/2.0/genie/spaces)
+  gates:
+    - id: semantic_inventory_built
+      after_step: 2
+      check: "Internal inventory of validated measures/dimensions exists"
+    - id: instructions_designed
+      after_step: 3
+      check: "Genie instructions text is >= 200 characters with MEASURE() guidance"
+    - id: sample_questions_ready
+      after_step: 4
+      check: "Sample questions count >= validation.min_benchmark_questions from config"
+    - id: example_sql_validated
+      after_step: 5
+      check: "All example SQL queries execute without error"
+    - id: genie_space_created
+      after_step: 6
+      check: "GET /api/2.0/genie/spaces/{id} returns valid response"
+    - id: benchmark_passed
+      after_step: 7
+      check: "Benchmark results show >= 80% query success rate"
+-->
+
+---
+
+## PROHIBITED ACTIONS (this entire step)
+
+The following actions are STRICTLY FORBIDDEN:
+
+1. **DO NOT create a blank or title-only Genie Space** — the space MUST have instructions, sample questions, AND example SQL
+2. **DO NOT bypass the notebook template** — if `templates.genie_notebook` is configured, use it (read template, populate, execute)
+3. **DO NOT hardcode domain-specific instructions** in the template — instructions are generated from the validated KPI/metric inventory
+4. **DO NOT skip benchmark validation** — sample questions must be tested against the Genie space to verify it answers correctly
+5. **DO NOT create sample questions that cannot be answered** by the metric view — every sample question must map to available measures/dimensions
+6. **DO NOT use raw SQL in example queries** when `MEASURE()` syntax should be used — Genie must learn the metric view query pattern
+7. **DO NOT skip the instruction quality check** — instructions must explicitly mention: measure names, dimension names, MEASURE() syntax rules, ratio non-additivity warnings
+8. **DO NOT create fewer sample questions than `validation.min_benchmark_questions`** from accelerator.yaml
+9. **DO NOT use `createAsset(assetType="genie")` as the deployment mechanism** — this creates a blank title-only space. Genie Spaces MUST be created via the official Genie Management API (`POST /api/2.0/genie/spaces`) with a complete `serialized_space` payload.
+10. **DO NOT improvise or use custom logic** — this prompt defines the EXACT sequence. Do NOT substitute your own Genie Space creation workflow, skip gates, or collapse multiple steps into a single API call. Every numbered step exists because prior runs failed when it was skipped.
+11. **DO NOT call the Genie Create/Update API before Steps 1-10 are complete** — the semantic inventory, instructions, sample questions, example SQL (validated), and benchmarks MUST all be designed and tested before constructing `serialized_space`. Jumping to API creation "because the space seems simple" produces blank or misconfigured spaces.
+12. **DO NOT construct `serialized_space` from model memory** — ALWAYS read `genie_space_configuration.md` first and follow its exact payload structure. The JSON schema has non-obvious requirements (newline truncation, column_configs sorting, UUID format) that CANNOT be reliably inferred.
+13. **DO NOT skip reading `genie_space_configuration.md`** — if this file is neither in the system supplement NOR readable from `{deploy_root}/framework/inputs/`, HALT immediately. Do NOT guess the payload format.
+14. **DO NOT submit `serialized_space` with unsorted ID arrays** — ALL arrays containing `id` fields (`example_question_sqls`, `sample_questions`, `benchmarks.questions`, `text_instructions`) MUST be sorted by `id` ascending. The API rejects with `must be sorted by id` otherwise. Always call `sorted(items, key=lambda x: x['id'])` before serializing.
+15. **DO NOT rely on `GET /api/2.0/genie/spaces/{id}` for content validation** — the GET response does NOT return `serialized_space` content. Validation must be based on successful POST acceptance (API returns 400 with specific error if payload is structurally invalid).
+16. **DO NOT use assumed or semantic column names in example SQL** — ALWAYS use EXACT column names from `DESCRIBE TABLE` / `genie_semantic_inventory.yaml`. Common failures: `service_month` (doesn't exist — use `DATE_TRUNC('MONTH', service_date)`), `claim_month`, `member_name`. If a column is not in the inventory, it MUST NOT appear in any SQL.
+17. **DO NOT skip `validate_genie_config()` before deployment** — the Genie notebook template includes a validation cell that executes ALL example SQL queries before calling the Genie API. This is the determinism gate — it catches SQL with wrong column names before they become broken Genie examples. If validation fails, FIX the SQL, do not proceed.
+
+### HARD STOP RULE: No Divergence from This Prompt
+
+If the executing agent:
+- Uses `createAsset(assetType="genie")` instead of the Genie Management API → **INVALID**
+- Skips reading `genie_space_configuration.md` and constructs payload from memory → **INVALID**
+- Calls `POST /api/2.0/genie/spaces` without a complete `serialized_space` → **INVALID**
+- Omits instructions, sample questions, or example SQL from the payload → **INVALID**
+- Includes example SQL that was NOT executed and validated first → **INVALID**
+- Skips the template-based notebook and writes one from scratch → **INVALID**
+- Creates 0 benchmark questions → **INVALID**
+
+Any of these invalidate the Genie Space and require re-execution from Step 1 of this prompt.
+
+### Minimum Configuration Requirements
+
+A valid Genie Space MUST contain ALL of:
+- Title (versioned per accelerator naming)
+- Description (domain-specific, mentioning key metrics)
+- Table identifiers (metric view FQN)
+- Warehouse ID
+- Instructions (>= 500 chars with MEASURE() guidance, aggregation warnings, dimension list)
+- Sample/curated questions (>= 15 covering at least 5 distinct analytical patterns)
+- Example SQL (>= 10 validated queries using MEASURE() syntax)
+- Benchmark questions (>= 15 using different phrasing than samples)
+
+Creating a space without ANY of these is a pipeline failure.
+
+### Instruction Richness Requirements (Expanded)
+
+Instructions MUST contain ALL of the following content sections (not just length):
+
+1. **Domain introduction**: 1-2 sentences explaining what data this Genie Space provides
+2. **Measure catalog**: List EVERY validated measure with a brief business meaning
+3. **Dimension catalog**: List EVERY validated dimension with typical use (filter, group, slice)
+4. **MEASURE() syntax rule**: Explicit statement that all measures must be queried via `MEASURE(\`measure_name\`)`
+5. **Aggregation warnings**: Which measures are ratios (non-additive) and must NOT be summed
+6. **Time interpretation**: Which column represents time, what format, how to do monthly aggregation
+7. **Terminology**: Common business terms and their mapping to measure/dimension names
+
+An instruction string that is 500 chars but only says "This is a claims analytics space with some metrics" → **INVALID** (fails content richness check even if length passes).
+
+### Sample Question Diversity Gate
+
+Sample questions MUST cover at least 5 of these 8 analytical patterns:
+
+| Pattern | Example | Measures Involved |
+|---------|---------|------------------|
+| HEADLINE | "What is total paid amount?" | Single measure, no dimensions |
+| TIME_TREND | "How has denial rate changed over time?" | Measure + temporal dimension |
+| DIMENSION_BREAKDOWN | "Show paid amount by claim type" | Measure + categorical dimension |
+| FILTERED | "What is clean claim rate for Institutional?" | Measure + WHERE filter |
+| RANKING | "Which benefit category has the highest paid?" | Measure + ORDER BY + LIMIT |
+| COMPARISON | "Compare denial rate across claim types" | Measure + multiple dimension values |
+| MULTI_MEASURE | "Show paid and allowed amounts by status" | Multiple measures + dimension |
+| RATIO | "What percentage of claims are denied?" | Ratio/rate measure |
+
+If fewer than 5 patterns are represented → **FAIL** (regenerate with explicit pattern targeting).
+
+Duplicate paraphrases (same pattern + same measure + same dimension) count as ONE question regardless of phrasing.
+
+### Validated Learnings (from production runs)
+
+These are confirmed errors encountered and resolved during actual Genie Space creation. Treat them as mandatory guardrails.
+
+**1. All ID-containing arrays MUST be sorted by `id` (ascending)**
+
+The Genie API rejects payloads where any array containing `id` fields is unsorted:
+
+```text
+Error: "Invalid export proto: instructions.example_question_sqls must be sorted by id"
+```
+
+This applies to ALL of:
+- `config.sample_questions`
+- `instructions.text_instructions`
+- `instructions.example_question_sqls`
+- `benchmarks.questions`
+
+Fix: Always sort after generating UUIDs:
+```python
+items = sorted(items, key=lambda x: x["id"])
+```
+
+**2. GET /genie/spaces/{id}?include_serialized_space=true DOES return content**
+
+Pass `?include_serialized_space=true` query param to get the full configuration back. Two quirks in the read-back:
+
+- `data_sources.metric_views` is RENAMED to `data_sources.tables` in the response
+- `text_instructions[].content` is stored as a multi-line array (one item per line), not a single string. Join all items to get the full text: `''.join(ti['content'])`
+
+Validation should check both key names:
+```python
+mvs = ss.get("data_sources", {}).get("metric_views", []) or \
+      ss.get("data_sources", {}).get("tables", [])
+```
+
+**3. `column_configs` must be sorted alphabetically by `column_name`**
+
+The API rejects with `InvalidParameterValue` if `column_configs[]` entries within a table are not alphabetically sorted.
+
+```python
+column_configs = sorted(column_configs, key=lambda x: x["column_name"])
+```
+
+**4. UUIDs MUST be 32-char lowercase hex WITHOUT hyphens**
+
+The API rejects standard UUIDs with hyphens (`a1b2c3d4-e5f6-7890-...`). Use `uuid.uuid4().hex` (32 hex chars):
+
+```text
+Error: "Invalid id for sample_question.id: 'a1b2c3d4-e5f6-...'. Expected lowercase 32-hex UUID without hyphens"
+```
+
+Fix: Use `uuid.uuid4().hex` instead of `str(uuid.uuid4())`:
+```python
+item_id = uuid.uuid4().hex  # "a1b2c3d4e5f6789012345678abcdef01"
+```
+
+**5. `version` field MUST be 2 in `serialized_space`**
+
+The API rejects version 0 or 1:
+
+```text
+Error: "Invalid export proto: ExportConverter supports versions 1 and 2, but got 0"
+```
+
+Fix: Always include `"version": 2` at the top level of `serialized_space`.
+
+**6. ALL text fields (`question`, `sql`, `content`) MUST be arrays, not strings**
+
+The API rejects plain strings for these fields:
+
+```text
+Error: "Expected an array for question but found 'What is the total paid amount?'"
+Error: "Expected an array for sql but found 'SELECT SUM(paid_amount)...'"
+Error: "Expected an array for content but found '## Domain\nThis Genie Space...'"
+```
+
+Fix: Wrap ALL text values in arrays:
+```python
+# WRONG:
+{"question": "What is total paid?", "sql": "SELECT ..."}
+
+# CORRECT:
+{"question": ["What is total paid?"], "sql": ["SELECT ..."]}
+{"content": ["Full instructions text here"]}
+```
+
+**7. Use SDK `w.api_client.do()` — NEVER raw `requests` with extracted tokens**
+
+Extracting API tokens via `dbutils.notebook.entry_point.getDbutils()...apiToken()` and using `requests.post()` is:
+- A credential exfiltration risk (triggers safety guardrails in Genie Code)
+- Fragile (token rotation, format changes)
+- Unnecessary (SDK handles auth automatically)
+
+Fix: Use `WorkspaceClient().api_client.do(method, path, body=...)` for all API calls.
+
+**8. `table_identifiers` goes in the CREATE body, NOT inside `serialized_space`**
+
+Putting `table_identifiers` inside `serialized_space.config` causes:
+```text
+Error: "Unknown field 'table_identifiers'"
+```
+
+The correct structure:
+```python
+# table_identifiers is a TOP-LEVEL field in the POST body:
+body = {
+    "title": ...,
+    "warehouse_id": ...,
+    "table_identifiers": ["catalog.schema.metric_view"],  # HERE
+    "serialized_space": json.dumps({...}),  # NOT inside here
+}
+```
+
+---
+
 # Core Principle
 
 Genie must consume validated semantic assets.
@@ -146,6 +373,7 @@ If it does not exist → execute the phase normally.
 |-------|----------|----------|
 | load_config | Config + contracts loaded | Always re-read (stateless) |
 | build_inventory | genie_semantic_inventory.yaml | file exists |
+| llm_design | llm_genie_design.yaml | file exists + instructions >= 500 chars + questions >= 15 |
 | create_genie_space | *_genie_manifest.json | file exists + contains space_id |
 | validate_genie | genie_benchmark_validation.yaml | file exists |
 
@@ -189,9 +417,33 @@ DESCRIBE says: measure=denial_rate, dimension=line_of_business, values=['Commerc
 ✗ Generating sample questions about measures/dimensions that don't exist
 ✗ Including example SQL that hasn't been validated on the warehouse
 ✗ Adding instructions about capabilities the metric view doesn't support
+✗ Using shortened/semantic column names from memory instead of exact DDL names
 ```
 
 Every instruction, sample question, and example SQL must trace back to either the KPI spec or the DESCRIBE output. If it can't be traced, it must not be included.
+
+### Column Name Source of Truth (DETERMINISM RULE)
+
+**Column names used anywhere in the Genie configuration (instructions, SQL, questions) MUST come from ONE of these verified sources:**
+
+| Source | What it provides |
+|--------|------------------|
+| `DESCRIBE TABLE {metric_view_fqn}` | Exact measure and dimension column names |
+| `genie_semantic_inventory.yaml` | Same columns with business descriptions |
+| `metric_view_design.yaml` | Column definitions from design phase |
+
+**NEVER** derive column names from:
+- The KPI spec text (it uses business language, not DDL names)
+- Memory of similar healthcare schemas
+- Assumed abbreviation patterns
+- Prior examples in this prompt (they are illustrative patterns, NOT actual names)
+
+**Required sequence for every SQL you write:**
+```text
+1. Look up exact column name in genie_semantic_inventory.yaml
+2. Use that exact name in the SQL
+3. validate_genie_config() will execute it to confirm correctness
+```
 
 ---
 
@@ -324,6 +576,31 @@ VERSION_SUFFIX
 ```
 
 using accelerator naming rules.
+
+## API Authentication Pattern (MANDATORY)
+
+All API calls to Databricks endpoints MUST use the authenticated SDK client:
+
+```python
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.config import Config
+
+# Standard calls (Genie CRUD, SQL execution)
+w = WorkspaceClient()
+result = w.api_client.do("POST", "/api/2.0/genie/spaces", body={...})
+
+# LLM calls (need longer timeout)
+w_llm = WorkspaceClient(config=Config(http_timeout_seconds=600))
+result = w_llm.api_client.do("POST", "/serving-endpoints/{model}/invocations", body={...})
+```
+
+**NEVER** use:
+- `requests.post()` with extracted tokens
+- `requests.get()` with manual Authorization headers
+- `urllib` or `httpx` for API calls
+- Token extraction from `dbutils.notebook.entry_point`
+
+The SDK handles authentication automatically. Raw HTTP calls are forbidden.
 
 ---
 
@@ -473,6 +750,189 @@ This artifact becomes the source of truth for Genie configuration generation.
 
 ---
 
+# Step 2.2: LLM-Assisted Genie Design (MANDATORY)
+
+Before manually writing instructions, sample questions, and example SQL, call a **reasoning model** to propose production-quality Genie configuration. This ensures:
+- Domain-specific instructions (not generic boilerplate)
+- Analytically diverse sample questions (not paraphrases)
+- Proper MEASURE() syntax in all examples
+- Aggregation semantics warnings for non-additive measures
+- Natural business terminology appropriate to the domain
+
+## Why This Step Exists
+
+The executing agent may generate minimal instructions ("This Genie Space has metrics") and repetitive sample questions ("What is total paid? / Show total paid / How much paid?"). A reasoning model produces domain-aware, analytically rich configuration that covers multiple question patterns per KPI.
+
+## Context Assembly (BEFORE the LLM call)
+
+Gather all of these inputs and include them in the prompt:
+
+| Input | Source | What It Provides |
+|-------|--------|------------------|
+| KPI specification | `{EXAMPLE_DIR}/inputs/kpi_spec.md` | Business definitions, analytical intent, terminology |
+| Metric View YAML | `SHOW CREATE TABLE {metric_view_fqn}` | Exact measure names, expressions, dimension names, MEASURE() syntax |
+| Metric View validation | `metric_view_validation.yaml` | Which KPIs are IMPLEMENTED vs SKIPPED |
+| Semantic inventory | `genie_semantic_inventory.yaml` | Profiled values, synonyms, data types |
+| Categorical samples | From Step 2 profiling | Actual dimension values for grounded examples |
+
+**The metric view definition is critical** — without it, the LLM may propose questions about measures that don't exist or generate SQL that misuses MEASURE() syntax.
+
+## LLM Call Pattern
+
+```python
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.config import Config
+
+w_llm = WorkspaceClient(config=Config(http_timeout_seconds=600))
+
+# CRITICAL: Include the FULL metric view definition in context
+genie_design_prompt = f"""
+You are a senior Databricks Genie Space architect.
+
+Given the following validated semantic model, design a complete Genie Space configuration.
+
+## Metric View Definition (COMPLETE — this is the ACTUAL view Genie will query)
+```sql
+{metric_view_ddl}
+```
+
+## Metric View Validation Results
+KPIs implemented and validated: {implemented_kpis}
+KPIs skipped (DO NOT reference these): {skipped_kpis}
+
+## KPI Specification (business context)
+{kpi_spec_content}
+
+## Semantic Inventory
+{semantic_inventory_yaml}
+
+## Data Profile
+- Row count: {row_count}
+- Date range: {min_date} to {max_date}
+- Categorical samples:
+{categorical_samples}
+
+## Design Requirements
+
+### 1. General Instructions (markdown-formatted for readability)
+Write comprehensive Genie instructions using markdown structure (## headers, - bullets, blank lines between sections). The instructions should:
+- Introduce the analytical domain (what this data represents)
+- List ALL available measures with their business meaning and aggregation semantics
+- List ALL available dimensions with their purpose and sample values
+- Explain MEASURE() syntax rules (MUST use MEASURE(`measure_name`) for all measures)
+- Warn about non-additive measures (ratios like Denial Rate cannot be summed — they must use AVG or be reconstructed from components)
+- Provide time interpretation guidance (which temporal column to use, date format)
+- Define common business terminology and synonyms
+- Minimum 500 characters, target 800-1500 characters
+- FORMAT: Use markdown structure — ## headers to separate sections, - bullet points for lists, blank lines between sections
+
+### 2. Sample Questions (15-20, analytically diverse)
+Generate questions covering these DISTINCT analytical patterns:
+- HEADLINE: "What is the total X?" (one per primary measure)
+- TIME_TREND: "How has X changed over time?" / "Monthly trend for X"
+- DIMENSION_BREAKDOWN: "Show X by Y" (different dimension each time)
+- FILTERED: "What is X for [specific value]?" (use actual categorical values)
+- RANKING: "Which [dimension] has the highest/lowest X?"
+- COMPARISON: "Compare X across [dimension values]"
+- MULTI_MEASURE: "Show both X and Y by Z"
+- RATIO: "What is the denial rate for [segment]?"
+
+Each question must:
+- Reference ONLY measures/dimensions in the metric view
+- Use actual categorical values from the data profile
+- Be phrased as a business user would ask (NOT SQL syntax)
+- Test a DIFFERENT analytical pattern than other questions
+
+### 3. Example SQL (15-20 validated queries using MEASURE() syntax)
+For each sample question, provide the correct SQL. Rules:
+- ALWAYS use MEASURE(`measure_name`) — never raw SUM/COUNT
+- Use backtick-quoted dimension names if they contain spaces
+- Use GROUP BY ALL for dimensional queries
+- Use actual filter values from the data profile
+- ORDER BY for trends and rankings
+
+### 4. Benchmark Questions (15-20, generalization test)
+Different wording than sample questions but testing the same semantic patterns.
+Genie should be able to answer these WITHOUT memorizing sample phrasing.
+
+## Output Format
+Return ONLY a YAML structure (no markdown fencing) with this format:
+
+genie_design:
+  instructions: "<markdown-formatted string with ## headers and - bullets, 500-1500 chars>"
+  metric_view_description: "<2-3 sentence description of what this metric view provides>"
+  sample_questions:
+    - question: "<natural language question>"
+      pattern: HEADLINE | TIME_TREND | DIMENSION_BREAKDOWN | FILTERED | RANKING | COMPARISON | MULTI_MEASURE | RATIO
+      measures_tested: [<measure names>]
+      dimensions_tested: [<dimension names>]
+  example_sqls:
+    - question: "<the question this SQL answers>"
+      sql: "<valid SQL using MEASURE() syntax>"
+  benchmark_questions:
+    - question: "<differently worded question>"
+      expected_measures: [<measures Genie should select>]
+      expected_dimensions: [<dimensions Genie should use>]
+"""
+
+response = w_llm.api_client.do(
+    "POST",
+    f"/serving-endpoints/{design_model}/invocations",
+    body={
+        "messages": [
+            {"role": "system", "content": "You are a Genie Space design architect. Output valid YAML only. No markdown fencing. No explanatory text."},
+            {"role": "user", "content": genie_design_prompt},
+        ],
+        "max_tokens": 16000,
+        "temperature": 1,
+    }
+)
+genie_design_yaml = response["choices"][0]["message"]["content"]
+```
+
+## Model Selection
+
+Use the model configured in `accelerator.yaml` under `llm.steps.genie_design.model`.
+Fallback: use the same reasoning model as the dashboard design step (e.g., `databricks-gpt-5-5`).
+
+## Validation of LLM Output
+
+After receiving the model's proposed design, validate:
+
+1. **Instructions length**: >= 500 characters (reject thin instructions)
+2. **Instructions format**: Uses markdown structure (## headers, - bullets) for readability
+3. **Instructions content**: Must mention MEASURE() syntax, list measures, list dimensions
+4. **Sample question count**: >= 15 questions
+5. **Sample question diversity**: At least 5 of 8 pattern types represented (HEADLINE, TIME_TREND, DIMENSION_BREAKDOWN, FILTERED, RANKING, COMPARISON, MULTI_MEASURE, RATIO)
+6. **Measure coverage**: Every IMPLEMENTED KPI referenced in at least 2 different questions
+7. **Dimension coverage**: Every dimension used in at least 1 question
+8. **Example SQL validity**: Every SQL uses MEASURE() syntax (not raw SUM/COUNT)
+9. **Example SQL measure names**: All referenced measures exist in the metric view
+10. **No SKIPPED KPIs**: Questions/examples do NOT reference skipped KPIs
+11. **Grounded filter values**: Any WHERE clause filter values match actual profiled values
+12. **Benchmark distinctness**: Benchmark questions use different phrasing than sample questions
+
+If validation fails:
+- Fix obvious issues (replace non-existent measure names with correct ones)
+- Re-prompt the model with specific corrections
+- Do NOT accept thin/generic instructions
+
+## Output
+
+Save the validated design to:
+
+```text
+{workspace.output_folder}/genie_space/llm_genie_design.yaml
+```
+
+This becomes the AUTHORITATIVE input for Steps 3-8. Instructions, sample questions, and example SQL must faithfully implement the LLM-proposed design — do not thin them out or replace with generic content.
+
+## Skip Condition
+
+If `{workspace.output_folder}/genie_space/llm_genie_design.yaml` already exists and contains valid instructions (>= 500 chars), sample questions (>= 15), and example SQL (>= 15) → skip the LLM call and use the existing file.
+
+---
+
 # Step 3: Design Genie Instructions
 
 > **PROGRESS REPORT:** Call `report_progress` with:
@@ -481,6 +941,37 @@ This artifact becomes the source of truth for Genie configuration generation.
 > - `status`: "started"
 > - `current_task`: "Building Genie instructions, samples, and descriptions"
 > - `happenings`: ["Writing system instructions", "Generating sample questions", "Creating metric descriptions"]
+
+## GATE 2.2: LLM Design Validation
+
+Before proceeding to Step 3, verify the LLM design artifact:
+
+```python
+# Pseudocode — execute this validation
+assert len(llm_design['instructions']) >= 500, "Instructions too short"
+assert 'MEASURE' in llm_design['instructions'], "Instructions don't mention MEASURE() syntax"
+assert '##' in llm_design['instructions'], "Instructions should use markdown headers for structure"
+assert len(llm_design['sample_questions']) >= 15, "Too few sample questions"
+patterns = set(q['pattern'] for q in llm_design['sample_questions'])
+assert len(patterns) >= 5, f"Only {len(patterns)} patterns covered (need 5+)"
+assert len(llm_design['example_sqls']) >= 10, "Too few example SQL queries"
+for sql in llm_design['example_sqls']:
+    assert 'MEASURE' in sql['sql'].upper(), f"SQL missing MEASURE(): {sql['sql'][:50]}"
+assert len(llm_design['benchmark_questions']) >= 15, "Too few benchmarks"
+```
+
+If ANY assertion fails:
+```text
+❌ GATE 2.2 FAILED: LLM design does not meet quality requirements
+Failing check: <which assertion>
+Action: Re-prompt the model with specific correction guidance
+```
+
+Do NOT proceed to Step 3 until GATE 2.2 passes.
+
+---
+
+Use the LLM design from Step 2.2 as the AUTHORITATIVE source for instructions, questions, and SQL. Do not discard or thin out the LLM-proposed content.
 
 Generate `GENERAL_INSTRUCTIONS` from:
 
@@ -509,16 +1000,33 @@ Instructions should help Genie understand:
 
 ### Critical: Instructions String Format
 
-The Genie Space API `text_instructions[].content[]` field truncates at newline characters (`\n`). Instructions MUST be a single continuous string with NO newline characters.
-
-Use spaces and sentence structure for readability instead of line breaks:
+The Genie Space API `text_instructions[].content[]` field supports **markdown formatting**. Use markdown structure for readability:
 
 ```text
-✓ "You are an analytics assistant. MEASURES: total_paid (sum of paid amounts), ... DIMENSIONS: service_date (DATE), ..."
-✗ "You are an analytics assistant.\nMEASURES:\n- total_paid\n- ..."  ← TRUNCATED after first line
+✓ Use ## headers to separate sections (Domain, Measures, Dimensions, Rules)
+✓ Use - bullet points to list measures and dimensions
+✓ Use blank lines between sections
+✓ Use `backticks` for measure/dimension names
 ```
 
-If instructions are < 500 chars after deployment, the content was likely truncated by newlines.
+Example structure:
+
+```markdown
+## Domain
+This Genie Space provides healthcare claims analytics...
+
+## Measures (use MEASURE(`name`) syntax)
+- `Total Paid Amount` — sum of insurer-paid dollars
+- `Denial Rate` — percentage of denied lines (non-additive, use AVG)
+
+## Dimensions
+- `Claim Type`: Professional, Institutional, Pharmacy, Dental, Vision
+
+## Query Rules
+- Always use MEASURE(`measure_name`) — never raw SUM() or COUNT()
+```
+
+This renders properly in the Genie admin UI with clear visual structure.
 
 ---
 
@@ -811,6 +1319,36 @@ Common violations that WILL cause SQL failures:
 
 If a SQL pattern references a column that does not appear in `genie_semantic_inventory.yaml`, it is INVALID and must not be included.
 
+### Determinism Gate: `validate_genie_config()` (MANDATORY)
+
+The Genie notebook template (`genie_space_notebook.py.template`) includes a **validation cell** that runs BEFORE the Create/Update API call. This cell:
+
+1. Verifies all `TABLE_IDENTIFIERS` are accessible
+2. **Executes every example SQL query** with `LIMIT 1` to confirm it runs without error
+3. Checks sample question count and instruction length
+4. **RAISES AssertionError** if any SQL fails (preventing deployment of broken examples)
+
+This is the programmatic enforcement of column name correctness:
+
+```text
+LLM writes SQL with wrong column name (e.g., "service_month")
+  → validate_genie_config() executes it
+  → Spark raises UNRESOLVED_COLUMN
+  → AssertionError with "Example SQL #3 failed: ..."
+  → Notebook halts BEFORE API call
+  → LLM fixes the SQL using correct column from DESCRIBE
+```
+
+**Prompt + Validation = Deterministic:**
+- The prompt instructs the LLM to use correct names (~98% success)
+- The validation catches the remaining ~2% before deployment
+- Result: Every deployed Genie space has working example SQL, guaranteed
+
+The LLM MUST:
+1. Get actual column names from `DESCRIBE TABLE` / inventory FIRST
+2. Use those exact names in all example SQL
+3. Let the validation cell confirm correctness before proceeding
+
 ---
 
 # Step 6.2: SQL Validation (BATCH — saves 15+ tool calls)
@@ -1072,7 +1610,7 @@ as defined by the current project contract and the docs schema.
 | Field | Behavior | Fix |
 |-------|----------|-----|
 | `data_sources` | Key is `tables` (NOT `metric_views`) — metric views are listed under `tables[]` | Always use `data_sources.tables[]` |
-| `text_instructions[].content[]` | API truncates at newline characters (`\n`) — only the first line is persisted | Instructions MUST be a single continuous string with no `\n` |
+| `text_instructions[].content[]` | Supports markdown formatting (## headers, - bullets, newlines, `backticks`) | Use markdown structure for readability |
 | `column_configs[]` | Must be sorted alphabetically by `column_name` or API rejects with InvalidParameterValue | Sort before submission |
 | All IDs | Must be 32-character lowercase hex UUIDs | Use `uuid.uuid4().hex` |
 | All text fields | Wrapped in arrays `["text"]` | Never use bare strings |
@@ -1739,3 +2277,34 @@ Halt conditions include:
 ```text
 ❌ EXECUTION HALTED
 ```
+
+---
+
+# Output Contract
+
+At the END of this step, the following artifacts MUST exist:
+
+| Artifact | Location | Validation Check |
+|----------|----------|-----------------|
+| LLM Genie Design | `{OUTPUT_FOLDER}/genie_space/llm_genie_design.yaml` | Instructions >= 500 chars, >= 15 questions, >= 10 SQL |
+| Semantic Inventory | `{OUTPUT_FOLDER}/genie_space/genie_semantic_inventory.yaml` | All validated measures + dimensions cataloged |
+| Genie Space (live) | Databricks workspace | GET /api/2.0/genie/spaces/{id} returns valid response |
+| genie_space_manifest.json | `{OUTPUT_FOLDER}/genie_space/` | Contains `space_id`, `title`, `configured: true` |
+| genie_space_configuration notebook | `{OUTPUT_FOLDER}/notebooks/` | File exists (if template-based pattern used) |
+| sample_queries_{domain}.sql | `{OUTPUT_FOLDER}/genie_space/` | Contains >= 15 queries |
+| benchmark_results.yaml | `{OUTPUT_FOLDER}/genie_space/` | Contains test results with success rate >= 80% |
+| run_context.yaml | `{OUTPUT_FOLDER}/` | `phases_completed` includes genie phases |
+
+### Minimum Quality Gates
+
+- Instructions length >= 500 characters AND passes content richness check (see Instruction Richness Requirements)
+- Instructions use markdown formatting (## headers, - bullets) for structure and readability
+- Sample questions >= 15 covering at least 5 distinct analytical patterns
+- Example SQL >= 10 validated queries ALL using MEASURE() syntax
+- All example SQL queries execute without error on the SQL warehouse
+- Benchmark questions >= 15 using different phrasing than sample questions
+- Benchmark success rate >= 80%
+- Every IMPLEMENTED KPI referenced in at least 2 questions
+- Every dimension used in at least 1 question
+
+If ANY artifact is missing or quality gate fails, the step has NOT completed successfully.

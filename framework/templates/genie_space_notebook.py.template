@@ -105,32 +105,102 @@ for i, (q, _) in enumerate(BENCHMARK_QUESTIONS, 1):
 
 # COMMAND ----------
 
+# DBTITLE 1,Validate Configuration (DETERMINISM GATE)
+# =============================================================================
+# VALIDATE ALL LLM-GENERATED CONTENT AGAINST ACTUAL SCHEMA
+# This cell MUST run before Create/Update to catch incorrect column references,
+# broken SQL, and instructions that reference non-existent tables/columns.
+# =============================================================================
+
+import json
+import uuid
+from databricks.sdk import WorkspaceClient
+
+# Use SDK for API calls — NEVER raw requests + extracted token
+# (raw requests violates safety rules and doesn't work in all contexts)
+w = WorkspaceClient()
+
+def validate_genie_config(
+    table_identifiers: list,
+    example_sqls: list,
+    general_instructions: str,
+    sample_questions: list,
+) -> dict:
+    """Deterministic validation of all LLM-generated Genie space content.
+
+    Checks:
+    1. All table_identifiers exist and are accessible
+    2. All example SQL queries execute successfully
+    3. Instructions reference actual column names (warning if suspicious)
+    4. Sample questions are non-empty and distinct
+
+    Returns: {status: PASS/FAIL, issues: [...], sql_results: [...]}
+    """
+    issues = []
+    sql_results = []
+
+    # 1. Validate table access
+    print("Validating table identifiers...")
+    for tbl in table_identifiers:
+        try:
+            spark.sql(f"DESCRIBE TABLE {tbl}").limit(1).collect()
+            print(f"  \u2713 {tbl}")
+        except Exception as e:
+            issues.append(f"Table '{tbl}' not accessible: {e}")
+            print(f"  \u2717 {tbl}: {e}")
+
+    # 2. Validate example SQLs execute
+    print("\nValidating example SQL queries...")
+    for i, (question, sql) in enumerate(example_sqls, 1):
+        try:
+            result = spark.sql(f"SELECT * FROM ({sql}) _t LIMIT 1")
+            cols = [f.name for f in result.schema.fields]
+            sql_results.append({"idx": i, "question": question, "status": "PASS", "columns": cols})
+            print(f"  \u2713 Q{i}: {question[:60]}... ({len(cols)} cols)")
+        except Exception as e:
+            issues.append(f"Example SQL #{i} failed: {question[:50]}... Error: {e}")
+            sql_results.append({"idx": i, "question": question, "status": "FAIL", "error": str(e)})
+            print(f"  \u2717 Q{i}: {question[:60]}... ERROR: {e}")
+
+    # 3. Check sample questions
+    if len(sample_questions) < 3:
+        issues.append(f"Only {len(sample_questions)} sample questions (need >= 3)")
+    if len(set(sample_questions)) != len(sample_questions):
+        issues.append("Duplicate sample questions detected")
+
+    # 4. Check instructions aren't empty/too short
+    if len(general_instructions) < 100:
+        issues.append(f"Instructions too short ({len(general_instructions)} chars) — need >= 100")
+
+    status = "PASS" if not issues else "FAIL"
+    print(f"\n{'\u2705' if status == 'PASS' else '\u274c'} Genie config validation: {status}")
+    if issues:
+        for issue in issues:
+            print(f"   \u2022 {issue}")
+
+    return {"status": status, "issues": issues, "sql_results": sql_results}
+
+
+# Run validation
+validation_result = validate_genie_config(
+    table_identifiers=TABLE_IDENTIFIERS,
+    example_sqls=EXAMPLE_QUESTION_SQLS,
+    general_instructions=GENERAL_INSTRUCTIONS,
+    sample_questions=SAMPLE_QUESTIONS,
+)
+assert validation_result["status"] == "PASS", (
+    f"Genie config validation FAILED. Fix these issues before deploying:\n"
+    + "\n".join(f"  - {i}" for i in validation_result["issues"])
+)
+
+# COMMAND ----------
+
 # DBTITLE 1,Helper Functions
 # =============================================================================
 # HELPER FUNCTIONS
 # Run this cell before Cell 9 (Create/Update) or Cell 10 (Validate).
 # =============================================================================
 
-import json
-import uuid
-import requests
-
-
-def get_workspace_url():
-    """Get the current workspace URL."""
-    return spark.conf.get("spark.databricks.workspaceUrl")
-
-
-def get_api_headers():
-    """Get authorization headers for the Genie API."""
-    token = (
-        dbutils.notebook.entry_point.getDbutils()
-        .notebook().getContext().apiToken().get()
-    )
-    return {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": "application/json",
-    }
 
 
 def _sorted_hex_ids(n: int) -> list[str]:
@@ -150,7 +220,38 @@ def build_serialized_space(
 
     Returns a JSON string ready for the Genie Space API.
     All IDs are auto-generated, sorted, and guaranteed unique.
+
+    GENIE API FORMAT REQUIREMENTS (discovered empirically):
+    - version: MUST be 2 (version 0 or 1 rejected)
+    - IDs: MUST be 32-char lowercase hex UUIDs WITHOUT hyphens
+      (e.g., 'a1b2c3d4e5f6789012345678abcdef01', NOT 'a1b2c3d4-e5f6-...')
+    - question: MUST be an array of strings (NOT a plain string)
+    - sql: MUST be an array of strings (NOT a plain string)
+    - content: MUST be an array of strings (NOT a plain string)
+    - IDs within each section MUST be sorted lexicographically
     """
+    # ═══ MINIMUM CONTENT ASSERTIONS (DETERMINISM GATE) ═══
+    # These prevent deploying an incomplete Genie space.
+    assert len(general_instructions) >= 100, (
+        f"Instructions too short ({len(general_instructions)} chars). "
+        f"Need >= 100 chars covering domain, measures, dimensions, and query rules."
+    )
+    assert len(metric_view_descriptions) >= 1, (
+        f"No metric_view_descriptions provided. "
+        f"Must include at least the primary metric view with its description."
+    )
+    assert len(sample_questions) >= 5, (
+        f"Only {len(sample_questions)} sample questions. "
+        f"Need >= 5 diverse questions covering different KPIs and dimensions."
+    )
+    assert len(example_question_sqls) >= 5, (
+        f"Only {len(example_question_sqls)} example SQLs. "
+        f"Need >= 5 validated SQL examples teaching Genie query patterns."
+    )
+    assert len(benchmark_questions) >= 3, (
+        f"Only {len(benchmark_questions)} benchmark questions. "
+        f"Need >= 3 benchmark Q+SQL pairs for accuracy evaluation."
+    )
 
     # ---- Generate sorted IDs for every section ----
     sq_ids = _sorted_hex_ids(len(sample_questions))
@@ -226,27 +327,26 @@ serialised = build_serialized_space(
     benchmark_questions=BENCHMARK_QUESTIONS,
 )
 
-ws_url  = get_workspace_url()
-headers = get_api_headers()
-
 # --- Idempotency: find existing space by title to avoid duplicates ---
 if not SPACE_ID:
     print(f"Checking for existing space with title: {SPACE_TITLE}")
-    list_resp = requests.get(f"https://{ws_url}/api/2.0/genie/spaces", headers=headers)
-    if list_resp.status_code == 200:
-        for existing in list_resp.json().get("spaces", []):
+    try:
+        list_resp = w.api_client.do("GET", "/api/2.0/genie/spaces")
+        for existing in (list_resp or {}).get("spaces", []):
             if existing.get("title") == SPACE_TITLE:
                 SPACE_ID = existing["space_id"]
                 print(f"  Found existing space: {SPACE_ID} — will UPDATE instead of create")
                 break
+    except Exception:
+        pass  # List not available — proceed with CREATE
 
 if SPACE_ID:
     # ---------- UPDATE existing space ----------
     print(f"Updating space {SPACE_ID} ...")
-    resp = requests.patch(
-        f"https://{ws_url}/api/2.0/genie/spaces/{SPACE_ID}",
-        headers=headers,
-        json={
+    result = w.api_client.do(
+        "PATCH",
+        f"/api/2.0/genie/spaces/{SPACE_ID}",
+        body={
             "title": SPACE_TITLE,
             "description": SPACE_DESCRIPTION,
             "serialized_space": serialised,
@@ -255,40 +355,30 @@ if SPACE_ID:
 else:
     # ---------- CREATE new space ----------
     print("Creating new space ...")
-    resp = requests.post(
-        f"https://{ws_url}/api/2.0/genie/spaces",
-        headers=headers,
-        json={
+    result = w.api_client.do(
+        "POST",
+        "/api/2.0/genie/spaces",
+        body={
             "title": SPACE_TITLE,
             "description": SPACE_DESCRIPTION,
             "warehouse_id": WAREHOUSE_ID,
-            "parent_path": PARENT_PATH,
             "table_identifiers": TABLE_IDENTIFIERS,
             "serialized_space": serialised,
         },
     )
 
 # ---------- Report result ----------
-if resp.status_code == 200:
-    result = resp.json()
-    new_id = result.get("space_id", SPACE_ID)
-    print(f"\n✅ SUCCESS")
-    print(f"   Space ID   : {new_id}")
-    print(f"   Title       : {result.get('title')}")
-    print(f"   Description : {result.get('description', '')[:120]}...")
-    if not SPACE_ID:
-        print(f"\n⚠️  Copy this ID into Cell 2 for future updates:")
-        print(f'   SPACE_ID = "{new_id}"')
-    # Exit with space_id so orchestrator can validate without list API
-    dbutils.notebook.exit(json.dumps({"space_id": new_id, "title": result.get("title", SPACE_TITLE)}))
-else:
-    err_body = resp.json() if resp.headers.get('content-type', '').startswith('application/json') else {}
-    error_msg = (
-        f"Genie Space API failed ({resp.status_code}): "
-        f"{err_body.get('error_code', 'UNKNOWN')} - {err_body.get('message', resp.text[:300])}"
-    )
-    print(f"\n❌ {error_msg}")
-    raise RuntimeError(error_msg)
+new_id = result.get("space_id", SPACE_ID)
+print(f"\n\u2705 SUCCESS")
+print(f"   Space ID   : {new_id}")
+print(f"   Title       : {result.get('title')}")
+print(f"   Description : {result.get('description', '')[:120]}")
+print(f"   Tables      : {TABLE_IDENTIFIERS}")
+if not SPACE_ID:
+    print(f"\n\u26a0\ufe0f  Copy this ID into Cell 2 for future updates:")
+    print(f'   SPACE_ID = "{new_id}"')
+# Exit with space_id so orchestrator can validate without list API
+dbutils.notebook.exit(json.dumps({"space_id": new_id, "title": result.get("title", SPACE_TITLE)}))
 
 # COMMAND ----------
 
@@ -302,23 +392,18 @@ target_id = SPACE_ID
 if not target_id:
     print("No SPACE_ID set — set it in Cell 2 after creating a space.")
 else:
-    ws_url  = get_workspace_url()
-    headers = get_api_headers()
-
-    resp = requests.get(
-        f"https://{ws_url}/api/2.0/genie/spaces/{target_id}"
-        "?include_serialized_space=true",
-        headers=headers,
-    )
-
-    if resp.status_code != 200:
-        print(f"❌ Failed to read space: {resp.status_code}")
-    else:
-        data = resp.json()
-        ss   = json.loads(data["serialized_space"])
+    try:
+        data = w.api_client.do(
+            "GET",
+            f"/api/2.0/genie/spaces/{target_id}",
+            query={"include_serialized_space": "true"},
+        )
+        ss = json.loads(data["serialized_space"])
 
         sqs  = ss.get("config", {}).get("sample_questions", [])
-        mvs  = ss.get("data_sources", {}).get("metric_views", [])
+        # NOTE: API stores metric_views under "tables" key in read-back
+        mvs  = ss.get("data_sources", {}).get("metric_views", []) or \
+               ss.get("data_sources", {}).get("tables", [])
         tis  = ss.get("instructions", {}).get("text_instructions", [])
         eqs  = ss.get("instructions", {}).get("example_question_sqls", [])
         bms  = ss.get("benchmarks", {}).get("questions", [])
@@ -337,8 +422,9 @@ else:
         print(f"Sample Questions    : {len(sqs)}")
         print(f"Example SQLs        : {len(eqs)}")
         print(f"Benchmark Questions : {len(bms)}")
-        print(f"Text Instructions   : {len(tis)} block(s), "
-              f"{sum(len(t['content'][0]) for t in tis)} chars")
+        # Instructions are stored as multi-line arrays; join for total length
+        instr_total = sum(len(''.join(t.get('content', []))) for t in tis)
+        print(f"Text Instructions   : {len(tis)} block(s), {instr_total:,} chars")
         print()
 
         if bms:
@@ -348,8 +434,37 @@ else:
             for i, bm in enumerate(bms, 1):
                 q = bm['question'][0]
                 has_sql = bool(bm.get('answer'))
-                marker = "✅" if has_sql else "⚠️"
+                marker = "\u2705" if has_sql else "\u26a0\ufe0f"
                 print(f"  {i:2d}. {marker} {q}")
 
+        # Completeness assertions (catch empty deployments)
+        issues = []
+        if len(sqs) < 5:
+            issues.append(f"Only {len(sqs)} sample questions (need >= 5)")
+        if len(eqs) < 5:
+            issues.append(f"Only {len(eqs)} example SQLs (need >= 5)")
+        if len(bms) < 3:
+            issues.append(f"Only {len(bms)} benchmark questions (need >= 3)")
+        if len(mvs) < 1:
+            issues.append(f"No metric views configured (need >= 1)")
+        # Instructions stored as multi-line array; join for length check
+        instr_text = ''.join(tis[0].get('content', [])) if tis else ''
+        if len(instr_text) < 100:
+            issues.append(f"Instructions too short ({len(instr_text)} chars, need >= 100)")
+
+        if issues:
+            print("\n\u274c POST-DEPLOY VALIDATION FAILED:")
+            for issue in issues:
+                print(f"   \u2022 {issue}")
+            raise AssertionError(
+                f"Genie space deployed but INCOMPLETE. Fix config and re-run.\n"
+                + "\n".join(f"  - {i}" for i in issues)
+            )
+
         print()
-        print("✅ Validation complete")
+        print("\u2705 Validation complete — all content checks passed")
+    except Exception as e:
+        if "AssertionError" in type(e).__name__:
+            raise
+        print(f"\u274c Failed to validate space: {e}")
+        raise

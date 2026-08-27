@@ -26,6 +26,97 @@ The objective is to produce dashboards that are:
 
 ---
 
+## ENFORCEMENT HEADER
+
+<!-- @enforcement
+  pattern: lakeview_api_execution
+  api_reference_required: lakeview_dashboard_api.md
+  multi_dashboard_mandatory: true  # If assets.dashboards[] has N entries, create N dashboards
+  filters_mandatory: true  # Every dashboard MUST have dimension filters
+  gates:
+    - id: api_contract_loaded
+      after_step: 1
+      check: "lakeview_dashboard_api.md content is in memory"
+    - id: design_contract_exists
+      after_step: 3
+      check: "file_exists('{OUTPUT_FOLDER}/dashboards/dashboard_design.yaml')"
+    - id: datasets_validated
+      after_step: 4
+      check: "file_exists('{OUTPUT_FOLDER}/dashboards/dashboard_dataset_validation.yaml')"
+    - id: dashboards_created
+      after_step: 5
+      check: "manifest file(s) exist with dashboard_id for EACH entry in assets.dashboards[]"
+    - id: dashboards_published
+      after_step: 6
+      check: "All manifests have published: true"
+-->
+
+---
+
+## PROHIBITED ACTIONS (this entire step)
+
+The following actions are STRICTLY FORBIDDEN:
+
+1. **DO NOT create only 1 dashboard when `assets.dashboards[]` specifies multiple** — each entry MUST produce a separate deployed dashboard
+2. **DO NOT create dashboards without filters** — every dashboard MUST include filter widgets for at least the primary dimensions (e.g., claim_type, line_of_business, service_month or equivalent)
+3. **DO NOT create single-page dashboards when KPI spec Dashboard Mapping specifies multiple pages** — page count MUST match the mapping. A dashboard with 1 filter page + 1 canvas page is a SINGLE-PAGE dashboard (the filter page does not count). If the KPI spec maps N analytical pages, the dashboard MUST have N canvas pages + 1 filter page = N+1 total pages.
+4. **DO NOT bypass `MEASURE()` syntax** — all validated KPI measures must use `MEASURE(measure_name)` from the Metric View
+5. **DO NOT construct dashboard JSON from memory** — ALWAYS use `lakeview_dashboard_api.md` as the structural authority
+6. **DO NOT skip dataset SQL validation** — every dataset query must execute successfully BEFORE building the dashboard JSON
+7. **DO NOT jump directly to Lakeview API** without completing the design contract (`dashboard_design.yaml`)
+8. **DO NOT silently implement skipped KPIs in dashboard SQL** — if a KPI was SKIPPED in metric view validation, it stays skipped
+9. **DO NOT create empty/placeholder widgets** — every widget must have a valid dataset with real data
+10. **DO NOT improvise or use custom logic** — this prompt defines the EXACT sequence. Do NOT substitute your own dashboard creation workflow, skip gates, or collapse multiple steps into a single API call. Every numbered step in this prompt exists because prior runs failed when it was skipped.
+11. **DO NOT use `query` (string) in dataset objects** — MUST use `queryLines` (array of strings) per `lakeview_dashboard_api.md`. Using `query` causes silent rendering failures.
+12. **DO NOT call `w.lakeview.create()` before Steps 1-11 are complete** — the design contract, dataset validation YAML, and preflight structural validation MUST all exist first. Jumping to API creation "because the dashboard seems simple" is the #1 cause of dashboard failures.
+13. **DO NOT use `multilineTextboxSpec` as a plain string for text widgets** — the Lakeview API rejects plain strings and returns `'failed to parse serialized dashboard'`. Use `"textboxSpec": {"value": "<markdown>"}` instead. The template's `build_text_widget()` handles this correctly; always use it.
+
+### HARD STOP RULE: No Divergence from This Prompt
+
+If the executing agent:
+- Skips reading `lakeview_dashboard_api.md` and constructs JSON from model knowledge → **INVALID**
+- Creates 1 dashboard when 2+ are configured → **INVALID**
+- Creates 1 canvas page per dashboard when KPI spec maps multiple pages → **INVALID**
+- Calls `w.lakeview.create()` without first writing `dashboard_design.yaml` → **INVALID**
+- Uses `"query": "..."` instead of `"queryLines": ["..."]` in datasets → **INVALID**
+- Omits filter widgets entirely → **INVALID**
+- Skips dataset SQL execution validation → **INVALID**
+
+Any of these invalidate the dashboard and require re-execution from Step 1 of this prompt.
+
+### Multi-Dashboard Enforcement
+
+If `assets.dashboards[]` in `accelerator.yaml` contains N entries, this step MUST produce:
+- N separate dashboard_design sections
+- N separate Lakeview API POST calls
+- N separate manifest JSON files
+- N published dashboards
+
+Creating fewer than N dashboards is a pipeline failure, not a partial success.
+
+### Multi-Page Enforcement
+
+The KPI spec's **Dashboard Mapping** section defines pages for each dashboard. Each mapped page becomes a separate `PAGE_TYPE_CANVAS` page in the Lakeview dashboard. The number of canvas pages MUST equal the number of pages in the Dashboard Mapping.
+
+**Common failure mode:** The agent collapses all KPIs onto a single canvas page "for simplicity" or "because there are only 6 widgets." This is PROHIBITED regardless of widget count. If the KPI spec maps 2 pages (e.g., "Executive Summary" + "Trend Analysis"), the dashboard MUST have 2 canvas pages.
+
+**Counting rule:**
+- `PAGE_TYPE_GLOBAL_FILTERS` pages do NOT count as analytical pages
+- Only `PAGE_TYPE_CANVAS` pages count
+- If KPI spec maps P pages → dashboard has P canvas pages + 1 filter page = P+1 total pages
+
+**Validation (GATE 3.2):** After writing `dashboard_design.yaml`, count canvas pages per dashboard. If any dashboard has fewer canvas pages than its KPI spec mapping defines → **HALT. Do NOT proceed to dataset SQL.**
+
+### Filter Enforcement
+
+Every dashboard MUST include:
+- At minimum 3 dimension filters (configurable by KPI spec)
+- Date/time range filter if temporal dimensions exist
+- Filters MUST be functional (bound to actual dataset columns)
+- Dashboard without filters = pipeline failure
+
+---
+
 # Core Principle
 
 Dashboard creation MUST follow this dependency chain:
@@ -61,6 +152,44 @@ Post-deployment validation
 Do not skip stages.
 
 A dashboard API call succeeding does NOT prove that the dashboard is analytically or visually correct.
+
+---
+
+## MANDATORY: Use Deterministic Helpers
+
+The `lakeview_dashboard_helpers.py.template` provides **programmatic builders** that guarantee structurally valid dashboard JSON. The LLM decides WHAT goes in (which KPIs, chart types, filters) but MUST use these builders to construct the JSON.
+
+**Required workflow:**
+
+```python
+# 1. Discover actual metric view columns (SINGLE SOURCE OF TRUTH)
+columns = describe_metric_view(metric_view_fqn)
+validate_column_refs(columns, [list of columns you'll use], "dataset_name")
+
+# 2. Build datasets WITH validation (SQL must execute before assembly)
+ds = build_validated_dataset("ds_name", sql, "Display Name")
+
+# 3. Build filters page using shared dataset (deterministic structure)
+filters_page = build_filters_page(dataset_name, filter_dimensions)
+
+# 4. Build canvas widgets using builder functions
+widget = build_counter(name, dataset_name, field_name, display, title, agg)
+widget = build_bar_chart(name, dataset_name, x_field, y_field, y_display, title)
+widget = build_line_chart(name, dataset_name, x_field, y_field, y_display, title)
+
+# 5. Deploy (idempotent — updates existing if same name)
+result = deploy_dashboard(display_name, warehouse_id, parent_path, datasets, pages, filter_dims)
+
+# 6. Validate post-deploy
+validate_dashboard_post_deploy(result["dashboard_id"])
+```
+
+**DO NOT:**
+- Hand-write serialized_dashboard JSON from memory
+- Use `"query"` (string) instead of `"queryLines"` (array)
+- Create filter widgets without `queryName` in encodings
+- Use `spec.version: 1` for filters (MUST be 2)
+- Reference columns not returned by `describe_metric_view()`
 
 ---
 
@@ -482,7 +611,197 @@ Use this inventory for visualization and filter selection.
 
 ---
 
-# Step 2.2: Dataset SQL Column Resolution Rules (CRITICAL)
+# Step 2.2: LLM-Assisted Dashboard Design (MANDATORY)
+
+Before writing the design contract, call a **reasoning model** (e.g., `databricks-gpt-5-5`) to propose a rich multi-page dashboard layout. This leverages the model's understanding of dashboard UX, analytical storytelling, and domain-specific visualization best practices.
+
+## Why This Step Exists
+
+The agent executing this pipeline may default to the simplest possible layout (one page, one counter per KPI). A reasoning model call produces domain-aware, analytically rich designs that:
+- Adapt to the specific KPI domain (healthcare vs. finance vs. retail)
+- Propose appropriate page structures based on KPI analytical categories
+- Select visualization types matched to each KPI's data shape
+- Identify optimal filter dimensions and scope
+- Balance widget density across pages
+
+## Context Assembly (BEFORE the LLM call)
+
+Gather all of these inputs and include them in the prompt:
+
+| Input | Source | What It Provides |
+|-------|--------|------------------|
+| KPI specification | `{EXAMPLE_DIR}/inputs/kpi_spec.md` | Business definitions, KPI categories, Dashboard Mapping |
+| Metric View YAML | The CREATE VIEW DDL or reconstructed YAML | Exact measure names, expressions (SUM/COUNT/ratio), dimension names |
+| Metric View validation | `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` | Which KPIs are IMPLEMENTED vs SKIPPED |
+| Field inventory | Step 2.1 output | Data types, cardinalities, date ranges |
+| Dashboard names | `accelerator.yaml` `assets.dashboards[]` | How many dashboards, their configured names |
+| Categorical samples | Profiling query from Step 2 | Actual dimension values (for the model to understand the domain) |
+
+**The metric view definition is critical** — without it, the LLM may propose widgets using measures that don't exist or misunderstand aggregation semantics (e.g., proposing SUM on a ratio measure).
+
+To get the metric view YAML content, use:
+```sql
+SHOW CREATE TABLE {catalog}.{schema}.{metric_view_name}
+```
+or reconstruct from the metric view creation DDL stored during Step 3 (create metric views).
+
+## LLM Call Pattern
+
+```python
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.config import Config
+
+w_llm = WorkspaceClient(config=Config(http_timeout_seconds=600))
+
+# Assemble context for the model
+# CRITICAL: Include BOTH the KPI spec AND the metric view definition.
+# The LLM needs to know:
+#   - What KPIs exist and their business meaning (from KPI spec)
+#   - What measures/dimensions are ACTUALLY available (from metric view)
+#   - How measures are computed (SUM, COUNT, ratio formulas)
+#   - What aggregation semantics apply (additive vs ratio vs distinct)
+#   - What the source grain is (claim line, enrollment, etc.)
+
+design_prompt = f"""
+You are a senior Databricks AI/BI dashboard architect.
+
+Given the following inputs, design a rich multi-page dashboard layout.
+
+## KPI Specification
+{kpi_spec_content}
+
+## Metric View Definition
+Metric View FQN: {metric_view_fqn}
+Source Table: {source_table}
+Source Grain: {source_grain}
+
+### Measures (available via MEASURE() syntax)
+{metric_view_measures_yaml}
+
+### Dimensions (available for GROUP BY and filtering)
+{metric_view_dimensions_yaml}
+
+### Metric View YAML (complete definition)
+{metric_view_yaml_content}
+
+## Metric View Validation Results
+KPIs implemented and validated: {implemented_kpis}
+KPIs skipped (DO NOT include these): {skipped_kpis}
+
+## Data Profile
+- Row count: {row_count}
+- Date range: {min_date} to {max_date}
+- Categorical value samples:
+{categorical_samples}
+
+## Dashboard Assets Configured
+{dashboard_names_and_purposes}
+
+## Aggregation Semantics Reference
+- Additive measures (Total Paid, Total Claims, Line Count): Use SUM() — safe to aggregate across all dimensions
+- Ratio measures (Denial Rate, Clean Claim Rate, Payment-to-Billed): Use AVG() for widget aggregation or reconstruct from components (SUM(numerator)/SUM(denominator))
+- Count distinct measures: Use SUM() when pre-computed in dataset SQL via COUNT(DISTINCT ...)
+
+## Requirements
+1. Each dashboard MUST have multiple canvas pages (minimum 2-3 per dashboard)
+2. Each primary KPI should appear in AT LEAST 2 different visualization contexts across pages
+   (e.g., Total Paid as counter on Summary page AND as line chart on Trends page AND as bar chart on Segments page)
+3. Pages must have clear analytical purposes:
+   - Executive Summary: headline counters + 1-2 contextual charts
+   - Trend Analysis: line charts showing KPIs over time (monthly/quarterly)
+   - Segment Breakdown: bar/pie charts showing KPIs by each dimension
+   - Quality/Performance: rate and ratio KPIs with comparisons
+   - Detail View: tables with multi-dimensional breakdowns
+4. Include 4-8 widgets per page for a rich analytical experience
+5. Use at least 3 different visualization types per dashboard (counter, line, bar, pie, table)
+6. Identify which dimensions make the best global filters (high analytical value, moderate cardinality)
+7. For each widget, specify: title, KPI/measure, visualization type, dimensions used, aggregation
+8. Consider which measures are additive (safe to SUM) vs ratios (need AVG or component reconstruction)
+9. Only use measures and dimensions that actually exist in the metric view definition above
+
+## Output Format
+Return a YAML structure with this exact format:
+
+dashboards:
+  - name: <dashboard_display_name>
+    purpose: <one-line analytical purpose>
+    pages:
+      - page_name: <name>
+        purpose: <analytical intent of this page>
+        widgets:
+          - title: <widget title>
+            kpi: <KPI name from spec>
+            measure: <exact metric view measure name>
+            viz_type: counter | line | bar | pie | table
+            dimensions: [<exact dimension names from metric view>]
+            aggregation: SUM | AVG | component_ratio
+            rationale: <why this viz type for this KPI on this page>
+        ...
+    filters:
+      - dimension: <exact dimension name from metric view>
+        filter_type: multi-select | date-range-picker | single-select
+        scope: global | page-specific
+        rationale: <why this filter is valuable for analysis>
+"""
+
+response = w_llm.api_client.do(
+    "POST",
+    f"/serving-endpoints/{design_model}/invocations",
+    body={
+        "messages": [
+            {"role": "system", "content": "You are a dashboard design architect. Output valid YAML only."},
+            {"role": "user", "content": design_prompt},
+        ],
+        "max_tokens": 16000,
+        "temperature": 1,
+    }
+)
+dashboard_design_yaml = response["choices"][0]["message"]["content"]
+```
+
+## Model Selection
+
+Use the model configured in `accelerator.yaml` under `llm.steps.dashboard_design.model`.
+Fallback: use the same reasoning model as the ERD parse step (e.g., `databricks-gpt-5-5`).
+
+## Validation of LLM Output
+
+After receiving the model's proposed design, validate:
+
+1. **Page count**: Each dashboard has ≥ 2 canvas pages (reject single-page designs)
+2. **Widget density**: Each page has 4-8 widgets (flag sparse or overloaded pages)
+3. **Viz diversity**: At least 3 different viz types per dashboard
+4. **KPI coverage**: Every IMPLEMENTED_AND_VALIDATED KPI appears in at least 1 widget
+5. **Multi-variation**: Primary KPIs appear in ≥ 2 different viz contexts
+6. **Measure validity**: Every `measure` field in the LLM output matches an EXACT measure name from the metric view YAML (e.g., "Total Paid Amount" not "total_paid")
+7. **Dimension validity**: Every `dimensions[]` entry matches an EXACT dimension name from the metric view YAML
+8. **Aggregation correctness**: Ratio/rate measures use `AVG` or `component_ratio`, NOT `SUM` (SUM of a ratio is mathematically wrong)
+9. **Filter relevance**: Proposed filters reference actual metric view dimensions with moderate cardinality
+10. **No SKIPPED KPIs**: Widgets do NOT reference KPIs that were SKIPPED in metric view validation
+
+If validation fails on any point, either:
+- Fix obvious issues (e.g., replace a non-existent column with the correct one from the metric view)
+- Re-prompt the model with specific corrections (include the error and the correct metric view field list)
+- Do NOT silently accept a single-page design
+- Do NOT invent measures/dimensions not in the metric view
+
+## Output
+
+Save the validated design to:
+
+```text
+{workspace.output_folder}/dashboards/llm_dashboard_design.yaml
+```
+
+This becomes the AUTHORITATIVE input for Step 3 (`dashboard_design.yaml`). The design contract in Step 3 must faithfully implement the LLM-proposed structure — do not collapse pages or remove widgets.
+
+## Skip Condition
+
+If `{workspace.output_folder}/dashboards/llm_dashboard_design.yaml` already exists and contains valid multi-page designs for all configured dashboards → skip the LLM call and use the existing file.
+
+---
+
+# Step 2.3: Dataset SQL Column Resolution Rules (CRITICAL)
 
 This section prevents the most common dashboard rendering failure: `UNRESOLVED_COLUMN` errors caused by referencing columns that do not exist in the metric view.
 
@@ -707,6 +1026,23 @@ pages:
 
 This design contract MUST be completed before serialized-dashboard construction.
 
+### GATE 3.1: Page Count Validation (MANDATORY)
+
+After writing `dashboard_design.yaml`, verify page counts match the KPI spec Dashboard Mapping:
+
+```text
+For each dashboard:
+  expected_canvas_pages = count of pages defined in KPI spec Dashboard Mapping for this dashboard
+  actual_canvas_pages   = count of PAGE_TYPE_CANVAS entries in dashboard_design.yaml
+
+  IF actual_canvas_pages < expected_canvas_pages:
+    → HALT: "Page count mismatch: expected {expected} canvas pages, got {actual}"
+    → DO NOT proceed to dataset SQL or API creation
+    → Redesign the dashboard_design.yaml to include all mapped pages
+```
+
+A dashboard with only 1 canvas page when the KPI spec defines 2+ pages is a **design contract violation**, not a simplification.
+
 ---
 
 # Step 3.1: Dashboard Mapping Is Authoritative (KPI-Driven Design)
@@ -719,12 +1055,29 @@ Source 1: KPI Spec (Dashboard Mapping section)
   → defines WHICH pages each dashboard has
   → defines WHICH KPIs appear on each page
   → defines visualization types and layout intent
+  → defines the ANALYTICAL DEPTH expected (summary vs detail vs trends)
 
 Source 2: Metric View DESCRIBE output (Step 2 above)
   → defines ACTUAL column names available for SQL
   → defines data types (date, string, decimal, etc.)
   → defines which columns are dimensions vs measures
+  → defines which dimensions support different analytical views
 ```
+
+**Deriving page richness from KPI spec:**
+
+The KPI spec doesn't just list metrics — it defines analytical categories (e.g., Enrollment KPIs, Claims KPIs, Cost KPIs, Quality KPIs, Window/Trend KPIs). Each category typically maps to at least one page, and each page should present its KPIs in the visualization style most appropriate to that category:
+
+```text
+KPI Categories → Page Mapping:
+  Headline/Summary KPIs     → Executive Summary page (counters + 1-2 charts)
+  Time-series/Window KPIs   → Trend Analysis page (line charts, period-over-period)
+  Segment/Category KPIs     → Segment Breakdown page (bar charts, stacked bars)
+  Rate/Ratio KPIs           → Quality/Performance page (gauges, bar comparisons)
+  Multi-dimensional KPIs    → Detail/Drill-down page (tables, heatmaps)
+```
+
+When the KPI spec has 10+ KPIs spanning multiple analytical categories, a SINGLE canvas page is almost certainly insufficient. The design contract MUST map KPIs to pages based on their analytical category, NOT cram everything into one page.
 
 The dashboard design is the INTERSECTION of these two sources:
 
@@ -771,21 +1124,52 @@ Semantic mapping changes are not.
 
 ---
 
-# Step 3.2: Page Design
+# Step 3.2: Page Design — Rich Multi-Page KPI Visualization
 
-Each page should have a clear analytical purpose.
+Each page should have a clear analytical purpose AND present KPIs in a visualization style appropriate to that page's intent.
 
-Examples of page purposes include:
+**CORE PRINCIPLE: KPIs should be shown in MULTIPLE variations across pages.**
+
+A single KPI (e.g., "Total Paid Amount") is not fully represented by a single counter widget. A rich dashboard shows the same KPI from different analytical angles:
 
 ```text
-Executive Summary
-Trend Analysis
-Segment Performance
-Operational Breakdown
-Detailed Analysis
+Page 1 (Executive Summary): Counter showing headline total
+Page 2 (Trend Analysis):    Line chart showing the same KPI over time
+Page 3 (Segment Breakdown): Bar chart showing the same KPI by category
+Page 4 (Detail):             Table showing the same KPI with multiple dimensions
 ```
 
-These are examples only.
+This multi-variation approach is MANDATORY, not optional. The KPI spec defines WHAT to measure; the Dashboard Mapping defines WHERE to show it; the page purpose defines HOW to visualize it.
+
+### Minimum Page Types (derive from KPI spec Dashboard Mapping)
+
+| Page Purpose | Widget Types | KPI Presentation |
+|---|---|---|
+| Executive Summary | Counters, sparklines | Headline values, period comparison |
+| Trend Analysis | Line charts, area charts | KPIs over time (monthly, quarterly) |
+| Segment Performance | Bar charts, stacked bars | KPIs by dimension (type, status, geography) |
+| Composition | Pie/donut charts | Part-to-whole distributions |
+| Detailed Analysis | Tables, heatmaps | Multi-dimensional KPI breakdowns |
+
+### Widget Density Guidelines
+
+Each canvas page should have **4-8 widgets** for a rich analytical experience:
+- Executive Summary: 4-6 counters + 1-2 charts for at-a-glance context
+- Trend pages: 2-4 line/area charts showing different KPIs or the same KPI with different groupings
+- Segment pages: 3-5 bar/pie charts showing KPIs sliced by different dimensions
+- Detail pages: 1-2 tables + 1-2 supporting charts
+
+**A page with only 1-2 widgets is too sparse.** Combine related visualizations to tell a coherent analytical story.
+
+### Anti-patterns (PROHIBITED)
+
+```text
+✗ Single canvas page with all KPIs as counters only — no trend or segment analysis
+✗ One counter per KPI and nothing else — produces a "wall of numbers" with no insight
+✗ Putting ALL chart types on one page — splits analytical stories
+✗ Skipping trend analysis when temporal data exists — wastes the time dimension
+✗ Showing only top-level totals without dimensional breakdowns — hides patterns
+```
 
 Derive actual pages from Dashboard Mapping.
 
@@ -868,11 +1252,40 @@ Prefer tables when:
 
 ---
 
-## Visualization Diversity
+## Visualization Diversity & Multi-Variation KPI Display
 
 Aim for useful visualization diversity across dashboards.
 
 If the KPI set naturally supports multiple visual forms, prefer at least several meaningful visualization types.
+
+**Minimum visualization type diversity per dashboard:**
+
+```text
+Every dashboard with 2+ pages MUST include AT LEAST 3 of these 5 visualization types:
+  1. Counter (headline values)
+  2. Line chart (temporal trends)
+  3. Bar chart (categorical comparisons)
+  4. Pie/Donut (composition/distribution)
+  5. Table (detailed multi-measure view)
+```
+
+**KPI Multi-Variation Rule:**
+
+For every primary KPI (defined in KPI spec as a headline metric), show it in AT LEAST 2 different visualization contexts across the dashboard pages:
+
+```text
+Example: "Total Paid Amount" appears as:
+  - Counter on Executive Summary page (headline value)
+  - Line chart on Trends page (monthly trend)
+  - Bar chart on Segments page (by claim type)
+
+Example: "Denial Rate" appears as:
+  - Counter on Summary page (headline percentage)
+  - Line chart on Trends page (monthly trend)
+  - Bar chart on Segments page (by claim type or provider)
+```
+
+This ensures stakeholders can analyze each KPI from multiple analytical perspectives without needing to write their own queries.
 
 However:
 
@@ -882,7 +1295,7 @@ ANALYTICAL APPROPRIATENESS
 CHART TYPE COUNT
 ```
 
-Do not select an inappropriate chart merely to satisfy a chart-count target.
+Do not select an inappropriate chart merely to satisfy a chart-count target. But DO show each major KPI in multiple meaningful contexts — this is analytical richness, not artificial variety.
 
 ---
 
@@ -1314,13 +1727,41 @@ framework/templates/lakeview_dashboard_helpers.py.template
 
 where configured.
 
-Use the project's supported:
+Use the project's supported helpers:
 
 ```python
-build_dataset(...)
+# Dataset
+build_dataset(name, sql, display_name)
+
+# Widget builders (canvas pages)
+build_text_widget(name, markdown, position)        # uses multilineTextboxSpec (NOT textboxSpec)
+build_counter(name, dataset_name, field_name, display_name, title, agg, position)
+build_bar_chart(name, dataset_name, x_field, y_field, y_display, title, agg, position)
+build_line_chart(name, dataset_name, x_field, y_field, y_display, title, agg, position)
+
+# Filter widgets (MUST use same dataset_name as canvas widgets)
+build_filter_widget(name, dataset_name, field_name, display_name, widget_type, position)
+
+# Page builders
+build_filters_page(dataset_name, filter_dimensions)  # PAGE_TYPE_GLOBAL_FILTERS
+build_canvas_page(name, display_name, layout)        # PAGE_TYPE_CANVAS
+
+# Assembly + validation
+build_serialized_dashboard(datasets, pages, filter_dimensions)
+
+# End-to-end
+deploy_dashboard(display_name, warehouse_id, parent_path, datasets, pages, filter_dimensions)
 ```
 
-or equivalent helper.
+### CRITICAL: Shared Dataset Pattern
+
+`build_filter_widget` takes `dataset_name` as its SECOND argument. This MUST be the same
+dataset name used by canvas widgets on the page. Do NOT create a separate `ds_filter_values` dataset.
+
+### CRITICAL: Text Widget Format
+
+`build_text_widget` uses `multilineTextboxSpec` (NOT `textboxSpec` or `spec`).
+Using `textboxSpec` or adding a `spec` block causes: `missing spec, textbox_spec, multilineTextboxSpec`.
 
 Every dashboard dataset MUST have a non-empty tested query.
 
@@ -1351,23 +1792,18 @@ Using `query` (string) instead of `queryLines` (array) causes silent rendering f
 
 ---
 
-# Step 8.1: Filter Dataset
+# Step 8.1: Filter Dataset (DEPRECATED — Use Shared Dataset Pattern)
 
-If the current project serialization contract requires a dedicated filter-values dataset, create it using the configured helper such as:
+Do NOT create a separate `ds_filter_values` dataset. The `build_filter_dataset()` function is DEPRECATED.
 
-```python
-build_filter_dataset(...)
-```
+Instead, include filter dimension columns in each canvas-page dataset and have filter widgets reference that same dataset. This is the ONLY pattern that enables cross-filtering in API-created dashboards.
 
-and validate its SQL.
+The shared dataset pattern is:
+1. ONE dataset per canvas page includes BOTH filter dimensions AND measures in GROUP BY
+2. Filter widgets reference this dataset with `disaggregated: true`
+3. Canvas widgets reference this dataset with `disaggregated: false` + SUM/AVG
 
-Do not assume a dedicated filter dataset is required unless specified by:
-
-```text
-lakeview_dashboard_api.md
-```
-
-The project serialization contract is authoritative.
+See `lakeview_dashboard_api.md` § "Shared Dataset Pattern (REQUIRED for filters to work)" for details.
 
 ---
 
@@ -2169,3 +2605,79 @@ Document and continue when safe.
 ```text
 ❌ EXECUTION HALTED
 ```
+
+---
+
+# Output Contract
+
+At the END of this step, the following artifacts MUST exist for EACH dashboard in `assets.dashboards[]`:
+
+| Artifact | Location | Validation Check |
+|----------|----------|-----------------|
+| dashboard_design.yaml | `{OUTPUT_FOLDER}/dashboards/` | Contains pages[], widgets[], filters[] for EACH dashboard |
+| dashboard_dataset_validation.yaml | `{OUTPUT_FOLDER}/dashboards/` | All dataset queries executed successfully |
+| {name}_dashboard_manifest.json | `{OUTPUT_FOLDER}/dashboards/` | Contains `dashboard_id`, `published: true` |
+| Live dashboard in workspace | Databricks workspace | GET /api/2.0/lakeview/dashboards/{id} returns valid response |
+| Published dashboard | Databricks workspace | Dashboard is accessible via published URL |
+
+### Per-Dashboard Requirements
+
+Each manifest MUST confirm:
+- `pages_count` matches KPI spec Dashboard Mapping
+- `widgets_count` > 0 per page
+- `filters_count` >= 3 (dimension filters)
+- `datasets_validated: true`
+- `published: true`
+
+If ANY artifact is missing or any dashboard is not published, the step has NOT completed successfully.
+
+---
+
+# Validated Learnings (from production runs)
+
+**1. `multilineTextboxSpec` NOT `textboxSpec` for text/title widgets**
+
+Using `textboxSpec` (or adding a `spec` block to text widgets) causes:
+`validation failed: missing spec, textbox_spec, multilineTextboxSpec, or imageSpec`.
+
+Text widgets MUST use only:
+```json
+{"widget": {"name": "title-1", "multilineTextboxSpec": "## Page Title"}, "position": {...}}
+```
+No `spec`, no `queries`, no `textboxSpec` — just `name` + `multilineTextboxSpec`.
+
+**2. `uiSettings` format must include `theme` and `applyModeEnabled`**
+
+Using `{"themeColors": {}}` causes `failed to parse serialized dashboard`.
+
+Correct format:
+```json
+"uiSettings": {"theme": {"widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"}, "applyModeEnabled": false}
+```
+
+**3. Separate filter datasets break cross-filtering**
+
+Creating a dedicated `ds_filter_values` dataset for filters causes filters to populate but NOT bind to canvas widgets. The API does not auto-bind across datasets.
+
+Fix: Filter widgets and canvas widgets MUST reference the SAME `datasetName`.
+
+**4. `publish_dashboard` requires `warehouse_id` + `embed_credentials`**
+
+Calling publish without a body (or with empty body) may succeed but the published dashboard won't render. Always pass:
+```json
+{"warehouse_id": "<id>", "embed_credentials": true}
+```
+
+**5. Counter widgets for rates/ratios MUST use AVG, not SUM**
+
+When a shared dataset includes filter dimensions (multiple rows), counters aggregate with SUM/AVG.
+- Additive measures (total_paid, total_claims): use `SUM`
+- Rate measures (denial_rate, clean_claim_rate): use `AVG` (summing ratios is mathematically wrong)
+
+**6. Widget `name` must be alphanumeric/hyphens/underscores only**
+
+Spaces, special characters, or dots in widget names cause silent failures.
+
+**7. `queryLines` concatenation uses NO separator**
+
+Array elements join with no space between them. Either use a single-element array (one long SQL string) or end each element with a space character.
