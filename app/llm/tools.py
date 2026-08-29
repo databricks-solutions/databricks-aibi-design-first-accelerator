@@ -185,9 +185,14 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "execute_python",
             "description": (
-                "Execute a Python code snippet on serverless compute. "
-                "Use for data generation (dbldatagen), DataFrame operations, "
-                "or any computation that requires PySpark."
+                "Execute a short Python snippet in a local subprocess (NO Spark, NO SDK). "
+                "Use ONLY for: JSON/YAML manipulation, string formatting, UUID generation, "
+                "simple math/logic. "
+                "Do NOT use for: PySpark/DataFrames, dbldatagen, Databricks SDK calls "
+                "(w.lakeview.*, w.api_client.*), /Workspace file I/O, or API calls. "
+                "For PySpark/dbldatgen: use import_notebook + execute_notebook. "
+                "For dashboards: use create_dashboard/publish_dashboard tools. "
+                "For files: use read_workspace_file/write_workspace_file tools."
             ),
             "parameters": {
                 "type": "object",

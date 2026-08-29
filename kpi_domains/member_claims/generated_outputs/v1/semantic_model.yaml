@@ -1,0 +1,179 @@
+domain: member_claims
+catalog: aw_serverless_stable_catalog
+schema: aibi_member_claims
+version_suffix: _v1
+generation_order:
+  - dim_member
+  - dim_address
+  - dim_provider
+  - dim_member_identifier
+  - dim_member_history
+  - fact_member_enrollment
+  - fact_claim_header
+  - fact_claim_detail
+tables:
+  dim_member:
+    semantic_role: DIMENSION
+    business_entity: member
+    grain: one current or active member row per member surrogate key
+    primary_key: [member_sk]
+    column_classifications:
+      member_sk: PRIMARY_KEY
+      mbr_member_id: BUSINESS_IDENTIFIER
+      mbr_source_member_id: BUSINESS_IDENTIFIER
+      mbr_sex: CATEGORICAL_ATTRIBUTE
+      mbr_race: CATEGORICAL_ATTRIBUTE
+      mbr_ethnicity: CATEGORICAL_ATTRIBUTE
+      mbr_marital_status: CATEGORICAL_ATTRIBUTE
+      mbr_line_of_business: CATEGORICAL_ATTRIBUTE
+      mbr_line_of_business_name: CATEGORICAL_ATTRIBUTE
+      mbr_state: CATEGORICAL_ATTRIBUTE
+      mbr_zip_code: CATEGORICAL_ATTRIBUTE
+      is_active: BOOLEAN
+      created_at: TIMESTAMP
+      updated_at: TIMESTAMP
+  dim_address:
+    semantic_role: DIMENSION
+    business_entity: address
+    grain: one address row for an entity, address type, and effective period
+    primary_key: [address_key]
+    column_classifications:
+      address_key: PRIMARY_KEY
+      entity_type_key: CATEGORICAL_ATTRIBUTE
+      entity_dimension_key: BUSINESS_IDENTIFIER
+      address_type_code: CATEGORICAL_ATTRIBUTE
+      city: CATEGORICAL_ATTRIBUTE
+      state: CATEGORICAL_ATTRIBUTE
+      zip_code: CATEGORICAL_ATTRIBUTE
+      country_code: CATEGORICAL_ATTRIBUTE
+      county: CATEGORICAL_ATTRIBUTE
+      is_active: BOOLEAN
+  dim_provider:
+    semantic_role: DIMENSION
+    business_entity: provider
+    grain: one provider surrogate-key version or active provider row
+    primary_key: [provider_sk]
+    column_classifications:
+      provider_sk: PRIMARY_KEY
+      provider_address_sk: FOREIGN_KEY
+      provider_npi: BUSINESS_IDENTIFIER
+      provider_tax_id: BUSINESS_IDENTIFIER
+      provider_name: DESCRIPTIVE_ATTRIBUTE
+      pcp_flag: BOOLEAN
+      source_system: CATEGORICAL_ATTRIBUTE
+  dim_member_identifier:
+    semantic_role: BRIDGE
+    business_entity: member_identifier
+    grain: one identifier value and type for a member over an effective period
+    primary_key: [mbr_identifier_sk]
+    column_classifications:
+      mbr_identifier_sk: PRIMARY_KEY
+      member_sk: FOREIGN_KEY
+      id_type: CATEGORICAL_ATTRIBUTE
+      id_value: BUSINESS_IDENTIFIER
+  dim_member_history:
+    semantic_role: SNAPSHOT
+    business_entity: member_history
+    grain: one historical/effective-dated member attribute version per mbr_history_sk
+    primary_key: [mbr_history_sk]
+    column_classifications:
+      mbr_history_sk: PRIMARY_KEY
+      member_sk: FOREIGN_KEY
+      valid_from_date: TIMESTAMP
+      valid_to_date: TIMESTAMP
+      mbr_line_of_business: CATEGORICAL_ATTRIBUTE
+      mbr_state: CATEGORICAL_ATTRIBUTE
+  fact_member_enrollment:
+    semantic_role: FACT
+    business_entity: member_enrollment
+    grain: one member enrollment event or enrollment period record
+    primary_key: [enrollment_sk]
+    column_classifications:
+      enrollment_sk: PRIMARY_KEY
+      member_sk: FOREIGN_KEY
+      mbr_enr_status: STATUS
+      mbr_enr_line_of_business: CATEGORICAL_ATTRIBUTE
+      mbr_enr_effective_date: DATE
+      mbr_enr_termination_date: DATE
+  fact_claim_header:
+    semantic_role: FACT
+    business_entity: claim_header
+    grain: one claim header per claim surrogate key
+    primary_key: [clm_header_sk]
+    column_classifications:
+      clm_header_sk: PRIMARY_KEY
+      clm_claim_id: BUSINESS_IDENTIFIER
+      clm_member_sk: FOREIGN_KEY
+      clm_service_facility_address_sk: FOREIGN_KEY
+      clm_claim_type: CATEGORICAL_ATTRIBUTE
+      clm_bill_type: CATEGORICAL_ATTRIBUTE
+      clm_line_of_business: CATEGORICAL_ATTRIBUTE
+      clm_admission_type: CATEGORICAL_ATTRIBUTE
+      clm_service_type_code: CATEGORICAL_ATTRIBUTE
+      clm_cob_type: CATEGORICAL_ATTRIBUTE
+  fact_claim_detail:
+    semantic_role: FACT
+    business_entity: claim_detail
+    grain: one claim service/detail line per claim id and line number
+    primary_key: [clm_dtl_claim_id, clm_dtl_line_nbr]
+    column_classifications:
+      clm_dtl_claim_id: PRIMARY_KEY
+      clm_dtl_line_nbr: PRIMARY_KEY
+      clm_dtl_claim_type: CATEGORICAL_ATTRIBUTE
+      clm_dtl_line_status: STATUS
+      clm_dtl_adjudication_status: STATUS
+      clm_dtl_clean_claim_ind: BOOLEAN
+      clm_dtl_place_of_service: CATEGORICAL_ATTRIBUTE
+      clm_dtl_procedure_code: CATEGORICAL_ATTRIBUTE
+      clm_dtl_allowed_amt: MONETARY
+      clm_dtl_billed_amt: MONETARY
+      clm_dtl_paid_amt: MONETARY
+      clm_dtl_actual_paid_amt: MONETARY
+relationships:
+  - name: fact_claim_header_to_dim_member
+    from_table: fact_claim_header
+    from_columns: [clm_member_sk]
+    to_table: dim_member
+    to_columns: [member_sk]
+    cardinality: N:1
+    join_safety: {left_grain: claim header, right_grain: member, fanout_risk: false}
+  - name: fact_member_enrollment_to_dim_member
+    from_table: fact_member_enrollment
+    from_columns: [member_sk]
+    to_table: dim_member
+    to_columns: [member_sk]
+    cardinality: N:1
+    join_safety: {left_grain: enrollment period, right_grain: member, fanout_risk: false}
+  - name: dim_member_identifier_to_dim_member
+    from_table: dim_member_identifier
+    from_columns: [member_sk]
+    to_table: dim_member
+    to_columns: [member_sk]
+    cardinality: N:1
+    join_safety: {left_grain: identifier, right_grain: member, fanout_risk: false}
+  - name: dim_member_history_to_dim_member
+    from_table: dim_member_history
+    from_columns: [member_sk]
+    to_table: dim_member
+    to_columns: [member_sk]
+    cardinality: N:1
+    join_safety: {left_grain: member history, right_grain: member, fanout_risk: false}
+  - name: fact_claim_header_to_dim_address
+    from_table: fact_claim_header
+    from_columns: [clm_service_facility_address_sk]
+    to_table: dim_address
+    to_columns: [address_key]
+    cardinality: N:1
+    join_safety: {left_grain: claim header, right_grain: address, fanout_risk: false}
+  - name: dim_provider_to_dim_address
+    from_table: dim_provider
+    from_columns: [provider_address_sk]
+    to_table: dim_address
+    to_columns: [address_key]
+    cardinality: N:1
+    join_safety: {left_grain: provider, right_grain: address, fanout_risk: false}
+measures:
+  - {table: fact_claim_detail, column: clm_dtl_paid_amt, aggregation: SUM}
+  - {table: fact_claim_detail, column: clm_dtl_billed_amt, aggregation: SUM}
+  - {table: fact_claim_detail, column: clm_dtl_allowed_amt, aggregation: SUM}
+  - {table: fact_claim_detail, column: clm_dtl_actual_paid_amt, aggregation: SUM}

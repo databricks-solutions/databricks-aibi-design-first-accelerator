@@ -1,5 +1,118 @@
 # Create Genie Space
 
+## CONTEXT ISOLATION — Read This First
+
+Forget all execution details from prior steps (ERD parsing, synthetic data, metric view creation, dashboard deployment). You do NOT need that context.
+
+**Your ONLY inputs are:**
+
+1. `{OUTPUT_FOLDER}/step_handoff.yaml` — contains pre-formatted values (paste verbatim):
+   - `metric_view_fqns[].sql_fqn` — the EXACT backtick-quoted FQN for example SQL (do NOT re-derive)
+   - `genie_title` — the EXACT title for the Genie Space API call (do NOT reformat)
+   - `warehouse_id` — paste as-is
+
+2. `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` — which KPIs are IMPLEMENTED
+
+3. `{OUTPUT_FOLDER}/metric_views/metric_view_design.yaml` — measure/dimension definitions
+
+4. KPI specification — business context for instructions
+
+**Rules:**
+- Read `step_handoff.yaml` BEFORE any other action in this step
+- Use `sql_fqn` value EXACTLY as written in ALL example SQL (it is already correctly backtick-quoted)
+- Use `genie_title` value EXACTLY as written (it is already snake_case validated)
+- If these values look wrong, HALT — do NOT fix them locally
+
+### Pipeline Halt Rules & Recovery
+
+If `step_handoff.yaml` does NOT exist in `{OUTPUT_FOLDER}`:
+
+1. Check if `run_context.yaml` exists in `{OUTPUT_FOLDER}`. If yes, reconstruct `step_handoff.yaml` from it:
+   - Read `catalog`, `schema`, `version_suffix`, `assets.*` from `run_context.yaml`
+   - Construct `sql_fqn` using: `` `{catalog}`.`{schema}`.`{metric_view_name}{version_suffix}` ``
+   - Construct `dashboard_display_names` from `assets.dashboards[].name` + version suffix
+   - Construct `genie_title` from `assets.genie.space_name` + version suffix
+   - Populate `warehouse_id`, `parent_path`, `workspace_host`, `catalog`, `schema`
+   - Write the reconstructed `step_handoff.yaml` to `{OUTPUT_FOLDER}`
+   - Log: `"⚠️ RECOVERY: step_handoff.yaml was missing. Reconstructed from run_context.yaml."`
+   - Proceed normally
+
+2. If `run_context.yaml` also does NOT exist, reconstruct from `accelerator.yaml`:
+   - Read `accelerator.yaml` from `{EXAMPLE_DIR}`
+   - Determine version suffix from the output folder path (extract `vN` from path)
+   - Apply the same construction logic as above
+   - Write the reconstructed `step_handoff.yaml` to `{OUTPUT_FOLDER}`
+   - Log: `"⚠️ RECOVERY: step_handoff.yaml was missing. Reconstructed from accelerator.yaml."`
+   - Proceed normally
+
+3. If NEITHER file can be found AND `accelerator.yaml` is unavailable:
+   - HALT with: `"❌ EXECUTION HALTED: Cannot resolve asset names. Neither step_handoff.yaml, run_context.yaml, nor accelerator.yaml are accessible."`
+
+**MANDATORY FIRST ACTIONS (execute these in order before anything else):**
+1. Read `{OUTPUT_FOLDER}/step_handoff.yaml` → extract `sql_fqn`, `genie_title`, `warehouse_id`
+2. Read `{deploy_root}/framework/inputs/genie_space_configuration.md` → understand the template workflow
+3. Read `{EXAMPLE_DIR}/{templates.genie_notebook}` → understand the notebook structure (cells 1-10)
+4. Read `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` → know which KPIs are IMPLEMENTED
+
+If ANY of these reads fail, HALT. Do NOT proceed to generate content without these inputs.
+
+---
+
+## ⚠️ CONDENSED EXECUTION CONTRACT (READ THIS FIRST — 5 PHASES, NO SHORTCUTS)
+
+This prompt is long (2500+ lines). To prevent shortcutting, here is the EXACT execution sequence.
+**If you skip any phase, the Genie Space will be BLANK/BROKEN.**
+
+```text
+PHASE A — LOAD & PROFILE (Steps 1-2)
+  1. Read step_handoff.yaml (has sql_fqn, genie_title, warehouse_id)
+  2. Read metric_view_validation.yaml + metric_view_design.yaml
+  3. Read genie_space_configuration.md (MANDATORY — defines serialized_space contract)
+  4. DESCRIBE the metric view + profile categorical values
+  5. Write genie_semantic_inventory.yaml
+
+PHASE B — LLM DESIGN (Step 2.2)
+  6. Call reasoning model with metric view DDL + KPI spec + semantic inventory
+  7. Get back: instructions (≥500 chars), sample questions (≥15), example SQL (≥15), benchmarks (≥15)
+  8. Validate LLM output (GATE 2.2)
+  9. Write llm_genie_design.yaml
+
+PHASE C — VALIDATE SQL (Steps 3-8)
+  10. Execute ALL example SQL queries against the warehouse (batch validation)
+  11. Fix any failing SQL (wrong column names, etc.)
+  12. Generate benchmark ground truth
+
+PHASE D — BUILD & DEPLOY NOTEBOOK (Steps 9-13)
+  13. Read genie_space_notebook.py.template
+  14. Populate cells 2-7 with config, instructions, questions, SQL, benchmarks
+  15. Copy cells 8-10 VERBATIM from template (helpers + create/update + validate)
+  16. Save notebook to {OUTPUT_FOLDER}/genie_space/{notebook_name}
+  17. Execute cells: Cell 7 (validate_genie_config) → Cell 8 (helpers) → Cell 9 (create/update API)
+  18. Cell 9 calls POST /api/2.0/genie/spaces with FULL serialized_space
+
+PHASE E — VALIDATE & PERSIST (Steps 14-22)
+  19. GET /api/2.0/genie/spaces/{id}?include_serialized_space=true
+  20. Verify: instructions present, sample_questions ≥15, example_sqls ≥10, benchmarks ≥15
+  21. Write genie_manifest.json, benchmark_results.yaml, validation artifact
+```
+
+### SHORTCUT DETECTION (agent self-check BEFORE any action)
+
+If you are about to do ANY of the following, **STOP — you are shortcutting:**
+
+| Action | Why It's Wrong | Correct Path |
+|--------|---------------|-------------|
+| `createAsset(assetType="genie")` | Creates blank title-only space | Use template notebook → `POST /api/2.0/genie/spaces` with full `serialized_space` |
+| `POST /api/2.0/genie/spaces` without `serialized_space` | Creates empty space | Must include instructions + sample_questions + example_sqls + benchmarks |
+| Writing `genie_manifest.json` with just `{"space_id": "...", "status": "CREATED"}` | Declares success without configuration | Manifest must include `sample_question_count`, `example_sql_count`, `benchmark_count` |
+| Skipping the LLM design call | Produces thin/generic instructions | LLM generates domain-specific, analytically rich configuration |
+| Skipping `validate_genie_config()` execution | Deploys broken SQL | Must execute ALL example SQL before API call |
+| Writing 4-line instruction text | Fails minimum quality (need ≥500 chars) | LLM produces 800-1500 char markdown-formatted instructions |
+
+**The ONLY valid deployment path is: template notebook populated → validate_genie_config() passes → build_serialized_space() → POST/PATCH API with full payload.**
+
+---
+
 ## Role
 
 You are a senior Databricks Genie architect and semantic analytics engineer.
@@ -87,6 +200,23 @@ The following actions are STRICTLY FORBIDDEN:
 15. **DO NOT rely on `GET /api/2.0/genie/spaces/{id}` for content validation** — the GET response does NOT return `serialized_space` content. Validation must be based on successful POST acceptance (API returns 400 with specific error if payload is structurally invalid).
 16. **DO NOT use assumed or semantic column names in example SQL** — ALWAYS use EXACT column names from `DESCRIBE TABLE` / `genie_semantic_inventory.yaml`. Common failures: `service_month` (doesn't exist — use `DATE_TRUNC('MONTH', service_date)`), `claim_month`, `member_name`. If a column is not in the inventory, it MUST NOT appear in any SQL.
 17. **DO NOT skip `validate_genie_config()` before deployment** — the Genie notebook template includes a validation cell that executes ALL example SQL queries before calling the Genie API. This is the determinism gate — it catches SQL with wrong column names before they become broken Genie examples. If validation fails, FIX the SQL, do not proceed.
+
+### ANTI-PATTERN: What A Failed Execution Looks Like
+
+In the last failed run, the agent produced:
+- `genie_manifest.json` = `{"space_id": "...", "status": "CREATED"}` (NO config counts)
+- `genie_instructions.md` = 4 lines ("Use MEASURE() for metric view queries...")
+- `sample_queries.sql` = 1 query
+- Genie Space API had: 0 sample questions, 0 instructions, 0 example SQL, 0 benchmarks
+- The `genie_space/` output folder was COMPLETELY EMPTY
+- No `genie_semantic_inventory.yaml` created
+- No `llm_genie_design.yaml` created
+- No template notebook created
+- No `validate_genie_config()` executed
+
+This happened because the agent used `createAsset(assetType="genie")` instead of the full template workflow.
+
+**If your execution produces ANY of the above patterns, you have FAILED. Go back to Phase A.**
 
 ### HARD STOP RULE: No Divergence from This Prompt
 
@@ -506,10 +636,10 @@ Do not fall back to guessing the serialized_space format. This file defines the 
 Read when available:
 
 ```text
-{workspace.output_folder}/schema_profile.yaml
-{workspace.output_folder}/kpi_metric_mapping.yaml
-{workspace.output_folder}/metric_view_design.yaml
-{workspace.output_folder}/metric_view_validation.yaml
+{OUTPUT_FOLDER}/metric_views/schema_profile.yaml
+{OUTPUT_FOLDER}/metric_views/kpi_metric_mapping.yaml
+{OUTPUT_FOLDER}/metric_views/metric_view_design.yaml
+{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml
 ```
 
 These artifacts are authoritative outputs from the Metric View stage.
@@ -2308,3 +2438,195 @@ At the END of this step, the following artifacts MUST exist:
 - Every dimension used in at least 1 question
 
 If ANY artifact is missing or quality gate fails, the step has NOT completed successfully.
+
+---
+
+# MANDATORY PRE-DEPLOY SELF-CHECK (read LAST before any API call)
+
+## Why This Section Exists
+
+In prior runs, the executing agent read all prior sections, understood the intent, then shortcut the process by:
+- Using human-friendly display names instead of configured snake_case names
+- Wrapping the entire 3-part FQN in one backtick pair (breaking all example SQL)
+- Bypassing the template notebook and hand-constructing `serialized_space` from memory
+- Using `createAsset(assetType="genie")` instead of the Genie Management API
+
+This section exists at the END of the prompt to leverage recency bias. These checks are NON-NEGOTIABLE.
+
+## Pre-Deploy Check Artifact (GATE)
+
+**Before ANY call to `POST /api/2.0/genie/spaces`**, the agent MUST produce and print the following self-check. If ANY check shows `FAIL`, the agent MUST NOT proceed.
+
+```yaml
+# pre_deploy_check (print to stdout before API call)
+space_title_check:
+  configured_name: "{exact value from assets.genie.space_name}"
+  title_being_used: "{exact value being passed as title}"
+  match: true/false  # MUST be true
+
+fqn_format_check:
+  fqn_in_example_sql: "{exact FQN string as it appears in example SQL}"
+  format: "3_separate_backtick_pairs"  # MUST be this value
+  # CORRECT: `catalog`.`schema`.`table`
+  # WRONG:  `catalog.schema.table`
+  valid: true/false  # MUST be true
+
+template_usage_check:
+  method: "{template notebook execution OR build_serialized_space()}"
+  # Expected: "genie_space_notebook.py.template executed" or "build_serialized_space() called"
+  # FAIL if: "hand-constructed JSON" or "createAsset(assetType=genie)"
+  valid: true/false
+
+example_sql_validation_check:
+  total_example_sqls: N
+  all_executed_successfully: true/false  # MUST be true
+  failed_sqls: []  # MUST be empty
+
+id_format_check:
+  sample_id: "{one example UUID being used}"
+  format: "32_char_hex_no_hyphens"  # MUST be this value
+  # CORRECT: "a1b2c3d4e5f6789012345678abcdef01"
+  # WRONG:  "a1b2c3d4-e5f6-7890-1234-5678abcdef01"
+  valid: true/false  # MUST be true
+
+array_sorting_check:
+  all_id_arrays_sorted: true/false  # MUST be true
+  # sample_questions, text_instructions, example_question_sqls, benchmarks.questions
+
+text_field_format_check:
+  question_fields_are_arrays: true/false  # MUST be true
+  sql_fields_are_arrays: true/false  # MUST be true
+  content_fields_are_arrays: true/false  # MUST be true
+  # CORRECT: {"question": ["What is..."], "sql": ["SELECT ..."]}
+  # WRONG:  {"question": "What is...", "sql": "SELECT ..."}
+```
+
+**Rules:**
+- If `space_title_check.match` is `false` → **HALT. Fix the title.**
+- If `fqn_format_check.valid` is `false` → **HALT. Fix the quoting in ALL SQL.**
+- If `template_usage_check.valid` is `false` → **HALT. Use the template.**
+- If `example_sql_validation_check.all_executed_successfully` is `false` → **HALT. Fix broken SQL.**
+- If `id_format_check.valid` is `false` → **HALT. Use uuid.uuid4().hex (no hyphens).**
+- If `array_sorting_check.all_id_arrays_sorted` is `false` → **HALT. Sort by id ascending.**
+- If `text_field_format_check` has any `false` → **HALT. Wrap all text in arrays.**
+
+---
+
+# CORRECT vs WRONG Examples (Critical Reference)
+
+These examples show the EXACT correct patterns and the EXACT errors from prior failed runs.
+
+## Space Title (display name)
+
+```python
+# ✅ CORRECT — uses configured name from assets.genie.space_name in accelerator.yaml
+"title": "member_claims_analytics_genie_v3"
+
+# ❌ WRONG — agent invented a human-friendly name
+"title": "Member Claims Analytics v3"
+"title": "Member Claims Genie Space"
+"title": "Claims Analytics"
+```
+
+The title MUST be the exact string from `assets.genie.space_name`. No spaces, no title case, no reformatting.
+
+## Metric View FQN in Example SQL
+
+```sql
+-- ✅ CORRECT — each segment separately backtick-quoted
+SELECT MEASURE(`Total Paid Amount`)
+FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v3`
+GROUP BY ALL
+
+-- ❌ WRONG — entire 3-part name in one backtick pair (Genie generates broken SQL)
+SELECT MEASURE(`Total Paid Amount`)
+FROM `aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v3`
+GROUP BY ALL
+```
+
+The FQN MUST use 3 separate backtick pairs: `` `catalog`.`schema`.`table` ``. Never `` `catalog.schema.table` ``.
+
+## UUID Format
+
+```python
+# ✅ CORRECT — 32-char hex, no hyphens
+import uuid
+item_id = uuid.uuid4().hex  # "a1b2c3d4e5f6789012345678abcdef01"
+
+# ❌ WRONG — standard UUID with hyphens (API rejects)
+item_id = str(uuid.uuid4())  # "a1b2c3d4-e5f6-7890-1234-5678abcdef01"
+```
+
+## Text Fields (question, sql, content)
+
+```python
+# ✅ CORRECT — all text wrapped in arrays
+{"id": "abc123...", "question": ["What is total paid?"], "sql": ["SELECT MEASURE(`Total Paid Amount`) FROM ..."]}
+{"id": "def456...", "content": ["## Domain\nThis space provides claims analytics..."]}
+
+# ❌ WRONG — plain strings (API rejects with "Expected an array")
+{"id": "abc123...", "question": "What is total paid?", "sql": "SELECT ..."}
+{"id": "def456...", "content": "## Domain\nThis space provides..."}
+```
+
+## Array Sorting
+
+```python
+# ✅ CORRECT — all ID-containing arrays sorted by id ascending
+sample_questions = sorted(sample_questions, key=lambda x: x["id"])
+example_sqls = sorted(example_sqls, key=lambda x: x["id"])
+benchmarks = sorted(benchmarks, key=lambda x: x["id"])
+text_instructions = sorted(text_instructions, key=lambda x: x["id"])
+
+# ❌ WRONG — unsorted arrays (API rejects with "must be sorted by id")
+sample_questions = [...]  # inserted in generation order, not sorted
+```
+
+## API Call Structure
+
+```python
+# ✅ CORRECT — table_identifiers at TOP LEVEL, not inside serialized_space
+body = {
+    "title": "member_claims_analytics_genie_v3",  # exact configured name
+    "warehouse_id": warehouse_id,
+    "table_identifiers": ["catalog.schema.metric_view"],  # TOP LEVEL
+    "serialized_space": json.dumps({...}),  # does NOT contain table_identifiers
+}
+
+# ❌ WRONG — table_identifiers inside serialized_space (causes "Unknown field" error)
+body = {
+    "title": "Member Claims Analytics v3",  # wrong name format
+    "serialized_space": json.dumps({
+        "table_identifiers": [...],  # WRONG LOCATION
+        ...
+    }),
+}
+```
+
+## Deployment Method
+
+```python
+# ✅ CORRECT — Genie Management API with full serialized_space
+result = w.api_client.do("POST", "/api/2.0/genie/spaces", body=body)
+
+# ❌ WRONG — createAsset (produces blank space with no instructions)
+createAsset(asset={"assetType": "genie", "name": "...", "tableIdentifiers": [...]})
+```
+
+---
+
+# Final Instruction (HIGHEST PRIORITY)
+
+If you are about to make an API call and you have NOT:
+1. Printed the pre_deploy_check to stdout
+2. Confirmed ALL checks are `true`
+3. Used the EXACT configured space title from `assets.genie.space_name`
+4. Used 3-part backtick quoting in ALL example SQL
+5. Validated ALL example SQL queries execute successfully
+6. Sorted ALL ID-containing arrays by `id` ascending
+7. Wrapped ALL text fields (question, sql, content) in arrays
+8. Used `uuid.uuid4().hex` for all IDs (no hyphens)
+
+Then **STOP. Go back. Do it correctly.**
+
+The extra 30 seconds of verification prevents the 15-minute debugging cycle that follows a broken deployment.

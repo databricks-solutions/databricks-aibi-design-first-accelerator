@@ -34,6 +34,19 @@ logger = logging.getLogger(__name__)
 # Dashboard step needs ~25-30 for design + dataset + create + publish.
 MAX_ITERATIONS = 80
 
+# Context window management — prevents OOM on long-running steps.
+# The agent loop accumulates messages (assistant + tool results) each iteration.
+# Without trimming, a 37-minute Data Layer step with 60+ tool calls can grow
+# the messages list to 200K+ tokens, exhausting MEDIUM compute RAM.
+#
+# Strategy: keep the first 2 messages (system + user prompt) and the last
+# CONTEXT_KEEP_RECENT messages intact. For messages in between, truncate
+# tool result content to CONTEXT_TRIM_LENGTH chars. This preserves the
+# LLM's ability to reference recent work while freeing memory from old results.
+CONTEXT_MAX_CHARS = 300_000       # Total chars before trimming kicks in
+CONTEXT_KEEP_RECENT = 12          # Messages to keep untouched at the tail
+CONTEXT_TRIM_LENGTH = 200         # Truncated tool result length (chars)
+
 # Max consecutive tool errors before hard fail (prevents token waste on unfixable issues)
 MAX_CONSECUTIVE_ERRORS = 3
 
@@ -47,6 +60,15 @@ CRITICAL_TOOLS = {
     "create_notebook",        # Can't create the notebook = can't proceed
     "write_file",             # File writes produce artifacts required by later phases
     "create_dashboard",       # Dashboard creation failure = step cannot complete
+}
+
+# Read-only tools: errors are counted toward consecutive_errors (resets on success)
+# but NOT toward per_tool_errors (permanent). This prevents transient workspace API
+# errors or wrong-path attempts from triggering hard-fail on read-only operations.
+READ_ONLY_TOOLS = {
+    "read_workspace_file",
+    "list_workspace_directory",
+    "describe_table",
 }
 
 # Critical error patterns: even for non-critical tools, certain error messages
@@ -149,6 +171,10 @@ class AgentLoop:
                     "tool_calls_so_far": tool_calls_made,
                 })
 
+            # --- Context trimming gate ---
+            # Prevent OOM by compressing old tool results when context grows too large.
+            messages = self._trim_context(messages)
+
             # Call LLM with tools
             try:
                 response = self._llm.chat_with_tools(
@@ -221,7 +247,10 @@ class AgentLoop:
                 is_error = result_str.startswith("ERROR") or result_str.startswith("SQL ERROR") or result_str.startswith("NOTEBOOK ERROR")
                 if is_error:
                     consecutive_errors += 1
-                    per_tool_errors[tool_name] = per_tool_errors.get(tool_name, 0) + 1
+                    # Read-only tools don't accumulate per_tool_errors (transient
+                    # API failures or wrong-path attempts shouldn't hard-fail)
+                    if tool_name not in READ_ONLY_TOOLS:
+                        per_tool_errors[tool_name] = per_tool_errors.get(tool_name, 0) + 1
 
                     # --- CRITICAL TOOL CHECK (immediate halt) ---
                     # Certain tools leave the system inconsistent if they fail;
@@ -346,6 +375,62 @@ class AgentLoop:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _trim_context(messages: list) -> list:
+        """Compress old messages when total context exceeds CONTEXT_MAX_CHARS.
+
+        Keeps:
+          - messages[0:2] (system + user prompt) always intact
+          - messages[-CONTEXT_KEEP_RECENT:] always intact
+          - Everything in between: tool results are truncated to CONTEXT_TRIM_LENGTH
+
+        This prevents OOM crashes on long-running steps (e.g., 37-min Data Layer)
+        where messages can accumulate 200K+ chars of tool results.
+        """
+        total_chars = sum(len(m.get("content", "") or "") for m in messages)
+        if total_chars < CONTEXT_MAX_CHARS:
+            return messages  # No trimming needed
+
+        # Determine safe boundaries
+        head = 2  # system + user prompt
+        tail = CONTEXT_KEEP_RECENT
+        if len(messages) <= head + tail:
+            return messages  # Not enough messages to trim
+
+        trimmed_count = 0
+        chars_freed = 0
+
+        # Trim the middle section (old tool results)
+        for i in range(head, len(messages) - tail):
+            msg = messages[i]
+            content = msg.get("content", "") or ""
+
+            if msg.get("role") == "tool" and len(content) > CONTEXT_TRIM_LENGTH:
+                original_len = len(content)
+                # Keep the first CONTEXT_TRIM_LENGTH chars + a truncation marker
+                msg["content"] = (
+                    content[:CONTEXT_TRIM_LENGTH]
+                    + f"\n... [trimmed {original_len - CONTEXT_TRIM_LENGTH} chars for context management]"
+                )
+                trimmed_count += 1
+                chars_freed += original_len - len(msg["content"])
+
+            elif msg.get("role") == "assistant" and len(content) > 1000:
+                # Also trim very long assistant reasoning from old iterations
+                original_len = len(content)
+                msg["content"] = content[:500] + "\n... [reasoning trimmed]"
+                chars_freed += original_len - len(msg["content"])
+
+        if trimmed_count > 0:
+            logger.info(
+                f"Context trimmed: {trimmed_count} tool results compressed, "
+                f"~{chars_freed // 1024}KB freed "
+                f"(total was {total_chars // 1024}KB, "
+                f"now ~{(total_chars - chars_freed) // 1024}KB)"
+            )
+
+        return messages
 
     # Max length for tool summaries shown in the UI's "What's happening" panel.
     _MAX_SUMMARY_LEN = 80

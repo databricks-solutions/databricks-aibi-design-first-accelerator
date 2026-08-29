@@ -470,6 +470,45 @@ The DDL MUST NOT modify schema to make synthetic-data generation easier. The sch
 
 **GATE 4.1**: `SHOW TABLES IN {catalog}.{schema} LIKE '%{VERSION_SUFFIX}'` returns expected count. HALT if fewer.
 
+### GATE 4.2: Schema Reconciliation (MANDATORY after DDL execution)
+
+After GATE 4.1 passes, verify that each table's **actual schema** matches the **ERD-parsed schema**. This prevents a critical failure mode where `CREATE TABLE IF NOT EXISTS` is a no-op on tables that already exist with a different schema (from a prior interrupted run with a different ERD parse).
+
+**Algorithm:**
+
+```text
+For each table in erd_parsed.yaml:
+  1. Run DESCRIBE TABLE {catalog}.{schema}.{table_name}{version_suffix}
+  2. Extract actual column names (excluding partition info/metadata rows)
+  3. Extract expected column names from erd_parsed.yaml
+  4. Compare: actual_cols vs expected_cols
+
+  If MISMATCH (missing or extra columns):
+    a. Check if table is EMPTY: SELECT COUNT(*) FROM table
+    b. If EMPTY (count = 0):
+       → DROP TABLE {catalog}.{schema}.{table_name}{version_suffix}
+       → Re-run the CREATE TABLE statement for this table
+       → Log: "⚠️ SCHEMA RECONCILIATION: {table} had stale schema from prior run. Dropped and recreated."
+    c. If NOT EMPTY (count > 0):
+       → HALT with:
+         "❌ SCHEMA MISMATCH: {table} has {actual_count} columns but ERD specifies {expected_count}.
+          Table contains data ({row_count} rows) — cannot safely DROP.
+          Manual cleanup required: DROP TABLE {catalog}.{schema}.{table_name}{version_suffix}
+          Then re-run the pipeline."
+
+  If MATCH: continue
+```
+
+**Why this is safe:**
+- Version-scoped tables (suffixed with `_v{N}`) are OWNED by this pipeline run
+- Empty tables have no data to lose — they were just created by this or a prior DDL step
+- Non-empty tables require manual confirmation (they may have synthetic data from a prior successful run that should not be silently destroyed)
+
+**Why this is necessary:**
+- `CREATE TABLE IF NOT EXISTS` does NOT alter existing table schemas
+- The ERD vision model is non-deterministic — it may parse different column counts on different runs
+- Without this gate, the synthetic data step (Step 5/6) builds specs from `erd_parsed.yaml` that reference columns that don't exist in the actual table, causing `validate_domain_cols()` to raise `AssertionError`
+
 ---
 
 # Step 5: Build Synthetic Data Specification
@@ -477,6 +516,22 @@ The DDL MUST NOT modify schema to make synthetic-data generation easier. The sch
 Run only when `data_source.greenfield.synthetic_data: true`.
 
 Create `{workspace.output_folder}/synthetic_data_spec.yaml` from: `erd_parsed.yaml` + `semantic_model.yaml` + KPI context + volume config.
+
+### Column Authority Rule (CRITICAL)
+
+The **actual table schema** (from `DESCRIBE TABLE`) is the authoritative source for which columns exist. The `erd_parsed.yaml` provides semantic context (datatypes, roles, relationships) but MUST NOT be used as the sole column list.
+
+**Before building the synthetic data spec, for EACH table:**
+
+```text
+1. Run: DESCRIBE TABLE {catalog}.{schema}.{table_name}{version_suffix}
+2. Use the returned column list as the DEFINITIVE set of columns to generate
+3. Cross-reference with erd_parsed.yaml for semantic context (types, roles, FK relationships)
+4. If a column exists in erd_parsed.yaml but NOT in the actual table → SKIP it (do not include in spec)
+5. If a column exists in the actual table but NOT in erd_parsed.yaml → include it with type-based defaults
+```
+
+This rule prevents `validate_domain_cols()` failures caused by ERD-vs-table schema drift (which occurs when `CREATE TABLE IF NOT EXISTS` encounters a pre-existing table from a prior run).
 
 ## 5.1 Generation Philosophy
 
@@ -719,6 +774,25 @@ df.write.format("delta").mode("append").saveAsTable(f"{CATALOG}.{SCHEMA}.{table_
 
 NEVER `.mode("overwrite")`. Tables are empty from DDL; append = initial load.
 
+### MANDATORY Python 3.11 Compatibility
+
+Serverless compute runs Python 3.11 which PROHIBITS backslashes inside f-string `{}` expressions:
+
+```python
+# ILLEGAL — causes SyntaxError:
+f"{'\n'.join(items)}"        # backslash in f-string expression
+f"{val.replace('\n', '')}"   # backslash in f-string expression
+
+# LEGAL — use a variable instead:
+nl = '\n'
+f"{nl.join(items)}"
+# Or assign first:
+joined = '\n'.join(items)
+f"{joined}"
+```
+
+This applies to ALL generated notebook code. Violation = `SyntaxError` at runtime.
+
 ---
 
 ## 6.1 Foreign Key Replacement (MANDATORY for every child table)
@@ -901,6 +975,12 @@ Synthetic-data generation is NOT successful because the notebook executed. Run d
 ### BATCH VALIDATION (combine into 2-3 SQL calls)
 
 ```sql
+-- IMPORTANT: Databricks SQL Compatibility Notes:
+-- • Do NOT use INFORMATION_SCHEMA.TABLES.table_rows (column does not exist in Databricks)
+-- • Do NOT use INFORMATION_SCHEMA.TABLES.data_length or avg_row_length
+-- • Use SELECT COUNT(*) FROM <table> for row counts
+-- • Use DESCRIBE DETAIL <table> for file-level metadata (numFiles, sizeInBytes)
+--
 -- BATCH 1: Row counts + PK uniqueness for ALL tables
 SELECT '{table_a}' t, COUNT(*) rows, COUNT(DISTINCT {pk}) pk_distinct,
        COUNT(*) - COUNT(DISTINCT {pk}) pk_dups

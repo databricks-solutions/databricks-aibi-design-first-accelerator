@@ -21,6 +21,16 @@ Do not reconstruct results from memory or assumptions.
 
 ---
 
+## PROHIBITED ACTIONS (this entire step)
+
+1. **DO NOT fabricate results** — every documented metric, KPI status, and asset reference must come from actual pipeline artifacts
+2. **DO NOT skip the run manifest** — `run_manifest.json` is the final checkpoint artifact and MUST be produced
+3. **DO NOT document KPIs as "implemented"** unless `metric_view_validation.yaml` confirms them as `IMPLEMENTED_AND_VALIDATED`
+4. **DO NOT document dashboards as "deployed"** unless the manifest shows `published: true`
+5. **DO NOT assume pipeline steps completed** — read actual artifacts to confirm
+
+---
+
 # Core Principle
 
 Documentation must reflect the actual final state of the accelerator run:
@@ -135,10 +145,12 @@ metric_view_validation.yaml
 
 dashboards/dashboard_design.yaml
 dashboards/dashboard_dataset_validation.yaml
+dashboards/llm_dashboard_design.yaml
 dashboards/*_manifest.json
 dashboards/*_validation.yaml
 
 genie_space/genie_semantic_inventory.yaml
+genie_space/llm_genie_design.yaml
 genie_space/*_manifest.json
 genie_space/*_validation.yaml
 
@@ -321,6 +333,8 @@ Include reproducibility metadata:
 Generated: <ISO 8601 timestamp>
 LLM Model: <llm.default_model from accelerator.yaml>
 Vision Model: <llm.vision_model from accelerator.yaml>
+Dashboard Design Model: <llm.steps.dashboard_design.model> (if used)
+Genie Design Model: <llm.steps.genie_design.model> (if used)
 Version: <config.version_suffix>
 ```
 
@@ -514,12 +528,16 @@ include:
 - display name;
 - dashboard ID;
 - source Metric View(s);
-- page count;
-- widget count;
-- filter count;
+- page structure (filter page + canvas pages with page names);
+- total widget count (counters, charts, tables by type);
+- filter count and filter dimensions;
+- visualization diversity (how many distinct viz types used);
+- design source (LLM-assisted from `llm_dashboard_design.yaml` or manual);
 - publication status;
 - validation status;
 - workspace/AI/BI link if present in the manifest/API response.
+
+When `llm_dashboard_design.yaml` exists, note that dashboards were designed by the LLM reasoning model and document the design quality (pages per dashboard, widget density, viz diversity).
 
 Use:
 
@@ -558,12 +576,16 @@ If Genie is enabled and successfully deployed, document:
 - space ID;
 - warehouse ID;
 - attached Metric Views;
-- sample-question count;
-- example-SQL count;
-- benchmark count;
+- instruction quality (character count, format: markdown/plain, section count);
+- sample-question count and pattern diversity (how many of 8 analytical patterns covered);
+- example-SQL count and validation rate (e.g., "20/20 passed");
+- benchmark count (with answer format);
 - benchmark pass rate where available;
+- design source (LLM-assisted from `llm_genie_design.yaml` or manual);
 - configuration notebook path;
 - validation status.
+
+When `llm_genie_design.yaml` exists, note that the Genie configuration was designed by the LLM reasoning model and document the design quality metrics.
 
 Source from:
 
@@ -579,7 +601,38 @@ If Genie creation was skipped or failed, state that explicitly.
 
 ---
 
-# 9. Validation Summary
+# 9. LLM-Assisted Design Summary
+
+If LLM design artifacts exist (`llm_dashboard_design.yaml` and/or `llm_genie_design.yaml`), include a section documenting the AI-assisted design process:
+
+### Dashboard Design
+
+When `llm_dashboard_design.yaml` exists:
+
+- Model used for design (from `accelerator.yaml` → `llm.steps.dashboard_design.model`)
+- Number of dashboards designed
+- Pages per dashboard (target: ≥ 2 canvas pages each)
+- Visualization diversity per dashboard (target: ≥ 3 distinct viz types)
+- Whether design passed GATE 3.1 (multi-page enforcement)
+- Key design decisions (e.g., KPI grouping across pages)
+
+### Genie Space Design
+
+When `llm_genie_design.yaml` exists:
+
+- Model used for design (from `accelerator.yaml` → `llm.steps.genie_design.model`)
+- Instruction quality: character count, format (markdown with ## headers), content sections
+- Question pattern coverage: how many of 8 analytical patterns (HEADLINE, TIME_TREND, DIMENSION_BREAKDOWN, FILTERED, RANKING, COMPARISON, MULTI_MEASURE, RATIO)
+- Example SQL validation: count passed / total
+- Benchmark questions: count and answer format
+
+This section helps consumers understand the AI-driven design quality and reproducibility.
+
+Do not include this section if no LLM design artifacts exist (manual/template-only runs).
+
+---
+
+# 10. Validation Summary
 
 Provide one concise consolidated validation table.
 
@@ -602,7 +655,7 @@ If a validation failed, link it to the corresponding generated validation artifa
 
 ---
 
-# 10. Known Limitations
+# 11. Known Limitations
 
 Document known gaps and constraints of the generated solution.
 
@@ -629,7 +682,7 @@ This section is critical for consumer trust — it sets accurate expectations.
 
 ---
 
-# 11. Usage
+# 12. Usage
 
 Explain how a consumer should use the generated assets.
 
@@ -673,7 +726,7 @@ Do not introduce new unsupported questions.
 
 ---
 
-# 12. Troubleshooting
+# 13. Troubleshooting
 
 Include this section when overall status is `PARTIAL_SUCCESS` or `FAIL`.
 
@@ -702,7 +755,7 @@ Do not include this section when status is `PASS`.
 
 ---
 
-# 13. Generated Artifacts
+# 14. Generated Artifacts
 
 List important generated files by logical category.
 
@@ -725,15 +778,20 @@ Dashboards
 
 Genie
 - genie_semantic_inventory.yaml
+- llm_genie_design.yaml
 - <space>_manifest.json
 - <space>_validation.yaml
+- sample_queries_<domain>.sql
+
+Dashboards (LLM Design)
+- llm_dashboard_design.yaml
 ```
 
 Only list files that actually exist.
 
 ---
 
-# 12. Configuration Reference
+# 15. Configuration Reference
 
 Summarize the primary `accelerator.yaml` configuration used by this run.
 
@@ -996,3 +1054,15 @@ only when:
 ```text
 ❌ EXECUTION HALTED
 ```
+
+---
+
+# Output Contract
+
+| Artifact | Location | Validation Check |
+|----------|----------|-----------------|
+| run_manifest.json | `{OUTPUT_FOLDER}/` | Contains all section keys: config, data_layer, metric_views, dashboards, genie, validation |
+| README.md or summary notebook | `{OUTPUT_FOLDER}/` | Human-readable summary of the run |
+| run_context.yaml | `{OUTPUT_FOLDER}/` | `status: completed`, all phases listed |
+
+If `run_manifest.json` is missing, the entire pipeline run is incomplete.

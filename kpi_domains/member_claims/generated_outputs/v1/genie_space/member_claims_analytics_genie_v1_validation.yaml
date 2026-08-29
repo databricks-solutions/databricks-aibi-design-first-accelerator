@@ -1,0 +1,39 @@
+space:
+  space_id: 01f1a356f08c12b0a314cc0077f7048b
+  title: member_claims_analytics_genie_v1
+  warehouse_id: 2d8e531640ffa469
+  status: PASS
+metric_views:
+  expected:
+    - aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1
+  actual:
+    - aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1
+  status: PASS
+instructions:
+  character_count: 2991
+  status: PASS
+sample_questions:
+  count: 15
+  status: PASS
+example_sql:
+  count: 15
+  executed: 15
+  failed: 0
+  status: PASS
+benchmarks:
+  count: 15
+  passed: 15
+  failed: 0
+  pass_rate: 1.0
+  status: PASS
+semantic_coverage:
+  measures: 18
+  dimensions: 16
+  kpis: 13
+api:
+  create_status: PASS
+  update_status: NOT_RUN
+  get_status: PASS
+persisted_configuration:
+  status: PASS
+overall_status: PASS

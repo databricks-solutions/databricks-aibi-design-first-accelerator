@@ -1,0 +1,28 @@
+status: PASS
+dashboards:
+  - name: member_claims_kpis_dashboard_v1
+    dashboard_id: 01f1a352b74f161b8007a612db04e89b
+    published: true
+    pages: 4
+    widgets: 21
+    filters: 5
+    validation_artifact: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/dashboards/member_claims_kpis_dashboard_v1_validation.yaml
+  - name: member_claims_utilization_dashboard_v1
+    dashboard_id: 01f1a352cb9e1ec181db6bd7d2817d50
+    published: true
+    pages: 4
+    widgets: 21
+    filters: 5
+    validation_artifact: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/dashboards/member_claims_utilization_dashboard_v1_validation.yaml
+filter_impact_validation:
+  status: PASS
+  representative_filter: claim_type = Institutional
+  unfiltered_total_paid_amount: 12497500.0000
+  filtered_total_paid_amount: 5016880.0000
+  unfiltered_total_claims: 5000
+  filtered_total_claims: 2003
+kpi_coverage:
+  implemented_kpis_total: 13
+  rendered_across_dashboards: 13
+  skipped_metric_layer_kpis_not_rendered: true
+overall_status: PASS

@@ -1,0 +1,109 @@
+version: 1.1
+comment: "Claim-line grain metric view for validated member claims KPIs. Source grain is one claim service/detail line per claim id and line number. No joins are included to avoid measure fanout."
+source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v1
+
+fields:
+  - name: Claim Id
+    expr: clm_dtl_claim_id
+    comment: "Business claim identifier from claim detail."
+  - name: Claim Line Number
+    expr: clm_dtl_line_nbr
+    comment: "Claim service line number."
+  - name: Member Number
+    expr: clm_dtl_member_nbr_sk
+    comment: "Claim-detail member identifier."
+  - name: Service Date
+    expr: clm_dtl_specific_dos_date
+    comment: "Specific date of service for the claim line."
+  - name: Service Month
+    expr: DATE_TRUNC('MONTH', clm_dtl_specific_dos_date)
+    comment: "Month bucket derived from service date."
+  - name: Claim Receive Date
+    expr: CAST(clm_dtl_claim_receive_date AS DATE)
+    comment: "Date the claim line was received."
+  - name: Check Date
+    expr: CAST(clm_dtl_check_date AS DATE)
+    comment: "Date payment/check was issued."
+  - name: Claim Type
+    expr: clm_dtl_claim_type
+    comment: "Claim type such as Institutional, Professional, Pharmacy, Dental, or Vision."
+  - name: Line Status
+    expr: clm_dtl_line_status
+    comment: "Claim line status such as Paid, Denied, Pending, Adjusted, or Reversed."
+  - name: Adjudication Status
+    expr: clm_dtl_adjudication_status
+    comment: "Adjudication workflow status."
+  - name: Clean Claim Indicator
+    expr: clm_dtl_clean_claim_ind
+    comment: "Y/N clean claim indicator."
+  - name: Benefit Category
+    expr: clm_dtl_benefit_category
+    comment: "Benefit category assigned to the claim line."
+  - name: Benefit Level
+    expr: clm_dtl_benefit_level
+    comment: "Benefit level assigned to the claim line."
+  - name: Place of Service
+    expr: clm_dtl_place_of_service
+    comment: "Place of service code."
+  - name: Procedure Code
+    expr: clm_dtl_procedure_code
+    comment: "Procedure code billed on the claim line."
+  - name: Revenue Code
+    expr: clm_dtl_revenue_code
+    comment: "Revenue code billed on the claim line."
+
+measures:
+  - name: Total Claims
+    expr: COUNT(DISTINCT clm_dtl_claim_id)
+    comment: "Count of distinct claims represented in claim detail."
+  - name: Total Claim Lines
+    expr: COUNT(*)
+    comment: "Count of claim service/detail lines."
+  - name: Total Paid Amount
+    expr: SUM(clm_dtl_paid_amt)
+    comment: "Total paid amount summed across claim lines."
+  - name: Total Billed Amount
+    expr: SUM(clm_dtl_billed_amt)
+    comment: "Total billed amount summed across claim lines."
+  - name: Total Allowed Amount
+    expr: SUM(clm_dtl_allowed_amt)
+    comment: "Total allowed amount summed across claim lines."
+  - name: Unique Members With Claims
+    expr: COUNT(DISTINCT clm_dtl_member_nbr_sk)
+    comment: "Distinct claim-detail members with at least one claim line."
+  - name: Denied Lines
+    expr: SUM(CASE WHEN clm_dtl_line_status = 'Denied' OR clm_dtl_adjudication_status = 'Denied' THEN 1 ELSE 0 END)
+    comment: "Claim lines denied by line status or adjudication status."
+  - name: Clean Claim Lines
+    expr: SUM(CASE WHEN clm_dtl_clean_claim_ind = 'Y' THEN 1 ELSE 0 END)
+    comment: "Claim lines marked as clean claims."
+  - name: Inpatient Paid Amount
+    expr: SUM(CASE WHEN clm_dtl_claim_type = 'Institutional' THEN clm_dtl_paid_amt ELSE 0 END)
+    comment: "Paid amount for institutional claims, used as inpatient proxy per source values."
+  - name: Outpatient Paid Amount
+    expr: SUM(CASE WHEN clm_dtl_claim_type = 'Professional' THEN clm_dtl_paid_amt ELSE 0 END)
+    comment: "Paid amount for professional claims, used as outpatient proxy per source values."
+  - name: Average Paid per Claim
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Claims`), 0)
+    comment: "Ratio of total paid amount to distinct claims."
+  - name: Denial Rate
+    expr: MEASURE(`Denied Lines`) / NULLIF(MEASURE(`Total Claim Lines`), 0)
+    comment: "Denied claim lines divided by total claim lines."
+  - name: Clean Claim Rate
+    expr: MEASURE(`Clean Claim Lines`) / NULLIF(MEASURE(`Total Claim Lines`), 0)
+    comment: "Clean claim lines divided by total claim lines."
+  - name: Payment-to-Billed Ratio
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Billed Amount`), 0)
+    comment: "Total paid amount divided by total billed amount."
+  - name: Payment-to-Allowed Ratio
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Allowed Amount`), 0)
+    comment: "Total paid amount divided by total allowed amount."
+  - name: Average Paid per Member
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Unique Members With Claims`), 0)
+    comment: "Total paid amount divided by unique claim-detail members with claims."
+  - name: Claims per Member
+    expr: MEASURE(`Total Claims`) / NULLIF(MEASURE(`Unique Members With Claims`), 0)
+    comment: "Distinct claims divided by unique claim-detail members with claims."
+  - name: Lines per Claim
+    expr: MEASURE(`Total Claim Lines`) / NULLIF(MEASURE(`Total Claims`), 0)
+    comment: "Claim service lines divided by distinct claims."

@@ -1,0 +1,68 @@
+dashboards:
+  - name: member_claims_kpis_dashboard_v1
+    purpose: Executive KPI overview for member claims financial performance, claim quality, and available member-claim segmentation.
+    pages:
+      - page_name: Financial Overview
+        purpose: Summarize validated financial KPIs and top cost drivers; skipped PMPM/window KPIs remain excluded.
+        widgets:
+          - {title: Total Claims, kpi: C-1 Total Claims, measure: Total Claims, viz_type: counter, dimensions: [], aggregation: SUM, rationale: Headline claims volume.}
+          - {title: Total Paid Amount, kpi: C-3 Total Paid Amount, measure: Total Paid Amount, viz_type: counter, dimensions: [], aggregation: SUM, rationale: Headline paid spend.}
+          - {title: Paid Amount by Benefit Category, kpi: C-3 Total Paid Amount, measure: Total Paid Amount, viz_type: bar, dimensions: [Benefit Category], aggregation: SUM, rationale: Top cost drivers.}
+          - {title: Paid Amount Trend by Service Month, kpi: C-3 Total Paid Amount, measure: Total Paid Amount, viz_type: line, dimensions: [Service Month], aggregation: SUM, rationale: Paid amount over time.}
+          - {title: Claims by Claim Type, kpi: C-1 Total Claims, measure: Total Claims, viz_type: bar, dimensions: [Claim Type], aggregation: SUM, rationale: Claim volume mix.}
+      - page_name: Claims Analysis
+        purpose: Analyze claim payment, denial, clean-claim, and monthly trend KPIs.
+        widgets:
+          - {title: Average Paid per Claim, kpi: C-4 Average Paid per Claim, measure: Average Paid per Claim, viz_type: counter, dimensions: [], aggregation: AVG, rationale: Ratio KPI summarized correctly.}
+          - {title: Denial Rate, kpi: ADD-1 Denial Rate, measure: Denial Rate, viz_type: counter, dimensions: [], aggregation: AVG, rationale: Rate KPI summarized correctly.}
+          - {title: Clean Claim Rate, kpi: ADD-2 Clean Claim Rate, measure: Clean Claim Rate, viz_type: counter, dimensions: [], aggregation: AVG, rationale: Rate KPI summarized correctly.}
+          - {title: Monthly Claims Trend, kpi: C-1 Total Claims, measure: Total Claims, viz_type: line, dimensions: [Service Month], aggregation: SUM, rationale: Claims volume trend.}
+          - {title: Monthly Denial Rate Trend, kpi: ADD-1 Denial Rate, measure: Denial Rate, viz_type: line, dimensions: [Service Month], aggregation: AVG, rationale: Denial performance over time.}
+          - {title: Denied Lines by Line Status, kpi: ADD-1 Denial Rate, measure: Denied Lines, viz_type: bar, dimensions: [Line Status], aggregation: SUM, rationale: Denial volume context.}
+      - page_name: Member Demographics
+        purpose: Preserve mapped member page while using only validated claim-line/member-claim measures; demographic KPIs are recorded as skipped.
+        widgets:
+          - {title: Claims by Benefit Category, kpi: C-1 Total Claims, measure: Total Claims, viz_type: bar, dimensions: [Benefit Category], aggregation: SUM, rationale: Available member-claim service segmentation.}
+          - {title: Average Paid per Member by Claim Type, kpi: ADD-5 Average Paid per Member, measure: Average Paid per Member, viz_type: bar, dimensions: [Claim Type], aggregation: AVG, rationale: Per-member paid pattern by claim type.}
+          - {title: Claims per Member by Benefit Category, kpi: ADD-6 Claims per Member, measure: Claims per Member, viz_type: bar, dimensions: [Benefit Category], aggregation: AVG, rationale: Member utilization intensity.}
+          - {title: Claim Mix by Place of Service, kpi: C-1 Total Claims, measure: Total Claims, viz_type: bar, dimensions: [Place of Service], aggregation: SUM, rationale: Available place-of-service segmentation.}
+    filters:
+      - {dimension: Service Date, filter_type: date-range-picker, scope: global, rationale: Service-period selection.}
+      - {dimension: Claim Type, filter_type: multi-select, scope: global, rationale: Core claim mix slicer.}
+      - {dimension: Line Status, filter_type: multi-select, scope: global, rationale: Operational status slicer.}
+      - {dimension: Benefit Category, filter_type: multi-select, scope: global, rationale: Service category slicer.}
+      - {dimension: Clean Claim Indicator, filter_type: single-select, scope: global, rationale: Quality population slicer.}
+  - name: member_claims_utilization_dashboard_v1
+    purpose: Operational utilization dashboard for claim volume, service mix, payment ratios, and provider-adjacent insights.
+    pages:
+      - page_name: Utilization Patterns
+        purpose: Show validated utilization volume and inpatient/outpatient paid patterns.
+        widgets:
+          - {title: Total Claims, kpi: C-1 Total Claims, measure: Total Claims, viz_type: counter, dimensions: [], aggregation: SUM, rationale: Headline utilization count.}
+          - {title: Total Claim Lines, kpi: C-2 Total Claim Lines, measure: Total Claim Lines, viz_type: counter, dimensions: [], aggregation: SUM, rationale: Line-level utilization volume.}
+          - {title: Inpatient Paid Amount, kpi: ADD-8 Inpatient Paid Amount, measure: Inpatient Paid Amount, viz_type: counter, dimensions: [], aggregation: SUM, rationale: Institutional/inpatient paid spend.}
+          - {title: Outpatient Paid Amount, kpi: ADD-9 Outpatient Paid Amount, measure: Outpatient Paid Amount, viz_type: counter, dimensions: [], aggregation: SUM, rationale: Professional/outpatient paid spend.}
+          - {title: Claim Lines by Benefit Category, kpi: C-2 Total Claim Lines, measure: Total Claim Lines, viz_type: bar, dimensions: [Benefit Category], aggregation: SUM, rationale: Utilization distribution by benefit category.}
+          - {title: Claims Trend by Service Month, kpi: C-1 Total Claims, measure: Total Claims, viz_type: line, dimensions: [Service Month], aggregation: SUM, rationale: Utilization over time.}
+      - page_name: Provider Insights
+        purpose: Retain mapped provider page with available provider-adjacent service/procedure dimensions; skipped provider KPIs are excluded.
+        widgets:
+          - {title: Paid Amount by Place of Service, kpi: C-3 Total Paid Amount, measure: Total Paid Amount, viz_type: bar, dimensions: [Place of Service], aggregation: SUM, rationale: Care setting spend proxy.}
+          - {title: Claims by Procedure Code, kpi: C-1 Total Claims, measure: Total Claims, viz_type: bar, dimensions: [Procedure Code], aggregation: SUM, rationale: Procedure utilization ranking.}
+          - {title: Paid Amount by Revenue Code, kpi: C-3 Total Paid Amount, measure: Total Paid Amount, viz_type: bar, dimensions: [Revenue Code], aggregation: SUM, rationale: Revenue code cost concentration.}
+          - {title: Lines per Claim by Claim Type, kpi: ADD-7 Lines per Claim, measure: Lines per Claim, viz_type: bar, dimensions: [Claim Type], aggregation: AVG, rationale: Claim complexity by type.}
+      - page_name: Operational Metrics
+        purpose: Monitor denial, clean claim, and payment ratio performance across time and operational dimensions.
+        widgets:
+          - {title: Denial Rate, kpi: ADD-1 Denial Rate, measure: Denial Rate, viz_type: counter, dimensions: [], aggregation: AVG, rationale: Headline operational quality.}
+          - {title: Payment-to-Billed Ratio, kpi: ADD-3 Payment-to-Billed Ratio, measure: Payment-to-Billed Ratio, viz_type: counter, dimensions: [], aggregation: AVG, rationale: Payment efficiency ratio.}
+          - {title: Payment-to-Allowed Ratio, kpi: ADD-4 Payment-to-Allowed Ratio, measure: Payment-to-Allowed Ratio, viz_type: counter, dimensions: [], aggregation: AVG, rationale: Contract payment ratio.}
+          - {title: Denial Rate Trend, kpi: ADD-1 Denial Rate, measure: Denial Rate, viz_type: line, dimensions: [Service Month], aggregation: AVG, rationale: Denial trend.}
+          - {title: Clean Claim Rate by Claim Type, kpi: ADD-2 Clean Claim Rate, measure: Clean Claim Rate, viz_type: bar, dimensions: [Claim Type], aggregation: AVG, rationale: Quality by claim type.}
+          - {title: Payment Ratios by Benefit Category, kpi: ADD-3 Payment-to-Billed Ratio, measure: Payment-to-Billed Ratio, viz_type: bar, dimensions: [Benefit Category], aggregation: AVG, rationale: Ratio variation by category.}
+    filters:
+      - {dimension: Service Date, filter_type: date-range-picker, scope: global, rationale: Service-period selection.}
+      - {dimension: Claim Type, filter_type: multi-select, scope: global, rationale: Claim type slicer.}
+      - {dimension: Line Status, filter_type: multi-select, scope: global, rationale: Status slicer.}
+      - {dimension: Benefit Category, filter_type: multi-select, scope: global, rationale: Category slicer.}
+      - {dimension: Place of Service, filter_type: multi-select, scope: global, rationale: Setting slicer.}

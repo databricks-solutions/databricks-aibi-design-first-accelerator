@@ -1,0 +1,55 @@
+dashboard:
+  dashboard_id: 01f1a352b74f161b8007a612db04e89b
+  display_name: member_claims_kpis_dashboard_v1
+  status: CREATED
+  published: true
+source_metric_views:
+  - "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
+pages:
+  expected: 4
+  actual: 4
+  canvas_expected: 3
+  canvas_actual: 3
+  status: PASS
+datasets:
+  expected: 1
+  actual: 1
+  empty_queries: []
+  failed_queries: []
+  status: PASS
+widgets:
+  expected: 21
+  actual: 21
+  invalid_widgets: []
+  status: PASS
+filters:
+  expected: 5
+  actual: 5
+  binding_failures: []
+  impact_tests:
+    - filter: claim_type
+      value: Institutional
+      unfiltered_total_paid_amount: 12497500.0000
+      filtered_total_paid_amount: 5016880.0000
+      unfiltered_total_claims: 5000
+      filtered_total_claims: 2003
+      status: PASS
+  status: PASS
+kpis:
+  - {name: C-1 Total Claims, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: kpi_total_claims, page: Financial Overview}
+  - {name: C-3 Total Paid Amount, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: kpi_total_paid_amount, page: Financial Overview}
+  - {name: C-4 Average Paid per Claim, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: avg_paid_per_claim, page: Claims Analysis}
+  - {name: ADD-1 Denial Rate, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: denial_rate, page: Claims Analysis}
+  - {name: ADD-2 Clean Claim Rate, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: clean_claim_rate, page: Claims Analysis}
+  - {name: ADD-5 Average Paid per Member, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: kpi_average_paid_per_member, page: Financial Overview}
+  - {name: ADD-6 Claims per Member, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: claims_per_member_by_benefit, page: Member Demographics}
+  - {name: MC-1 PMPM, metric_validation_status: SKIPPED_UNSAFE_GRAIN, dashboard_status: SKIPPED_NOT_VALIDATED_IN_METRIC_LAYER, widget: null, page: Financial Overview}
+  - {name: W-1 Rolling 3-Month PMPM, metric_validation_status: SKIPPED_UNSAFE_GRAIN, dashboard_status: SKIPPED_NOT_VALIDATED_IN_METRIC_LAYER, widget: null, page: Financial Overview}
+  - {name: W-2 MoM Active Member Growth, metric_validation_status: SKIPPED_UNSUPPORTED_METRIC_VIEW_FEATURE, dashboard_status: SKIPPED_NOT_VALIDATED_IN_METRIC_LAYER, widget: null, page: Financial Overview}
+  - {name: M-2 Members by Line of Business, metric_validation_status: SKIPPED_UNSAFE_GRAIN, dashboard_status: SKIPPED_NOT_VALIDATED_IN_METRIC_LAYER, widget: null, page: Member Demographics}
+  - {name: M-3 Members by Geography, metric_validation_status: SKIPPED_UNSAFE_GRAIN, dashboard_status: SKIPPED_NOT_VALIDATED_IN_METRIC_LAYER, widget: null, page: Member Demographics}
+api:
+  create_status: SUCCESS
+  get_status: NOT_AVAILABLE_IN_TOOLSET_STRUCTURAL_VALIDATED_FROM_CREATE_RESPONSE_AND_ARTIFACTS
+  publish_status: SUCCESS
+overall_status: PASS

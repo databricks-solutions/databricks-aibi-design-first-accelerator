@@ -300,7 +300,23 @@ async function checkResumableRun(domain) {
     // Check localStorage first (fastest)
     const localRunId = localStorage.getItem(`last_run_${domain}`);
 
-    // Then check Lakebase via the runs API for incomplete runs
+    // PRIMARY: Check version_registry.yaml via the version-status endpoint
+    // This is the SINGLE SOURCE OF TRUTH for version resolution.
+    try {
+        const vsResp = await fetch(`/api/pipeline/version-status?domain=${domain}`);
+        if (vsResp.ok) {
+            const vs = await vsResp.json();
+            if (vs.is_resumable && vs.latest_version > 0) {
+                lastResumableRun = { run_id: vs.run_id, status: vs.status, version: vs.latest_version };
+                const resumeBtn = document.getElementById('resume-btn');
+                resumeBtn.textContent = `\u21BB Resume ${vs.label}`;
+                resumeBtn.style.display = 'inline-flex';
+                return;
+            }
+        }
+    } catch(e) { console.debug('Version status check failed:', e); }
+
+    // FALLBACK: Check Lakebase via the runs API for incomplete runs
     try {
         const resp = await fetch(`/api/pipeline/runs?domain=${domain}&limit=5`);
         if (resp.ok) {
@@ -347,21 +363,46 @@ async function resumeLastRun() {
     const btn = document.getElementById('resume-btn');
     btn.disabled = true;
     btn.textContent = 'Resuming\u2026';
-    try {
-        // Trigger the rerun BEFORE navigating so the pipeline is already
-        // running when the user lands on the monitor page.
-        const res = await fetch(`/api/pipeline/rerun/${lastResumableRun.run_id}`, {method: 'POST'});
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.error?.message || 'Resume failed');
+
+    // If we have a run_id from Lakebase, try /rerun first
+    if (lastResumableRun.run_id && lastResumableRun.run_id.length > 8) {
+        try {
+            const res = await fetch(`/api/pipeline/rerun/${lastResumableRun.run_id}`, {method: 'POST'});
+            if (res.ok) {
+                const data = await res.json();
+                window.location.href = '/domains/' + selectedDomain + '/run/' + (data.run_id || lastResumableRun.run_id);
+                return;
+            }
+        } catch(e) {
+            console.warn('Rerun trigger failed, falling back to new run with retry mode:', e.message);
         }
-    } catch(e) {
-        // If rerun fails (e.g. already running), still navigate — monitor page
-        // will show current state and the user can retry from there.
-        console.warn('Rerun trigger failed:', e.message);
     }
-    // Navigate to the pipeline monitor (run is now starting or already active)
-    window.location.href = '/domains/' + selectedDomain + '/run/' + lastResumableRun.run_id;
+
+    // Fallback: start a NEW run with version_mode='retry' (resolver will find
+    // the interrupted/failed version from the registry and resume it)
+    try {
+        const payload = {
+            domain: selectedDomain,
+            run_mode: 'versioned',
+            version_mode: 'retry',
+        };
+        const resp = await fetch('/api/pipeline/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+        });
+        const data = await resp.json();
+        if (resp.ok && data.run_id) {
+            localStorage.setItem(`last_run_${selectedDomain}`, data.run_id);
+            window.location.href = '/domains/' + selectedDomain + '/run/' + data.run_id;
+            return;
+        }
+        throw new Error(data.error?.message || 'Failed to start resume run');
+    } catch(e) {
+        console.warn('Resume failed:', e.message);
+        btn.disabled = false;
+        btn.textContent = 'Resume failed — try Run Pipeline';
+    }
 }
 
 async function launchPipeline() {

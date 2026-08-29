@@ -1,6 +1,15 @@
 # Genie Space Configuration
 
-Mandatory reference for Step 04. A Genie space is **not** complete until it is configured with instructions, sample questions, example SQLs, and benchmark questions via the **template notebook**.
+## ⚠️ THIS FILE IS THE SOLE AUTHORITY FOR GENIE SPACE DEPLOYMENT
+
+**If you have not read this file, you CANNOT deploy a Genie Space.**
+
+The ONLY valid deployment path:
+```
+Read this file → Read template → Populate cells 2-7 → Execute validate_genie_config() → Execute build_serialized_space() → POST API with FULL payload
+```
+
+A Genie space is **not** complete until it is configured with instructions, sample questions, example SQLs, and benchmark questions via the **template notebook**.
 
 > **Background:** Genie Code agents sometimes shortcut this step with `createAsset` or a bare `POST /api/2.0/genie/spaces`, producing a title-only space with no instructions, sample questions, or benchmarks. That fails validation and mirrors the "datasets-only dashboard" anti-pattern from Step 03. This doc defines the only acceptable path: populate `genie_space_notebook.py.template`, execute cells 8–10, and pass Cell 10 validation before proceeding.
 
@@ -88,7 +97,7 @@ Cell 8 `build_serialized_space()` assembles:
   },
   "instructions": {
     "text_instructions": [
-      {"id": "<32-char-hex>", "content": ["Single-line instruction text with no newlines."]}
+      {"id": "<32-char-hex>", "content": ["## Domain\nThis space provides...\n\n## Measures\n- `Total Paid` — sum of paid\n..."]}
     ],
     "example_question_sqls": [
       {"id": "<32-char-hex>", "question": ["What is total revenue?"], "sql": ["SELECT MEASURE(total_paid) FROM catalog.schema.mv"]}
@@ -107,28 +116,26 @@ Cell 8 `build_serialized_space()` assembles:
 | Field | Behavior | Fix |
 |-------|----------|-----|
 | `data_sources` | Key is **`tables`** (NOT `metric_views`) | Always use `data_sources.tables[]` |
-| `text_instructions[].content[]` | API **truncates at newline characters** (`\n`) — only the first line is persisted | Instructions MUST be a **single continuous string with no newlines** |
+| `text_instructions[].content[]` | Supports **markdown formatting** (## headers, - bullets, newlines, `backticks`) | Use markdown structure for readability in the admin UI |
 | `column_configs` | Optional per table — lists columns for reference. **Must be sorted alphabetically by `column_name`** or API rejects with InvalidParameterValue | Sort with `sorted(configs, key=lambda x: x['column_name'])` |
 | All IDs | Must be 32-character lowercase hex UUIDs | Use `uuid.uuid4().hex` |
 | All text fields | Wrapped in arrays `["text"]` | Always use `["..."]` not bare strings |
+| All ID-containing arrays | **Must be sorted ascending by `id`** — `example_question_sqls`, `sample_questions`, `benchmarks.questions`, `text_instructions` | Sort with `sorted(items, key=lambda x: x['id'])` before serialization |
+| `GET /spaces/{id}` response | Does **NOT** return `serialized_space` content — only top-level metadata (title, description, space_id) | Validate configuration via POST acceptance (400 = invalid); do NOT expect GET to echo back instructions/examples |
 
-**Instruction format (CRITICAL):**
+**Instruction format (RECOMMENDED):**
 
-The `text_instructions[].content[0]` string MUST NOT contain `\n` characters. The Genie API truncates at the first newline, silently discarding everything after it.
+The `text_instructions[].content[0]` string supports full markdown formatting. Use headers and bullets for structure:
 
 ```python
-# WRONG — will be truncated to first line only:
-"content": ["Line one.\nLine two.\nLine three."]
-# → API stores only: "Line one."
-
-# CORRECT — single continuous string, use spaces/punctuation for separation:
-"content": ["Line one. Line two. Line three."]
-# → API stores complete text
+# RECOMMENDED — markdown-formatted for readability:
+"content": ["## Domain\nThis space provides claims analytics...\n\n## Measures (use MEASURE(`name`) syntax)\n- `Total Paid Amount` — sum of paid dollars\n- `Denial Rate` — % denied (non-additive, use AVG)\n\n## Dimensions\n- `Claim Type`: Professional, Institutional...\n\n## Query Rules\n- Always use MEASURE(`measure_name`)"]
+# → API stores the full markdown string with structure
 ```
 
-If instructions are long, use sentence-based formatting with periods and spaces — never newlines.
+The markdown renders in the Genie admin UI with clear section headers and bullet lists.
 
-- **text_instructions:** exactly one block (`GENERAL_INSTRUCTIONS`) — must be a single line (no `\n`)
+- **text_instructions:** exactly one block (`GENERAL_INSTRUCTIONS`) — supports markdown (## headers, - bullets, newlines)
 - **example_question_sqls:** teaches Genie how to answer (part of instructions)
 - **benchmarks:** evaluates accuracy only — Genie does not learn from these
 

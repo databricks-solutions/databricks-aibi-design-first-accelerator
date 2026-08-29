@@ -227,14 +227,71 @@ def _persist_tool_to_lakebase(run_store, run_id, step, tool_name, event_type, ev
         logger.warning(f"_persist_tool_to_lakebase failed (non-fatal): {e}")
 
 
+def _detect_resume_step_from_artifacts(output_folder: str, workspace_service) -> str:
+    """Detect which pipeline step to resume from by checking output artifacts.
+
+    When the app crashes mid-pipeline, Lakebase step records may be incomplete
+    or a fresh run_id has no history. This function checks the filesystem for
+    step completion markers to determine where to resume.
+
+    Args:
+        output_folder: The versioned output path (e.g. .../generated_outputs/v4)
+        workspace_service: WorkspaceService instance for file checks.
+
+    Returns:
+        The step_name of the first INCOMPLETE step, or None if no steps are done.
+        Ordered: create_data_layer -> create_metric_views -> create_dashboards
+                 -> create_genie_space -> generate_documentation
+    """
+    # Step completion markers (file existence = step completed)
+    step_markers = [
+        ('create_data_layer', 'data_layer_validation.yaml'),
+        ('create_metric_views', 'metric_views/metric_view_validation.yaml'),
+        ('create_dashboards', 'dashboard_validation.yaml'),
+        ('create_genie_space', 'genie_semantic_inventory.yaml'),
+        ('generate_documentation', 'readme.md'),
+    ]
+
+    last_completed = None
+    try:
+        for step_name, marker_file in step_markers:
+            marker_path = f"{output_folder}/{marker_file}"
+            try:
+                content = workspace_service.read_file(marker_path)
+                if content and len(content.strip()) > 0:
+                    last_completed = step_name
+                else:
+                    break
+            except Exception:
+                break
+    except Exception as e:
+        logger.warning(f"Artifact-based resume detection failed: {e}")
+        return None
+
+    if last_completed is None:
+        return None  # No steps completed
+
+    # Return the NEXT step after the last completed one
+    step_order = [s[0] for s in step_markers]
+    last_idx = step_order.index(last_completed)
+    if last_idx + 1 < len(step_order):
+        return step_order[last_idx + 1]
+    else:
+        return None  # All steps completed
+
+
 def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: str,
                               version_override, user_token: str = "",
-                              resume_from: dict = None):
+                              resume_from: dict = None, version_mode: str = "auto"):
     """Background thread: loads config, runs pipeline, updates _runs state.
 
     Args:
         resume_from: Optional dict {"step_name": str, "phase_name": str} for
                      phase-level resume on rerun. Passed through to PipelineRunner.run().
+        version_mode: Version resolution mode — "auto", "retry", or "fresh".
+                      "auto": running=resume, failed/completed=new version.
+                      "retry": resume the latest failed version (rerun from failure point).
+                      "fresh": always create a new version regardless of status.
     """
     import os
     import traceback
@@ -507,7 +564,8 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
         if run_mode == 'versioned':
             resolver = VersionResolver(services["workspace"], services["sql"],
                                        services["lakeview"], services["genie"])
-            version_info = resolver.resolve(config, override=version_override)
+            version_info = resolver.resolve(config, override=version_override,
+                                                run_id=run_id, mode=version_mode)
             config.version = version_info.version
             config.version_suffix = version_info.suffix
             # Output folder: output/v1/, output/v2/ etc.
@@ -549,6 +607,18 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
             if q:
                 q.put(event_callback_data)
             return
+
+        # ── Artifact-based resume detection ──
+        # When resuming a version but no explicit resume_from (e.g. app crash,
+        # new run with version_mode='retry'), scan the output folder to determine
+        # which steps are already completed. This is the CRASH-SAFE resume path.
+        if version_info and version_info.is_resume and not resume_from:
+            detected_step = _detect_resume_step_from_artifacts(config.output_folder, services.get('workspace'))
+            if detected_step:
+                resume_from = {"step_name": detected_step}
+                logger.info(f"Artifact-based resume: detected resume point at '{detected_step}'")
+            else:
+                logger.info("Artifact-based resume: no completed steps detected, starting from beginning")
 
         # Set clean_start based on run_mode
         config.pipeline.clean_start = (run_mode == 'clean')
@@ -639,6 +709,7 @@ def start_run():
         return jsonify({'error': {'type': 'ValidationError', 'message': "run_mode must be 'clean' or 'versioned'"}}), 400
 
     version_override = data.get('version_override')  # int or None
+    version_mode = data.get('version_mode', 'auto')  # "auto", "retry", or "fresh"
 
     run_id = str(uuid.uuid4())
     steps = data.get('steps')  # None means all enabled steps
@@ -650,6 +721,7 @@ def start_run():
         'status': 'started',
         'run_mode': run_mode,
         'version_override': version_override,
+        'version_mode': version_mode,
         'current_step': None,
         'steps_completed': [],
         'step_data': {},
@@ -671,12 +743,13 @@ def start_run():
     thread = threading.Thread(
         target=_run_pipeline_background,
         args=(run_id, domain, steps, run_mode, version_override, user_token),
+        kwargs={'version_mode': version_mode},
         daemon=True
     )
     thread.start()
 
-    logger.info(f"Pipeline started: run_id={run_id}, domain={domain}, mode={run_mode}")
-    return jsonify({'run_id': run_id, 'status': 'started', 'run_mode': run_mode}), 202
+    logger.info(f"Pipeline started: run_id={run_id}, domain={domain}, mode={run_mode}, version_mode={version_mode}")
+    return jsonify({'run_id': run_id, 'status': 'started', 'run_mode': run_mode, 'version_mode': version_mode}), 202
 
 
 @pipeline_bp.route('/status/<run_id>')
@@ -994,6 +1067,85 @@ def list_runs():
         return jsonify([])  # Return empty list on DB error (table may not exist yet)
 
 
+@pipeline_bp.route('/version-status')
+def get_version_status():
+    """Get the latest version status from version_registry.yaml.
+
+    This is the authoritative source for version resolution.
+    The frontend uses this to display the correct 'Resume vN' label.
+
+    Query params:
+        domain (str): Domain name (e.g. 'member_claims').
+
+    Returns:
+        {latest_version, status, created_by, is_resumable, label}
+    """
+    import yaml
+    from config import get_config
+
+    domain = request.args.get('domain')
+    if not domain:
+        return jsonify({'error': 'domain query param required'}), 400
+
+    app_config = get_config()
+    registry_path = f"{app_config.WORKSPACE_ROOT}/kpi_domains/{domain}/version_registry.yaml"
+
+    try:
+        from databricks.sdk import WorkspaceClient
+        import io
+        w = WorkspaceClient()
+        resp = w.workspace.get_status(registry_path)
+        with w.workspace.download(registry_path) as reader:
+            content = reader.read().decode('utf-8')
+        registry = yaml.safe_load(content)
+    except Exception as e:
+        # Registry doesn't exist yet → no versions
+        return jsonify({
+            'latest_version': 0,
+            'status': 'none',
+            'is_resumable': False,
+            'label': 'v1 (first run)',
+        })
+
+    if not registry or not registry.get('versions'):
+        return jsonify({
+            'latest_version': 0,
+            'status': 'none',
+            'is_resumable': False,
+            'label': 'v1 (first run)',
+        })
+
+    # Find the latest version entry
+    versions = sorted(registry['versions'], key=lambda v: v.get('version', 0), reverse=True)
+    latest = versions[0]
+    version_num = latest.get('version', 0)
+    status = latest.get('status', 'unknown')
+
+    # Determine if resumable:
+    # - 'running' with no active thread = interrupted (resumable)
+    # - 'failed' = resumable via retry mode
+    run_id = latest.get('run_id', '')
+    is_zombie = (status == 'running' and run_id not in _runs)
+    is_resumable = status in ('running', 'failed') or is_zombie
+
+    # Build display label
+    if is_zombie:
+        display_status = 'interrupted'
+    else:
+        display_status = status
+
+    label = f"v{version_num} ({display_status})"
+
+    return jsonify({
+        'latest_version': version_num,
+        'status': display_status,
+        'is_resumable': is_resumable,
+        'label': label,
+        'run_id': run_id,
+        'created_by': latest.get('created_by', ''),
+    })
+
+
 @pipeline_bp.route('/runs/<run_id>')
 def get_run_detail(run_id):
     """Get full run detail including steps and phases (for run details page).
@@ -1155,10 +1307,11 @@ def rerun_from_failure(run_id):
     user_token = request.headers.get('X-Forwarded-Access-Token', '')
 
     # Start background execution with the remaining steps (same run_id)
+    # version_mode='retry' tells the resolver to resume the failed version
     thread = threading.Thread(
         target=_run_pipeline_background,
         args=(run_id, domain, resume_steps, run_mode, version_override, user_token),
-        kwargs={'resume_from': resume_from},
+        kwargs={'resume_from': resume_from, 'version_mode': 'retry'},
         daemon=True
     )
     thread.start()

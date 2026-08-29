@@ -1,2 +1,14 @@
-version: "1.1"
-# Optional header for metric view YAML generation
+# DEPRECATED — This template file is no longer used.
+#
+# Metric View YAML syntax is defined by the official Databricks documentation:
+# https://docs.databricks.com/aws/en/uc-semantics/metric-views/yaml-reference
+#
+# The prompt 02_create_metric_views.md references the docs directly and
+# contains validated learnings for syntax pitfalls not covered in docs.
+#
+# Key rules (from validated production runs):
+#   - version: 1.1  (NOT integer 1, NOT omitted)
+#   - No `type:` property on fields/dimensions
+#   - No `agg:` property on measures (use full SQL in expr)
+#   - No `description:` (use `comment:` instead)
+#   - Derived measures use MEASURE() composition in expr

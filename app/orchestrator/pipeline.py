@@ -656,21 +656,40 @@ class PipelineRunner:
             all_findings = []
             artifacts_written = []
 
-            steps_data = run_data.get('steps', {})
-            for sname, sinfo in steps_data.items():
-                if isinstance(sinfo, dict) and sinfo.get('status') == 'completed':
-                    completed_steps.append(sname)
+            steps_data = run_data.get('steps', [])
+            # steps_data is a LIST of dicts from run_store (SQL rows),
+            # not a dict keyed by step name.
+            if isinstance(steps_data, list):
+                for sinfo in steps_data:
+                    if isinstance(sinfo, dict) and sinfo.get('status') == 'completed':
+                        completed_steps.append(sinfo.get('step_name', ''))
+            elif isinstance(steps_data, dict):
+                # Legacy/fallback: dict keyed by step name
+                for sname, sinfo in steps_data.items():
+                    if isinstance(sinfo, dict) and sinfo.get('status') == 'completed':
+                        completed_steps.append(sname)
 
             # Collect phase findings from completed phases
-            phases_data = run_data.get('phases', {})
-            for key, pinfo in phases_data.items():
-                if isinstance(pinfo, dict) and pinfo.get('status') == 'completed':
-                    findings = pinfo.get('findings')
-                    if findings:
-                        if isinstance(findings, list):
-                            all_findings.extend(findings)
-                        elif isinstance(findings, str):
-                            all_findings.append(findings)
+            phases_data = run_data.get('phases', [])
+            # phases_data may be a list (from run_store SQL) or dict (legacy)
+            if isinstance(phases_data, list):
+                for pinfo in phases_data:
+                    if isinstance(pinfo, dict) and pinfo.get('status') == 'completed':
+                        findings = pinfo.get('findings')
+                        if findings:
+                            if isinstance(findings, list):
+                                all_findings.extend(findings)
+                            elif isinstance(findings, str):
+                                all_findings.append(findings)
+            elif isinstance(phases_data, dict):
+                for key, pinfo in phases_data.items():
+                    if isinstance(pinfo, dict) and pinfo.get('status') == 'completed':
+                        findings = pinfo.get('findings')
+                        if findings:
+                            if isinstance(findings, list):
+                                all_findings.extend(findings)
+                            elif isinstance(findings, str):
+                                all_findings.append(findings)
 
             # Derive artifacts from step name conventions
             artifact_map = {

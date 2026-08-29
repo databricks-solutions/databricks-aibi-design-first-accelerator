@@ -1,0 +1,79 @@
+status: PASS
+summary: Metric view created and validated for all KPIs that are safe at claim-detail grain. Unsupported or unsafe KPIs were skipped with terminal classifications rather than implemented with guessed columns or unsafe joins.
+metric_views:
+  - name: member_claims_metric_view_v1
+    sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
+    source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v1
+    source_grain: one claim service/detail line per claim id and line number
+    is_metric: true
+    validation_status: PASS
+kpis:
+  - {kpi: C-1 Total Claims, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 5000.000000, metric_view_result: 5000.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: C-2 Total Claim Lines, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 5000.000000, metric_view_result: 5000.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: C-3 Total Paid Amount, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 12497500.000000, metric_view_result: 12497500.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: C-4 Average Paid per Claim, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 2499.500000, metric_view_result: 2499.500000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-1 Denial Rate, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 0.280600, metric_view_result: 0.280600, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-2 Clean Claim Rate, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 0.792000, metric_view_result: 0.792000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-3 Payment-to-Billed Ratio, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 1.000000, metric_view_result: 1.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-4 Payment-to-Allowed Ratio, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 1.000000, metric_view_result: 1.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-5 Average Paid per Member, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 499900.000000, metric_view_result: 499900.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-6 Claims per Member, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 200.000000, metric_view_result: 200.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-7 Lines per Claim, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 1.000000, metric_view_result: 1.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-8 Inpatient Paid Amount, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 5016880.000000, metric_view_result: 5016880.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: ADD-9 Outpatient Paid Amount, status: IMPLEMENTED_AND_VALIDATED, baseline_result: 4723905.000000, metric_view_result: 4723905.000000, difference: 0.000000, validation_status: PASS}
+  - {kpi: M-1 New Member Enrollment, status: SKIPPED_UNSAFE_GRAIN, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: M-2 Members by Line of Business, status: SKIPPED_UNSAFE_GRAIN, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: M-3 Members by Geography, status: SKIPPED_UNSAFE_GRAIN, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: MC-1 PMPM, status: SKIPPED_UNSAFE_GRAIN, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: MC-2 Claims per 1,000 Members, status: SKIPPED_UNSAFE_GRAIN, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: MC-3 Utilization Rate, status: SKIPPED_FACT_TO_FACT_FANOUT_RISK, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: MC-4 High-Cost Member Count, status: SKIPPED_UNSUPPORTED_METRIC_VIEW_FEATURE, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: W-1 Rolling 3-Month PMPM, status: SKIPPED_UNSAFE_GRAIN, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: W-2 MoM Active Member Growth, status: SKIPPED_UNSUPPORTED_METRIC_VIEW_FEATURE, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+  - {kpi: ADD-10 Participating Provider Rate, status: SKIPPED_MISSING_DATA, baseline_result: null, metric_view_result: null, difference: null, validation_status: SKIPPED}
+structural_validation:
+  status: PASS
+  checks_run: 1
+  measures_resolved: 18
+  dimensions_slice_query_status: PASS
+baseline_reconciliation:
+  status: PASS
+  tolerance: 0 for counts and additive amounts; decimal ratios matched to 6 decimal places
+  checks:
+    - {name: total_claims, status: PASS, direct: 5000.000000, metric_view: 5000.000000, difference: 0.000000}
+    - {name: total_claim_lines, status: PASS, direct: 5000.000000, metric_view: 5000.000000, difference: 0.000000}
+    - {name: total_paid_amount, status: PASS, direct: 12497500.000000, metric_view: 12497500.000000, difference: 0.000000}
+    - {name: denial_rate, status: PASS, direct: 0.280600, metric_view: 0.280600, difference: 0.000000}
+    - {name: clean_claim_rate, status: PASS, direct: 0.792000, metric_view: 0.792000, difference: 0.000000}
+    - {name: payment_to_billed_ratio, status: PASS, direct: 1.000000, metric_view: 1.000000, difference: 0.000000}
+    - {name: payment_to_allowed_ratio, status: PASS, direct: 1.000000, metric_view: 1.000000, difference: 0.000000}
+    - {name: inpatient_paid_amount, status: PASS, direct: 5016880.000000, metric_view: 5016880.000000, difference: 0.000000}
+    - {name: outpatient_paid_amount, status: PASS, direct: 4723905.000000, metric_view: 4723905.000000, difference: 0.000000}
+join_validation:
+  status: PASS
+  joins_included: 0
+  details:
+    - {join: none, status: PASS, reason: Single-source metric view; no join fanout possible.}
+measure_stability:
+  status: PASS
+  checks:
+    - {name: no_join_total_paid, pre_join: 12497500.000000, post_join_or_mv: 12497500.000000, difference: 0.000000, status: PASS}
+    - {name: no_join_row_count, pre_join: 5000.000000, post_join_or_mv: 5000.000000, difference: 0.000000, status: PASS}
+dimension_slices:
+  status: PASS
+  query: grouped by Claim Type with Total Paid Amount, Total Claim Lines, and Denial Rate
+  rows_returned: 5
+  top_slice: {Claim_Type: Institutional, total_paid_amount: 5016880.0000, total_claim_lines: 2003, denial_rate: 0.2775836245631553}
+skipped_kpis:
+  - {kpi: M-1 New Member Enrollment, terminal_state: SKIPPED_UNSAFE_GRAIN, reason: Requires member effective-dated/enrollment metric view rather than claim-line grain.}
+  - {kpi: M-2 Members by Line of Business, terminal_state: SKIPPED_UNSAFE_GRAIN, reason: Requires active member snapshot grain.}
+  - {kpi: M-3 Members by Geography, terminal_state: SKIPPED_UNSAFE_GRAIN, reason: Requires active member snapshot/geography grain.}
+  - {kpi: MC-1 PMPM, terminal_state: SKIPPED_UNSAFE_GRAIN, reason: Requires member-month exposure denominator from enrollment fact.}
+  - {kpi: MC-2 Claims per 1,000 Members, terminal_state: SKIPPED_UNSAFE_GRAIN, reason: Requires member-month denominator from enrollment fact.}
+  - {kpi: MC-3 Utilization Rate, terminal_state: SKIPPED_FACT_TO_FACT_FANOUT_RISK, reason: Requires unsafe claims/enrollment fact-to-fact combination.}
+  - {kpi: MC-4 High-Cost Member Count, terminal_state: SKIPPED_UNSUPPORTED_METRIC_VIEW_FEATURE, reason: Requires aggregate member spend threshold before COUNT DISTINCT.}
+  - {kpi: W-1 Rolling 3-Month PMPM, terminal_state: SKIPPED_UNSAFE_GRAIN, reason: Depends on unavailable safe PMPM denominator.}
+  - {kpi: W-2 MoM Active Member Growth, terminal_state: SKIPPED_UNSUPPORTED_METRIC_VIEW_FEATURE, reason: Requires member snapshot calendar and LAG/offset semantics.}
+  - {kpi: ADD-10 Participating Provider Rate, terminal_state: SKIPPED_MISSING_DATA, reason: Participating-provider flag absent at claim-detail grain and header join is unsafe.}
+validation_queries_executed: 4
+failed_checks: []

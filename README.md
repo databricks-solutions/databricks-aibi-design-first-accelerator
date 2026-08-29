@@ -127,6 +127,141 @@ flowchart LR
 
 ---
 
+## End-to-End Architecture
+
+The accelerator supports two identical execution modes — **Genie Code** (interactive chat) and **Databricks App** (programmatic). Both use the same framework prompts, same tools, and produce the same versioned outputs.
+
+```mermaid
+flowchart TB
+  %% ─── Inputs ───
+  subgraph inputs ["Inputs (you provide)"]
+    direction LR
+    YAML["accelerator.yaml"]
+    KPI["kpi_spec.md"]
+    ERD["erd.png"]
+    BP["best_practices.md"]
+  end
+
+  %% ─── Execution Modes ───
+  subgraph modes ["Dual Execution Modes"]
+    direction LR
+    subgraph genie_mode ["Mode 1: Genie Code"]
+      USER["User pastes master prompt"]
+      GC["Genie Code Agent"]
+      USER --> GC
+    end
+    subgraph app_mode ["Mode 2: Databricks App"]
+      UI["App UI (Flask)"]
+      PIPE["PipelineRunner"]
+      AGENT["AgentStep → AgentLoop"]
+      UI --> PIPE --> AGENT
+    end
+  end
+
+  %% ─── Shared Framework ───
+  subgraph framework ["Shared Framework (identical in both modes)"]
+    direction TB
+    MP["00_master_prompt.md\n(orchestration)"]
+    P1["01_create_data_layer.md"]
+    P2["02_create_metric_views.md"]
+    P3["03_create_dashboards.md"]
+    P4["04_create_genie_space.md"]
+    P5["05_generate_documentation.md"]
+    MP --> P1 --> P2 --> P3 --> P4 --> P5
+  end
+
+  %% ─── Tools Layer ───
+  subgraph tools ["Tool Execution Layer"]
+    direction LR
+    SQL["execute_sql\n(SQL Statement API)"]
+    WS["read/write_workspace_file\n(Workspace API)"]
+    VISION["call_vision_model\n(Foundation Model API)"]
+    DASH["create_dashboard\n(Lakeview API)"]
+    NB["execute_notebook\n(Jobs API)"]
+    PROG["report_progress\n(State checkpoint)"]
+  end
+
+  %% ─── Pipeline Stages ───
+  subgraph stages ["Pipeline Stages (sequential, contract-driven)"]
+    direction LR
+    S0["Environment\nSetup"]
+    S1["Data Layer\n(ERD → DDL → synthetic)"]
+    S2["Metric Views\n(KPI → MEASURE)"]
+    S3["Dashboards\n(Lakeview API)"]
+    S4["Genie Space\n(template notebook)"]
+    S5["Documentation\n(readme + manifest)"]
+    S0 --> S1 --> S2 --> S3 --> S4 --> S5
+  end
+
+  %% ─── State & Persistence ───
+  subgraph state ["State & Persistence"]
+    direction LR
+    LB["Lakebase (Postgres)\nruns / steps / phases / tool_calls"]
+    ART["Artifact-as-State\n(YAML checkpoints in workspace)"]
+  end
+
+  %% ─── Generated Outputs ───
+  subgraph outputs ["Generated Outputs (kpi_domains/<domain>/generated_outputs/vN/)"]
+    direction LR
+    T["UC Delta Tables"]
+    MV["Metric Views\n(MEASURE source of truth)"]
+    D["Lakeview Dashboards\n(published)"]
+    GN["Genie Space\n(governed)"]
+    DOC["Documentation\n+ run_manifest.json"]
+  end
+
+  %% ─── Connections ───
+  inputs --> modes
+  GC --> framework
+  AGENT --> framework
+  framework --> tools
+  tools --> stages
+  stages --> state
+  stages --> outputs
+```
+
+### Execution Flow Detail
+
+```mermaid
+sequenceDiagram
+  participant User
+  participant Orchestrator as Orchestrator<br/>(Genie Code or App AgentLoop)
+  participant LLM as Foundation Model<br/>(databricks-gpt-5-5)
+  participant Tools as Tool Executor
+  participant APIs as Databricks APIs<br/>(SQL, Workspace, Lakeview, Jobs)
+  participant State as Lakebase<br/>(durable state)
+
+  User->>Orchestrator: Start pipeline (domain config)
+  loop For each step (01–05)
+    Orchestrator->>Orchestrator: Load step prompt + context vars
+    Orchestrator->>LLM: Send prompt + tool definitions
+    loop Agent Loop (max 80 iterations)
+      LLM->>Orchestrator: tool_calls[] (or completion)
+      Orchestrator->>Tools: Execute tool (e.g. execute_sql)
+      Tools->>APIs: API call (SQL Statement, Workspace, etc.)
+      APIs-->>Tools: Result
+      Tools-->>Orchestrator: Tool result string
+      Orchestrator->>State: Persist phase checkpoint
+      Orchestrator->>LLM: Feed tool result back
+    end
+    Orchestrator->>State: Step completed
+  end
+  Orchestrator->>User: Pipeline complete + asset links
+```
+
+### Key Architecture Decisions
+
+| Decision | Rationale |
+|----------|----------|
+| **Same prompts for Genie Code and App** | Ensures consistent behavior regardless of execution mode; prompts are the single source of truth |
+| **Contract-driven pipeline** | Each stage produces validated artifacts consumed downstream; no stage can repair upstream failures |
+| **Artifact-as-state checkpointing** | Generated files (YAML, manifests) ARE the state; enables resume without external DB dependency |
+| **Lakebase persistence** | Durable run/step/phase/tool_call records enable refresh-safe UI and cross-session resume |
+| **Critical tool fail-fast** | DDL, notebook execution, and dashboard creation failures halt immediately (no silent adaptation) |
+| **Template notebook pattern** | Genie space + synthetic data use notebooks executed via Jobs API (not raw subprocess) |
+
+---
+
 ## Platform
 
 | Capability | Description |

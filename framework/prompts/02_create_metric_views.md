@@ -1,95 +1,150 @@
 # Create Metric Views
 
-## Role
+## CONTEXT ISOLATION — Read This First
 
-You are a senior analytics engineer, dimensional modeler, and Databricks Unity Catalog Metric View architect.
+Forget all execution details from the Data Layer step (ERD parsing, synthetic data generation, DDL execution). You do NOT need that context.
 
-Discover and profile the available source schemas, map every KPI to its authoritative physical source and grain, design analytically safe Metric Views, create the Metric Views using supported Databricks Metric View YAML, and deterministically validate every implemented KPI.
+**Your ONLY inputs are:**
 
-The objective is NOT merely to create YAML that compiles.
+1. `{OUTPUT_FOLDER}/step_handoff.yaml` — contains pre-formatted values (paste verbatim):
+   - `metric_view_fqns[].name` — the resolved metric view name
+   - `metric_view_fqns[].sql_fqn` — the EXACT backtick-quoted FQN (do NOT re-derive)
+   - `catalog`, `schema` — for table references
 
-The resulting Metric Views must be:
+2. `{OUTPUT_FOLDER}/erd_parsed.yaml` — table schemas (columns, types, PKs)
 
-- semantically correct;
-- grain-aware;
-- resistant to measure fanout;
-- faithful to the KPI specification;
-- based only on confirmed physical columns and relationships;
-- safe for dashboards, SQL, and Genie;
-- auditable back to the underlying source tables.
+3. `{OUTPUT_FOLDER}/semantic_model.yaml` — relationships and grain
 
-**Correct metric semantics take precedence over implementing every KPI.**
+4. KPI specification — business definitions and formulas
 
-A KPI with insufficient or unsafe source data MUST be explicitly skipped rather than implemented using guessed columns, guessed joins, or incorrect aggregation.
+**Rules:**
+- Read `step_handoff.yaml` BEFORE any other action in this step
+- Use `sql_fqn` for the metric view name in CREATE statements
+- Use `catalog` and `schema` for source table references
+- If these values look wrong, HALT — do NOT fix them locally
+
+### Pipeline Halt Rules & Recovery
+
+If `step_handoff.yaml` does NOT exist in `{OUTPUT_FOLDER}`:
+
+1. Check if `run_context.yaml` exists in `{OUTPUT_FOLDER}`. If yes, reconstruct `step_handoff.yaml` from it:
+   - Read `catalog`, `schema`, `version_suffix`, `assets.*` from `run_context.yaml`
+   - Construct `sql_fqn` using: `` `{catalog}`.`{schema}`.`{metric_view_name}{version_suffix}` ``
+   - Construct `dashboard_display_names` from `assets.dashboards[].name` + version suffix
+   - Construct `genie_title` from `assets.genie.space_name` + version suffix
+   - Write the reconstructed `step_handoff.yaml` to `{OUTPUT_FOLDER}`
+   - Log: `"⚠️ RECOVERY: step_handoff.yaml was missing. Reconstructed from run_context.yaml."`
+   - Proceed normally
+
+2. If `run_context.yaml` also does NOT exist, reconstruct from `accelerator.yaml`:
+   - Read `accelerator.yaml` from `{EXAMPLE_DIR}`
+   - Determine version suffix from the output folder path (extract `vN` from path)
+   - Apply the same construction logic as above
+   - Write the reconstructed `step_handoff.yaml` to `{OUTPUT_FOLDER}`
+   - Log: `"⚠️ RECOVERY: step_handoff.yaml was missing. Reconstructed from accelerator.yaml."`
+   - Proceed normally
+
+3. If NEITHER file can be found AND `accelerator.yaml` is unavailable:
+   - HALT with: `"❌ EXECUTION HALTED: Cannot resolve metric view FQNs. Neither step_handoff.yaml, run_context.yaml, nor accelerator.yaml are accessible."`
+
+This recovery clause ensures that a missing handoff file (which should have been written in Step 0.7) does not permanently block the pipeline when all required information is available from other authoritative sources.
 
 ---
 
-# Core Principle
+## Role
 
-For every KPI, establish this chain before generating Metric View YAML:
+You are a senior analytics engineer and Databricks Unity Catalog Metric View architect.
+
+Map KPIs to physical sources, design grain-safe Metric Views, create them using supported YAML syntax, and validate every implemented KPI.
+
+The resulting Metric Views must be: semantically correct, grain-aware, resistant to measure fanout, faithful to the KPI spec, based only on confirmed physical columns, and safe for dashboards/SQL/Genie.
+
+**Correct metric semantics take precedence over implementing every KPI. A KPI with insufficient source data MUST be skipped rather than implemented with guessed columns or unsafe joins.**
+
+---
+
+## ENFORCEMENT HEADER
+
+<!-- @enforcement
+  pattern: sql_statement_execution
+  execution_context: sql_warehouse (Statement Execution API)
+  inline_spark_sql_forbidden: true
+  gates:
+    - id: schema_profiled
+      after_step: 2
+      check: "file_exists('{OUTPUT_FOLDER}/metric_views/schema_profile.yaml')"
+    - id: kpi_mapped
+      after_step: 4
+      check: "file_exists('{OUTPUT_FOLDER}/metric_views/kpi_metric_mapping.yaml')"
+    - id: design_validated
+      after_step: 6
+      check: "file_exists('{OUTPUT_FOLDER}/metric_views/metric_view_design.yaml')"
+    - id: metric_view_created
+      after_step: 8
+      check: "SHOW VIEWS IN {catalog}.{schema} LIKE '%{VERSION_SUFFIX}' returns >= 1"
+    - id: validation_passed
+      after_step: 10
+      check: "file_exists('{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml')"
+-->
+
+---
+
+## PROHIBITED ACTIONS
+
+1. **DO NOT execute Metric View DDL via `spark.sql()`** — `WITH METRICS LANGUAGE YAML` is ONLY supported via SQL Warehouse (Statement Execution API). Spark Connect raises `UNSUPPORTED_CLAUSE_FOR_OPERATION`.
+2. **DO NOT invent columns** — every expr must reference confirmed physical columns.
+3. **DO NOT guess join keys** from column-name similarity — use semantic_model.yaml relationships.
+4. **DO NOT implement KPIs marked UNSAFE or AMBIGUOUS** — skip with documented reason.
+5. **DO NOT use blind retry** — max 3 attempts, each with documented root cause and fix.
+6. **DO NOT skip validation** — compilation success does NOT prove correctness.
+7. **DO NOT use `description`** — use `comment` (description is NOT a valid YAML property).
+8. **DO NOT use chained joins** — each `on` clause may ONLY reference `source.<col>` or `<this_join>.<col>`.
+9. **DO NOT fall back to `spark.sql()`** if Statement Execution API times out — HALT and report.
+10. **DO NOT use `CREATE OR REPLACE METRIC VIEW`** — "METRIC VIEW" is NOT a SQL object type. Correct: `CREATE OR REPLACE VIEW <name> WITH METRICS LANGUAGE YAML AS $$ ... $$`.
+11. **DO NOT trust `data_layer_validation.yaml` alone** — ALWAYS run Join Key Diversity Pre-Check before designing joins.
+12. **DO NOT include a join whose stability test fails** — if SUM before join ≠ SUM after join, the join produces fanout.
+13. **DO NOT use `version: 1`** — MUST be `version: 1.1`.
+14. **DO NOT use `type:` on columns** — causes `Unrecognized field` error.
+15. **DO NOT use `agg:` on measures** — aggregation goes directly in `expr`.
+16. **DO NOT use `wait_timeout` outside 5s–50s** — use `"50s"` as standard maximum.
+17. **DO NOT use unquoted multi-word names in `MEASURE()`** — causes `PARSE_SYNTAX_ERROR`. Always use backticks: `` MEASURE(`Total Paid Amount`) ``.
+
+---
+
+## Databricks Metric View Reference
+
+**Official documentation:** https://docs.databricks.com/aws/en/uc-semantics/metric-views/yaml-reference
+
+The LLM MUST consult the official Databricks documentation for the current YAML specification. Do NOT rely on hardcoded templates for version numbers or syntax. The documentation is authoritative for:
+- Supported YAML version
+- Valid field/measure/join properties
+- Expression syntax rules
+- Filter and window support
+
+This prompt documents only the **validated learnings** (things the docs don't tell you) and **execution patterns** specific to this accelerator.
+
+---
+
+## Core Principle
+
+For every KPI, establish this chain before generating YAML:
 
 ```text
-KPI
- ↓
-Business definition
- ↓
-Required analytical grain
- ↓
-Authoritative measure column(s)
- ↓
-Physical source table
- ↓
-Source table grain
- ↓
-Required dimensions
- ↓
-Validated join paths
- ↓
-Aggregation semantics
- ↓
-Validation query
- ↓
-Metric View implementation
+KPI → Business definition → Required grain → Measure column(s) → Physical source table →
+Source grain → Required dimensions → Validated join paths → Aggregation semantics →
+Validation query → Metric View implementation
 ```
 
-No Metric View YAML may be generated until this chain has been established.
+No YAML may be generated until this chain is established.
 
 ---
 
 ## State & Checkpoint Contract
 
-This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
-The same rules apply in App mode and Genie Code — no backend infrastructure required.
+Uses **artifact-as-state** checkpointing (see `07_state_contract.md`). Before each phase, check if output exists → skip if valid.
 
-**Before executing each phase**, check whether its output artifact already exists.
-If it exists and is structurally valid → **skip** that phase and call `report_progress(status="completed")` immediately.
-If it does not exist → execute the phase normally.
-
-**Verification flow (run at the START of this step, after loading config):**
-
-1. List the output folder.
-2. Check for `run_context.yaml` (see `07_state_contract.md` Section 8 for format).
-   If absent, create it with a new run_id. If present, read it and update `current_step`.
-3. For each artifact below, apply ONE cheap check:
-   - `schema_profile.yaml` exists: skip profile_schema
-   - `kpi_metric_mapping.yaml` exists: skip map_kpis
-   - `metric_view_design.yaml` exists: skip design_metric_views
-   - Metric views exist in catalog (`SHOW VIEWS IN {SCHEMA} LIKE '%{VERSION_SUFFIX}'`): skip generate_metric_views
-   - `metric_view_validation.yaml` exists with status field: skip validate_metric_views
-4. Continue from the **first phase whose artifact is missing**.
-5. After each phase completes, append to `phases_completed` in `run_context.yaml`.
-
-**Rules:**
-
-- Every `report_progress(status="completed")` marks a phase as done.
-- After each completed phase, update `run_context.yaml` (append to `phases_completed`).
-- **Never re-execute a phase whose output artifact already exists and is structurally valid.**
-- If `RESUME_CONTEXT` is provided (App mode), use it to accelerate. Otherwise, discover state from the output folder and `run_context.yaml`.
-
-**Artifact-as-State mapping:**
-
-| Phase | Artifact | Skip when |
-|-------|----------|----------|
+| Phase | Artifact | Skip When |
+|-------|----------|-----------|
 | profile_schema | schema_profile.yaml | file exists |
 | map_kpis | kpi_metric_mapping.yaml | file exists |
 | design_metric_views | metric_view_design.yaml | file exists |
@@ -100,302 +155,61 @@ If it does not exist → execute the phase normally.
 
 # Step 1: Load Inputs
 
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "load_inputs"
-> - `phase_name`: "Load Inputs"
-> - `status`: "started"
-> - `current_task`: "Loading configuration and prior artifacts"
-> - `happenings`: ["Reading accelerator.yaml", "Loading KPI specification", "Loading semantic model"]
+1. Read `accelerator.yaml`, apply name/version rules from `00_master_prompt.md`
+2. Read KPI specification (authoritative for business intent, NOT for physical columns)
+3. Read `erd_parsed.yaml` + `semantic_model.yaml` (when available)
+4. Read `data_layer_validation.yaml` — HALT if `join_stability` or `foreign_keys` failed
+5. Resolve Metric View FQN: `{catalog.target}.{schema}.{metric_view_name}`
 
-1. Read `accelerator.yaml`.
+### Input Authority
 
-2. Apply name suffix resolution from Step 0 of `00_master_prompt.md`.
-
-3. Read all configured **best-practice inputs**.
-
-4. Read the complete **KPI specification**.
-
-5. Read:
-
-```text
-{workspace.output_folder}/erd_parsed.yaml
-```
-
-when available.
-
-6. Read:
-
-```text
-{workspace.output_folder}/semantic_model.yaml
-```
-
-when available.
-
-7. Read:
-
-```text
-{workspace.output_folder}/data_layer_validation.yaml
-```
-
-when generated by the greenfield data-layer stage.
-
-   **If `status: FAIL`:** Check which validations failed:
-   - `foreign_keys` or `join_stability` failures → **HALT** — Metric Views will produce zero-row results on those join paths. Return to data layer and fix.
-   - `cardinality` warnings only → **WARN** — proceed but document in `metric_view_design.yaml` that cardinality may not match expectations.
-   - `semantic_constraints` failures → **WARN** — data values may be unrealistic but joins are structurally valid.
-
-8. If `data_source.type` is:
-
-```text
-live_schema
-```
-
-or:
-
-```text
-erd_and_live_schema
-```
-
-read:
-
-```text
-{EXAMPLE_DIR}/{paths.framework_root}/inputs/live_schema_discovery.md
-```
-
-This file is mandatory for resolving and profiling live source locations.
-
-9. Resolve the primary Metric View FQN:
-
-```text
-{catalog.target.catalog}.
-{catalog.target.schema}.
-{assets.metric_views[primary].name}
-```
+| Input | Authoritative For |
+|-------|------------------|
+| Physical schema (DESCRIBE TABLE / erd_parsed.yaml) | Columns, types, existence |
+| semantic_model.yaml | Relationships, grains, classifications |
+| KPI specification | Business intent, numerator/denominator, dimensions |
 
 ---
 
-# Input Authority Rules
+# Step 2: Resolve and Profile Source Schema
 
-Different inputs have different authority.
+## Greenfield Fast Path (MANDATORY when applicable)
 
-## Physical schema authority
+When `data_source.type = erd` AND `erd_parsed.yaml` + `semantic_model.yaml` + `data_layer_validation.yaml (PASS)` all exist:
 
-For live sources:
+1. Read contracts directly (DO NOT run DESCRIBE TABLE individually)
+2. Run ONE SQL for table existence + row counts
+3. Run ONE SQL for **Join Key Diversity Pre-Check** (see below)
+4. Write `schema_profile.yaml` from contracts
+5. Skip section 2.2 entirely
 
-```text
-DESCRIBE TABLE EXTENDED
-+
-actual table schema
+**NEVER loop through tables calling DESCRIBE TABLE when contracts are available.**
+
+### MANDATORY: Join Key Diversity Pre-Check
+
+Even with Greenfield Fast Path, verify ALL proposed join columns have diverse values:
+
+```sql
+SELECT '{table}.{col}' AS join_col, COUNT(DISTINCT {col}) AS distinct_vals, COUNT(*) AS total_rows
+FROM {catalog}.{schema}.{table}
+UNION ALL ...
 ```
 
-is authoritative.
+**HALT if ANY join column has `distinct_vals = 1`** — this means FK/business-key diversity bug. Do NOT include the join; mark affected KPIs as SKIPPED.
 
-For greenfield ERD-generated sources:
+## Data Source Mode Resolution
 
-```text
-erd_parsed.yaml
-+
-actual generated UC schema
-```
+| Mode | Source |
+|------|--------|
+| `erd` | erd_parsed.yaml + semantic_model.yaml + catalog.source tables |
+| `live_schema` | Discovered live schemas + KPI spec (follow live_schema_discovery.md) |
+| `erd_and_live_schema` | Both; prefer live when populated AND semantically appropriate |
 
-must agree.
+## Schema Profile Output
 
-If they disagree, flag:
-
-```text
-SCHEMA_DRIFT
-```
-
-and resolve before Metric View generation.
-
----
-
-## Relationship authority
-
-Use relationships from:
-
-```text
-semantic_model.yaml
-```
-
-when available, but validate them against actual table columns and data.
-
-Do NOT independently reinterpret the original ERD unless a required contract artifact is unavailable.
-
-Do NOT invent relationships from similar column names.
-
----
-
-## KPI authority
-
-The KPI specification is authoritative for:
-
-- business metric intent;
-- numerator/denominator semantics;
-- required dimensions;
-- time grain;
-- expected filters;
-- business terminology.
-
-The KPI spec may NOT invent physical columns.
-
-Every KPI must be mapped to columns that actually exist.
-
----
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "load_inputs"
-> - `phase_name`: "Load Inputs"
-> - `status`: "completed"
-> - `findings`: ["KPI spec loaded with {N} KPIs", "Source schema resolved"]
-> - `stats`: {"kpis_defined": N, "source_tables": M}
-
----
-
-# Step 2: Resolve and Profile Source Schema(s)
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "profile_schema"
-> - `phase_name`: "Profile Schema"
-> - `status`: "started"
-> - `current_task`: "Resolving source tables from prior contracts"
-> - `happenings`: ["Reading erd_parsed.yaml", "Reading semantic_model.yaml", "Confirming table existence"]
-
-## CRITICAL — Greenfield Fast Path (MANDATORY when applicable)
-
-When ALL of these conditions are true:
-- `data_source.type` is `erd` (greenfield mode)
-- `erd_parsed.yaml` exists in the output folder
-- `semantic_model.yaml` exists in the output folder
-- `data_layer_validation.yaml` exists and shows `status: PASS`
-
-Then **DO NOT** run DESCRIBE TABLE on every table. **DO NOT** profile columns individually. Instead:
-
-1. Read `erd_parsed.yaml` → gives you all table schemas, columns, types, keys
-2. Read `semantic_model.yaml` → gives you relationships, grains, classifications
-3. Run ONE SQL to confirm tables exist and get row counts:
-   ```sql
-   SELECT table_name FROM information_schema.tables 
-   WHERE table_catalog = '{catalog}' AND table_schema = '{schema}'
-   ```
-4. Write `schema_profile.yaml` directly from these contracts
-5. Call `report_progress(profile_schema, completed)` immediately
-
-This saves 20+ tool calls. Only fall back to full per-table profiling if contracts are missing or validation failed.
-
-**NEVER loop through tables calling DESCRIBE TABLE individually when contracts are available.**
-
-## 2.1 Resolve Locations
-
-Follow `live_schema_discovery.md`.
-
-Resolve locations using priority:
-
-| Priority | Source |
-|---|---|
-| 1 | `data_source.live_schemas[]` |
-| 2 | `data_source.live_schema` |
-| 3 | `catalog.source` |
-
-Build a complete list of:
-
-```text
-catalog
-schema
-table
-```
-
-locations.
-
----
-
-# 2.2 Profile Every Candidate Table
-
-For every candidate table execute or derive:
-
-```text
-DESCRIBE TABLE EXTENDED
-row count
-sample rows
-```
-
-and collect:
-
-- fully qualified table name;
-- columns;
-- datatypes;
-- row count;
-- candidate primary/business keys;
-- candidate foreign keys;
-- date/timestamp fields;
-- numeric fields;
-- categorical fields;
-- null rates where relevant;
-- approximate distinct counts where useful.
-
-For live sources, profile every configured source location.
-
-Do not stop after finding the first plausible table.
-
-**Greenfield optimization (MANDATORY):** When `data_source.type = erd` and contracts exist (see "Greenfield Fast Path" above), **SKIP this entire section 2.2**. Do NOT execute DESCRIBE TABLE, do NOT profile columns, do NOT sample rows. The contracts from Step 01 already contain all schema, grain, and relationship information. Proceed directly to section 2.3 (Table Classification) using `erd_parsed.yaml` + `semantic_model.yaml` as the source. Only fall back to full profiling if contracts are missing or `data_layer_validation.yaml` shows failures.
-
----
-
-# 2.3 Table Classification
-
-Classify each table as one of:
-
-```text
-FACT
-DIMENSION
-EVENT
-SNAPSHOT
-BRIDGE
-REFERENCE
-SCD2
-RELATIONSHIP
-UNKNOWN
-```
-
-For every table explicitly document:
-
-```text
-One row represents ______.
-```
-
-This is the physical table grain.
-
-Do not classify a table solely from its name.
-
-Use:
-
-- key structure;
-- relationship structure;
-- columns;
-- semantic_model.yaml when available (PREFERRED — already contains classification);
-- sample data (ONLY if semantic_model.yaml is unavailable).
-
-**Greenfield shortcut:** If `semantic_model.yaml` already classifies every table with `semantic_role` and `grain`, copy those directly — do NOT re-derive them from scratch.
-
----
-
-# 2.4 Build Source Profile
-
-Write:
-
-```text
-{workspace.output_folder}/schema_profile.yaml
-```
-
-using Workspace API / agent tools.
-
-Never use `dbutils.fs` for `/Workspace/`.
-
-The profile must contain:
+Write `{workspace.output_folder}/metric_views/schema_profile.yaml`:
 
 ```yaml
-locations: []
-
 tables:
   - fqn:
     semantic_role:
@@ -405,1216 +219,283 @@ tables:
     dimensions:
     measures:
     temporal_columns:
-
-relationships:
-  - left_table:
-    right_table:
-    left_columns:
-    right_columns:
-    expected_cardinality:
-    observed_cardinality:
-    confidence:
-    source:
-    fanout_risk:
-
+relationships: [...]
 schema_drift: []
-
 unresolved_relationships: []
 ```
 
-### Decision Gate
-
-**HALT** if:
-
-- `schema_drift` contains entries affecting tables that host primary KPI measures;
-- `unresolved_relationships` blocks a required fact→dimension join path;
-- `data_layer_validation.yaml` shows `status: FAIL` on `join_stability` or `foreign_keys` (for greenfield).
-
-**WARN but continue** if:
-
-- drift or unresolved items affect only non-primary dimensions or skippable KPIs;
-- `data_layer_validation.yaml` shows warnings but no structural failures.
-
-Do not proceed to Metric View design with known broken join paths.
+**GATE 2.1**: schema_profile.yaml exists. HALT if missing.
 
 ---
 
-# Step 3: Reconcile Data-Source Modes
+# Step 3: Table Classification
 
-## ERD Mode
+Classify each table: FACT | DIMENSION | EVENT | SNAPSHOT | BRIDGE | REFERENCE | SCD2 | UNKNOWN.
 
-If:
+For every table: "One row represents ______."
 
-```text
-data_source.type = erd
-```
-
-use:
-
-```text
-erd_parsed.yaml
-semantic_model.yaml
-actual catalog.source tables
-```
-
-Do NOT re-read the original ERD image for normal Metric View design.
-
-The ERD was already converted into canonical contracts during data-layer creation.
-
-Confirm that actual generated tables agree with those contracts.
-
----
-
-## Live Schema Mode
-
-If:
-
-```text
-data_source.type = live_schema
-```
-
-derive the source contract entirely from actual discovered live schemas and the KPI specification.
-
-Never mutate live source tables.
-
----
-
-## ERD + Live Schema Mode
-
-If:
-
-```text
-data_source.type = erd_and_live_schema
-```
-
-profile:
-
-1. greenfield tables generated in `catalog.source`;
-2. every configured live source location.
-
-Compare physical and semantic coverage.
-
-Record differences in:
-
-```text
-schema_profile.yaml
-```
-
-Do NOT automatically select live merely because it contains rows.
-
-Select the source that best satisfies:
-
-```text
-KPI semantic requirement
-+
-grain correctness
-+
-data availability
-+
-relationship integrity
-```
-
-Prefer live tables when they are populated AND semantically appropriate.
-
-Fall back to greenfield only where configured and appropriate.
-
-Never combine live and greenfield versions of the same logical entity in one metric path unless explicitly required.
-
----
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "profile_schema"
-> - `phase_name`: "Profile Schema"
-> - `status`: "completed"
-> - `findings`: ["{N} tables profiled", "{M} columns discovered", "Join paths validated"]
-> - `stats`: {"tables_profiled": N, "columns_total": M, "relationships_validated": K}
+**Greenfield shortcut:** If `semantic_model.yaml` already classifies tables, copy directly.
 
 ---
 
 # Step 4: Build KPI Semantic Mapping
 
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "map_kpis"
-> - `phase_name`: "Map KPIs to Schema"
-> - `status`: "started"
-> - `current_task`: "Mapping KPI definitions to physical columns"
-> - `happenings`: ["Resolving measure columns", "Classifying measure types", "Determining grain compatibility"]
-
-Before designing any Metric View, map every KPI.
-
-Write:
-
-```text
-{workspace.output_folder}/kpi_metric_mapping.yaml
-```
-
-For every KPI include:
+Write `{workspace.output_folder}/metric_views/kpi_metric_mapping.yaml`:
 
 ```yaml
-kpi_id:
-kpi_name:
-business_definition:
-
-status:
-  READY | UNSUPPORTED | AMBIGUOUS | UNSAFE
-
-required_grain:
-
-measure_components:
-  - semantic_role:
-    physical_table:
-    physical_column:
-    physical_grain:
-    aggregation:
-    confidence:
-
-dimensions:
-  - business_dimension:
-    physical_table:
-    physical_column:
-    join_path:
-    confidence:
-
-time_dimension:
-  physical_table:
-  physical_column:
-  grain:
-
-filters: []
-
-numerator:
-denominator:
-
-aggregation_semantics:
-  ADDITIVE |
-  SEMI_ADDITIVE |
-  NON_ADDITIVE |
-  RATIO |
-  DISTINCT_COUNT |
-  WINDOW |
-  UNKNOWN
-
-validation_strategy:
-
-gaps: []
+- kpi_id:
+  kpi_name:
+  business_definition:
+  status: READY | UNSUPPORTED | AMBIGUOUS | UNSAFE
+  required_grain:
+  measure_components:
+    - physical_table:
+      physical_column:
+      aggregation: SUM | COUNT | COUNT_DISTINCT | AVG | MIN | MAX
+  dimensions: [...]
+  time_dimension:
+  aggregation_semantics: ADDITIVE | SEMI_ADDITIVE | NON_ADDITIVE | RATIO | DISTINCT_COUNT | WINDOW
+  validation_strategy:
+  gaps: []
 ```
 
-Every KPI MUST have one mapping record.
+### Measure Classification Rules
+
+| Type | Rule |
+|------|------|
+| ADDITIVE | SUM/COUNT across all dimensions safely |
+| SEMI_ADDITIVE | Unsafe to SUM across time (balances/snapshots) |
+| RATIO | Use `SUM(numerator) / NULLIF(SUM(denominator), 0)` — NEVER `AVG(row_ratio)` |
+| DISTINCT_COUNT | Use authoritative business key — never substitute `COUNT(*)` |
+| WINDOW | Only when KPI spec requires period-over-period / running total |
+| DERIVED | References other measures via `MEASURE(name)` composition |
+
+**GATE 4.1**: kpi_metric_mapping.yaml exists. HALT if missing.
 
 ---
 
-# Step 5: Determine Measure Grain Before Source Table
+# Step 5: Source Selection & Join Safety
 
-For every KPI ask:
+## Source Selection Rules
 
-1. What exactly is being measured?
-2. At what business grain does the measure physically exist?
-3. Which table contains that measure?
-4. What does one row in that table represent?
-5. Is the measure additive at that grain?
-6. Does the KPI require aggregation before joining other tables?
+Choose source by **measure grain** (not by table name or size):
+1. Contains or safely supports primary measures
+2. Represents lowest analytical grain needed
+3. Supports safe navigation to dimensions
+4. Avoids fact-to-fact joins
+5. Minimizes fanout
 
-Do NOT choose the Metric View source simply because:
+If one view can't safely represent all KPIs → CREATE MULTIPLE METRIC VIEWS.
 
-- it is named `fact_*`;
-- it looks like the central table;
-- it contains the most dimensions;
-- it has the KPI business entity name;
-- it was previously used successfully.
+## Join Validation (for every proposed join)
 
-The correct source is determined by **measure grain**.
-
----
-
-# Step 6: Classify Measures
-
-Every measure must be classified before implementation.
-
-Use:
+Document and verify:
 
 ```text
-ADDITIVE
-SEMI_ADDITIVE
-NON_ADDITIVE
-DISTINCT_COUNT
-RATIO
-DERIVED
-WINDOW
+LEFT/RIGHT table, grain, key → Expected vs Observed cardinality → Rows before/after → SAFE/UNSAFE
+```
+
+**Rules:**
+- Dimension joins must preserve source fact grain (N:1 = no row increase)
+- Column-name similarity alone is INSUFFICIENT — use semantic_model.yaml
+- Fact-to-fact joins = HIGH_RISK — establish grain compatibility before attempting
+- Join chains NOT supported — every `on` clause references ONLY `source.` or `<this_join>.`
+- SCD2 dimensions require temporal join conditions; if not representable → skip
+
+**Measure Stability Test (MANDATORY for every join):**
+```sql
+-- Pre-join:
+SELECT SUM(measure_col) FROM source_table
+-- Post-join:
+SELECT SUM(s.measure_col) FROM source_table s JOIN dim d ON s.fk = d.pk
+-- MUST be equal. If not: JOIN_FANOUT_FAILURE — remove the join.
 ```
 
 ---
 
-## Additive Measures
+# Step 6: Build Metric View Design Contract
 
-Examples conceptually:
-
-```text
-SUM(amount)
-SUM(quantity)
-```
-
-provided the physical measure is additive across the intended grain.
-
----
-
-## Distinct Counts
-
-A KPI such as entity count must identify the authoritative business key.
-
-Use:
-
-```text
-COUNT(DISTINCT business_key)
-```
-
-when appropriate.
-
-Never substitute:
-
-```text
-COUNT(*)
-```
-
-without establishing that one row equals one counted business entity.
-
----
-
-## Ratios
-
-Do NOT calculate:
-
-```text
-AVG(row_level_ratio)
-```
-
-unless that is explicitly the KPI definition.
-
-Prefer the mathematically correct form where appropriate:
-
-```text
-SUM(numerator) / SUM(denominator)
-```
-
-The numerator and denominator must each be mapped to authoritative source components.
-
----
-
-## Semi-Additive Measures
-
-Identify dimensions across which aggregation is unsafe, commonly including time for balance/snapshot-like measures.
-
-Document the required aggregation behavior explicitly.
-
----
-
-## Window Measures
-
-Only implement window measures when required by the KPI specification and supported by the configured Metric View/runtime environment.
-
-Examples include:
-
-```text
-period-over-period
-running total
-moving average
-```
-
-Do not use window logic simply because multiple time periods exist.
-
----
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "map_kpis"
-> - `phase_name`: "Map KPIs to Schema"
-> - `status`: "completed"
-> - `findings`: ["{N} KPIs mapped to source columns", "{M} measures classified", "{S} KPIs skipped (insufficient source)"]
-> - `stats`: {"kpis_mapped": N, "kpis_skipped": S, "measures_classified": M}
-
----
-
-# Step 7: Build Metric View Design Contract
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "design_metric_views"
-> - `phase_name`: "Design Metric Views"
-> - `status`: "started"
-> - `current_task`: "Building metric view design contract"
-> - `happenings`: ["Selecting source tables", "Validating join paths", "Checking SCD2 safety"]
-
-Before generating YAML, create:
-
-```text
-{workspace.output_folder}/metric_view_design.yaml
-```
-
-This is the authoritative design contract for Metric View generation.
-
-For every proposed Metric View include:
+Write `{workspace.output_folder}/metric_views/metric_view_design.yaml`:
 
 ```yaml
 metric_view:
   name:
   source_table:
   source_grain:
-  rationale:
-
-measures:
-  - name:
-    source_columns:
-    expression:
-    aggregation_semantics:
-    kpis_supported:
-
-dimensions:
-  - name:
-    physical_column:
-    source_or_join:
-
-joins:
-  - name:
-    left_table:
-    right_table:
-    left_columns:
-    right_columns:
-    left_grain:
-    right_grain:
-    expected_cardinality:
-    observed_cardinality:
-    fanout_risk:
-    safe_for_metric_view:
-    rationale:
-
+measures: [...]
+dimensions: [...]
+joins: [...]
 kpis_supported: []
-
 kpis_skipped: []
+data_quality_blockers: []
 ```
 
-Metric View YAML generation is prohibited until this design contract passes validation.
+**GATE 6.1**: metric_view_design.yaml exists with all joins validated. HALT if missing.
 
 ---
 
-# Step 8: Source Selection Rules
+# Step 7: KPI Coverage Gate
 
-Databricks Metric View `source` establishes the source/fact grain for the model.
+Before YAML generation, produce a planning table:
 
-Choose it intentionally.
+| KPI | Source | Grain | Measure | Join Safety | Status |
+|-----|--------|-------|---------|-------------|--------|
 
-A source table should:
-
-1. contain or safely support the primary measures;
-2. represent the lowest analytical grain needed by the measures;
-3. support safe navigation to required dimensions;
-4. avoid unnecessary fact-to-fact joins;
-5. minimize measure fanout.
-
-Do NOT choose a higher-grain source and then invent measures that physically exist at a lower grain.
-
-Do NOT choose a lower-grain source when the KPI requires an incompatible independent fact unless a safe modeling strategy exists.
-
-If one Metric View cannot safely represent all KPIs:
-
-```text
-CREATE MULTIPLE METRIC VIEWS
-```
-
-rather than forcing incompatible facts into one view.
-
-This is explicitly preferred over unsafe fact-to-fact modeling.
+Only `READY` KPIs proceed. Every non-READY KPI needs a precise reason.
 
 ---
 
-# Step 9: Join Validation
+# Step 8: Generate Metric View YAML
 
-Before adding any join to Metric View YAML, validate it.
+### Pre-Flight
 
-For each proposed join document:
+- [ ] metric_view_design.yaml exists
+- [ ] All joins validated (no unresolved JOIN_FANOUT_FAILURE)
+- [ ] All READY KPIs have confirmed measure columns
+- [ ] Metric View FQN resolved
 
-```text
-LEFT TABLE
-LEFT GRAIN
-
-RIGHT TABLE
-RIGHT GRAIN
-
-LEFT KEY
-RIGHT KEY
-
-EXPECTED CARDINALITY
-OBSERVED CARDINALITY
-
-ROWS BEFORE JOIN
-ROWS AFTER JOIN
-
-DISTINCT SOURCE KEYS BEFORE
-DISTINCT SOURCE KEYS AFTER
-
-FANOUT RISK
-SAFE / UNSAFE
-```
-
----
-
-# 9.1 Allowed Join Principle
-
-Dimension navigation should normally preserve the source fact grain.
-
-For a source-to-dimension relationship expected to be:
-
-```text
-N:1
-```
-
-joining the dimension must not unexpectedly increase source rows.
-
-If it does, mark:
-
-```text
-JOIN_FANOUT_FAILURE
-```
-
-and do not add the join.
-
----
-
-# 9.2 Never Guess Join Keys
-
-A join key must be confirmed through at least one authoritative source:
-
-```text
-semantic_model.yaml relationship
-explicit ERD relationship
-documented live schema relationship
-validated source profiling
-```
-
-Column-name similarity alone is insufficient.
-
-If a proposed key does not exist:
-
-```text
-DO NOT SUBSTITUTE ANOTHER COLUMN
-```
-
-Classify the problem as:
-
-```text
-RELATIONSHIP_MAPPING_ERROR
-```
-
-and return to the design stage.
-
----
-
-# 9.3 Fact-to-Fact Relationships
-
-Treat joins between independent fact/event/snapshot tables as:
-
-```text
-HIGH_RISK
-```
-
-Do not directly join facts merely because they share a dimension key.
-
-Before any such design, establish:
-
-- grain on each side;
-- intended common aggregation grain;
-- whether pre-aggregation is required;
-- whether separate Metric Views are more appropriate;
-- whether joining them will duplicate measures.
-
-If safety cannot be demonstrated:
-
-```text
-FACT_TO_FACT_FANOUT_RISK
-```
-
-and do not implement the join.
-
----
-
-# 9.4 Join Chains
-
-Validate full paths, not just adjacent relationships.
-
-A valid:
-
-```text
-A → B
-```
-
-and valid:
-
-```text
-B → C
-```
-
-does not automatically prove:
-
-```text
-A → B → C
-```
-
-is analytically safe.
-
-Check:
-
-- duplicate dimension keys;
-- bridges;
-- N:M paths;
-- SCD2/history tables;
-- date-range relationships;
-- multiple competing join paths.
-
----
-
-# Step 10: SCD2 / History Table Safety
-
-If a required dimension is classified as:
-
-```text
-SCD2
-```
-
-or history:
-
-do NOT join using only the business key when multiple historical versions exist.
-
-Determine whether the join requires:
-
-```text
-fact.key = dimension.key
-AND
-fact.event_date >= dimension.effective_start
-AND
-fact.event_date < dimension.effective_end
-```
-
-or another temporal relationship appropriate to the schema.
-
-If a temporally correct relationship cannot be represented safely in the Metric View:
-
-```text
-SCD_JOIN_UNSAFE
-```
-
-and skip the affected dimension/KPI or redesign the source.
-
----
-
-# Step 11: Validate KPI Coverage Before YAML
-
-Produce a planning table:
-
-| KPI | Source | Grain | Measure | Dimensions | Join Safety | Status |
-|---|---|---|---|---|---|---|
-
-Each KPI must be:
-
-```text
-READY
-UNSUPPORTED
-AMBIGUOUS
-UNSAFE
-```
-
-Only `READY` KPIs proceed to Metric View generation.
-
-Never implement a KPI simply to satisfy the requirement that every KPI exist.
-
-Every non-READY KPI must include a precise reason.
-
----
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "design_metric_views"
-> - `phase_name`: "Design Metric Views"
-> - `status`: "completed"
-> - `findings`: ["Design contract validated", "All join paths safe", "KPI coverage confirmed"]
-> - `stats`: {"metric_views_designed": N, "join_paths_validated": M}
-
----
-
-# Step 12: Generate Metric View YAML
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "generate_metric_views"
-> - `phase_name`: "Generate Metric Views"
-> - `status`: "started"
-> - `current_task`: "Generating Metric View YAML and executing"
-> - `happenings`: ["Writing YAML definitions", "Creating metric views in catalog", "Generating sample queries"]
-
-### Pre-Flight Checklist
-
-Before generating any Metric View YAML, confirm ALL of:
-
-- [ ] `metric_view_design.yaml` exists (Step 7 complete)
-- [ ] Source table grain explicitly established for every proposed Metric View
-- [ ] All proposed joins validated in Step 9 (no unresolved `JOIN_FANOUT_FAILURE`)
-- [ ] All READY KPIs have confirmed measure columns that physically exist in source tables
-- [ ] SCD/history dimensions analyzed (Step 10) and unsafe paths excluded
-- [ ] KPI coverage table produced (Step 11) with all KPIs in terminal state
-- [ ] For greenfield: `data_layer_validation.yaml` shows `status: PASS`
-- [ ] Metric View FQN resolved from accelerator.yaml
-
-If any item fails, return to the relevant design step. Do NOT proceed with partial information.
-
-Only after:
-
-```text
-metric_view_design.yaml
-```
-
-passes grain and join validation:
-
-1. Create target schema if necessary:
+### DDL Syntax (ONLY correct form)
 
 ```sql
-CREATE SCHEMA IF NOT EXISTS
-{catalog.target.catalog}.{catalog.target.schema}
-```
-
-2. Generate Metric View YAML using the supported Metric View specification configured by the accelerator.
-
-Default when supported:
-
-```yaml
-version: 1.1
-```
-
-3. Use only fields supported by the target Databricks Metric View specification.
-
-Do NOT invent YAML properties because they appear plausible.
-
-4. Generate:
-
-```text
-source
-joins
-dimensions / fields
-measures
-filters
-window measures
-```
-
-only when required and supported.
-
-5. Use FQNs for sources spanning multiple catalogs/schemas.
-
-6. Create using:
-
-```sql
-CREATE OR REPLACE VIEW ...
-WITH METRICS
-LANGUAGE YAML
-AS $$
-...
+CREATE OR REPLACE VIEW {catalog}.{schema}.{view_name} WITH METRICS LANGUAGE YAML AS
 $$
-```
-
-7. Save YAML to:
-
-```text
-{workspace.output_folder}/metric_views/{name}.yaml
-```
-
-using Workspace API / agent tools.
-
-Never use `dbutils.fs` for Workspace files.
-
-Databricks currently supports creating Metric Views with `WITH METRICS LANGUAGE YAML`, and YAML specification `1.1` supports the current modeling features used by this accelerator. Do not substitute legacy syntax.
-
-### Prohibited Syntax Variants
-
-The following variants are ALL UNSUPPORTED and will fail with `UNSUPPORTED_CLAUSE_FOR_OPERATION`:
-
-```text
-✗ CREATE TABLE ... WITH METRICS AS SELECT ...
-✗ CREATE OR REPLACE TABLE ... WITH METRICS AS SELECT ...
-✗ CREATE TABLE ... AS SELECT MEASURE(SUM(col)) ...
-```
-
-Metric views are VIEWs, not TABLEs. The `WITH METRICS LANGUAGE YAML` clause is the only supported creation path.
-
-The `MEASURE()` function is used when QUERYING metric views (e.g., `SELECT MEASURE(total_paid) FROM mv GROUP BY dim`), NOT when CREATING them. Creation uses the YAML `measures[].expr` field with standard SQL aggregation expressions (`SUM(col)`, `COUNT(1)`, etc.).
-
-### Execution Context
-
-The metric view DDL statement must execute on a SQL warehouse (via Statement Execution API or SDK `w.statement_execution.execute_statement()`). It is NOT supported through Spark Connect (`spark.sql(...)` on serverless compute) and will raise `UNSUPPORTED_CLAUSE_FOR_OPERATION` if attempted there.
-
-### Reference YAML Pattern (from official Databricks documentation)
-
-Minimal valid structure. The ONLY allowed properties per element are listed below.
-Do NOT invent additional properties — any unrecognized field causes `METRIC_VIEW_INVALID_VIEW_DEFINITION`.
-
-**Allowed field/dimension properties:** `name`, `expr`, `comment`, `display_name`, `format`, `synonyms`, `window`
-**Allowed measure properties:** `name`, `expr`, `comment`, `display_name`, `format`, `synonyms`, `window`
-**Allowed join properties:** `name`, `source`, `on`, `rely`
-
-```yaml
 version: 1.1
-comment: "Description of this metric view"
-source: catalog.schema.source_table
-
-filter: source.status_column IS NOT NULL
-
-joins:
-  - name: dim_alias
-    source: catalog.schema.dim_table
-    'on': source.fk_column = dim_alias.pk_column
-    rely:
-      at_most_one_match: true
+comment: "..."
+source: catalog.schema.table
 
 fields:
   - name: Dimension Name
-    expr: source.column_name
-    comment: "Business description"
-  - name: Joined Dimension
-    expr: dim_alias.column_name
-    comment: "Dimension from joined table"
+    expr: column_name
+    comment: "..."
 
 measures:
-  - name: Total Amount
-    expr: SUM(source.amount_column)
-    comment: "Sum of all amounts"
-  - name: Record Count
-    expr: COUNT(1)
-    comment: "Total number of records"
-  - name: Unique Members
-    expr: COUNT(DISTINCT source.member_id)
-    comment: "Distinct member count"
-  - name: Average Cost
-    expr: SUM(source.total_cost) / NULLIF(COUNT(DISTINCT source.member_id), 0)
-    comment: "Average cost per member"
+  - name: Measure Name
+    expr: SUM(column_name)
+    comment: "..."
+$$
 ```
 
-**Key syntax rules (MUST FOLLOW — violations cause `METRIC_VIEW_INVALID_VIEW_DEFINITION`):**
+### Key Syntax Rules
 
-- `source`: (top-level) single FQN, the primary fact/grain table
-- `joins[].source`: **REQUIRED** — fully qualified table name of the joined table
-- `joins[].on`: **SQL expression string** in format `source.col = join_name.col` (NOT an object with left/right)
-- `joins[].rely.at_most_one_match: true`: use for many-to-one joins (replaces `relationship`)
-- `fields[]` or `dimensions[]`: both keywords work; `fields` is preferred
-- `fields[].expr`: MUST prefix columns with `source.` or `<join_name>.` — bare column names are NOT allowed
-- `measures[].expr`: MUST be a complete SQL aggregation expression (e.g. `SUM(source.col)`, `COUNT(1)`, `COUNT(DISTINCT source.col)`)
-- `comment`: use for descriptions. **NOT `description`** — `description` is unrecognized and will error
-- `filter`: SQL expression prefixed with `source.` or join alias
-- Do NOT use these — they are NOT valid properties: `description`, `agg`, `relationship`, `type`, `percentage`
-- Do NOT use `on:` with `left:`/`right:` object syntax — use a single SQL expression string
-- The `'on'` key MUST be quoted in YAML (use `'on':`) because `on` is a YAML reserved word
+- **Allowed field/dimension properties:** `name`, `expr`, `comment`, `display_name`, `format`, `synonyms`, `window`
+- **Allowed measure properties:** `name`, `expr`, `comment`, `display_name`, `format`, `synonyms`, `window`
+- **Allowed join properties:** `name`, `source`, `on`, `rely`
+- `joins[].on`: SQL expression string (`source.col = join_name.col`) — NOT an object
+- `'on'` key MUST be quoted in YAML (reserved word)
+- `rely: {at_most_one_match: true}` for N:1 joins
+- When NO joins: bare column names in expr. When joins exist: MUST prefix with `source.` or `<join_name>.`
+- `MEASURE()` is for QUERYING metric views, NOT for creating them. Creation uses SQL agg in `expr`.
 
-### CRITICAL — No Chained Joins (WILL FAIL with UNRESOLVED_COLUMN)
+### Execution Pattern
 
-Databricks Metric Views do **NOT** support chained/transitive joins — where one join's `on` clause references another join alias.
+```python
+from databricks.sdk import WorkspaceClient
+from databricks.sdk.service.sql import StatementState
 
-**INVALID (causes UNRESOLVED_COLUMN error):**
+w = WorkspaceClient()
+response = w.statement_execution.execute_statement(
+    warehouse_id="{sql_warehouse_id}",
+    statement=ddl_statement,
+    wait_timeout="50s"
+)
+
+if response.status.state == StatementState.SUCCEEDED:
+    print("✓ Metric view created")
+elif response.status.state == StatementState.FAILED:
+    print(f"✗ Failed: {response.status.error.message}")
+    # HALT — do NOT retry with spark.sql()
+```
+
+### Timeout Rules
+
+- Use `"50s"` as default (valid range: 5s–50s)
+- If timeout: poll with `w.statement_execution.get_statement(statement_id)` — NEVER re-execute
+- If failed: HALT, fix YAML syntax, retry (max 3 attempts with documented root cause)
+
+### No Chained Joins
+
 ```yaml
+# INVALID (causes UNRESOLVED_COLUMN):
 joins:
-  - name: claim_header
-    source: catalog.schema.fact_claim_header
-    'on': source.claim_id = claim_header.claim_id
-    rely: {at_most_one_match: true}
+  - name: header
+    source: catalog.schema.header
+    'on': source.claim_id = header.claim_id
   - name: member
-    source: catalog.schema.dim_member
-    'on': claim_header.member_sk = member.member_sk   # ← ILLEGAL: references claim_header
-    rely: {at_most_one_match: true}
+    source: catalog.schema.member
+    'on': header.member_sk = member.member_sk   # ← ILLEGAL: references header
+
+# VALID workarounds:
+# 1. Direct FK in source → join dimension directly to source
+# 2. Separate metric view sourced from the intermediate table
+# 3. Skip dimension if FK only exists on intermediate
 ```
 
-Every `joins[].on` clause may ONLY reference:
-- `source.<column>` (the top-level source table), OR
-- `<this_join_name>.<column>` (the join's own target table)
-
-It may NOT reference other join aliases (e.g., `claim_header.col`, `dim_x.col`).
-
-**Workarounds when you need data from a table reachable only through an intermediate join:**
-
-1. **Direct FK in source table**: If the source table has the FK directly (e.g., `source.member_sk`), join the dimension directly to source — skip the intermediate table.
-2. **Separate Metric View**: Create a dedicated metric view sourced from the table that HAS the direct FK to the desired dimension.
-3. **Denormalized source**: If the FK only exists on an intermediate table, the dimension is NOT safely reachable from this metric view. Skip it or create a separate metric view.
-
-NEVER attempt a chained join even if it seems logically correct — the engine will reject it with `UNRESOLVED_COLUMN`.
+**GATE 8.1**: Metric view exists in catalog (`SHOW VIEWS`). HALT if missing.
+**GATE 8.2**: Basic `SELECT MEASURE(first_measure) FROM mv LIMIT 1` succeeds.
 
 ---
 
-# Step 13: Metric Naming and Metadata
+# Step 9: Validate Metric Views
 
-Every measure and dimension must have:
-
-```text
-clear business name
-description/comment
-unambiguous meaning
-```
-
-Where supported and useful, provide semantic metadata such as:
-
-```text
-display names
-formatting
-synonyms
-```
-
-to improve downstream Genie/AI interpretation.
-
-Do not create synonyms that alter metric meaning.
-
----
-
-# Step 14: Execution Failure Policy
-
-Do NOT use blind retry behavior.
-
-The following is prohibited:
-
-```text
-try
-fail
-guess another column
-try again
-guess another join
-try again
-```
-
-When creation fails:
-
-1. capture the error;
-2. classify the error;
-3. determine whether it is:
-   - syntax;
-   - unsupported Metric View feature;
-   - missing column;
-   - incorrect relationship;
-   - invalid expression;
-   - grain/modeling problem;
-4. correct the authoritative design artifact;
-5. regenerate YAML once the root cause is resolved.
-
-Retries are allowed only when applying a diagnosed correction.
-
-Maximum execution attempts:
-
-```text
-3
-```
-
-But each retry MUST have a documented root cause and corrective action.
-
----
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "generate_metric_views"
-> - `phase_name`: "Generate Metric Views"
-> - `status`: "completed"
-> - `findings`: ["{N} metric views created successfully"]
-> - `stats`: {"metric_views_created": N, "measures_total": M, "dimensions_total": D}
-
----
-
-# Step 15: Structural Validation
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "validate_metric_views"
-> - `phase_name`: "Validate Metric Views"
-> - `status`: "started"
-> - `current_task`: "Running structural and semantic validation"
-> - `happenings`: ["Checking measure stability", "Validating dimension slices", "Reconciling baselines"]
-
-## CRITICAL — BATCH VALIDATION (Steps 15-21 combined, saves 20+ tool calls)
-
-Do NOT execute one SQL per validation item. Combine ALL validation checks into 3-4 batched SQL calls:
+### BATCH VALIDATION (combine into 3-4 SQL calls)
 
 ```sql
--- BATCH 1: Structural + Row counts for ALL metric views
-SELECT 'mv_1' AS mv, COUNT(*) AS rows FROM catalog.schema.metric_view_1
+-- BATCH 1: Structural (all measures/dimensions exist)
+SELECT MEASURE(measure_1), MEASURE(measure_2), ... FROM metric_view LIMIT 1
+
+-- BATCH 2: Baseline reconciliation (direct SQL vs MEASURE)
+SELECT 'baseline_total_paid' check, SUM(col) val FROM source_table
 UNION ALL
-SELECT 'mv_2', COUNT(*) FROM catalog.schema.metric_view_2
+SELECT 'mv_total_paid', (SELECT MEASURE(total_paid) FROM metric_view)
 UNION ALL ...
 
--- BATCH 2: Baseline vs Metric View for ALL additive KPIs
-SELECT 'total_paid_baseline' AS check_name, SUM(clm_dtl_paid_amt) AS val FROM fact_table
+-- BATCH 3: Measure stability (pre-join vs post-join)
+SELECT 'pre_join' check, SUM(col) FROM source
 UNION ALL
-SELECT 'total_paid_mv', MEASURE(total_paid_amount) FROM metric_view
-UNION ALL
-SELECT 'total_claims_baseline', COUNT(DISTINCT clm_dtl_claim_id) FROM fact_table
-UNION ALL
-SELECT 'total_claims_mv', MEASURE(total_claims) FROM metric_view
+SELECT 'post_join', SUM(s.col) FROM source s JOIN dim d ON s.fk = d.pk
 UNION ALL ...
 
--- BATCH 3: Measure stability (pre-join vs post-join) for ALL measures
-SELECT 'paid_pre_join' AS check_name, SUM(clm_dtl_paid_amt) AS val FROM fact_table
-UNION ALL
-SELECT 'paid_post_join', SUM(f.clm_dtl_paid_amt) FROM fact_table f INNER JOIN dim d ON f.fk = d.pk
-UNION ALL ...
-
--- BATCH 4: Dimension slice checks (top categories)
-SELECT 'dim_claim_type' AS check_name, claim_type AS dim_val, MEASURE(total_claims) AS val
-FROM metric_view GROUP BY claim_type LIMIT 10
+-- BATCH 4: Dimension slices
+SELECT dim_col, MEASURE(total_paid) FROM metric_view GROUP BY dim_col LIMIT 10
 ```
 
-Parse results to determine PASS/FAIL per KPI. This reduces 20+ individual tool calls to 3-4 batched queries.
+### Validation Matrix
 
-After Metric View creation validate:
-
-```text
-Metric View exists
-YAML can be retrieved
-all configured measures exist
-all configured dimensions exist
-all expected joins resolve
-```
-
-Compilation success is only structural validation.
-
-It does NOT prove metric correctness.
+| Check | Expected | Fail Code |
+|-------|----------|-----------|
+| Structural: all measures/dimensions resolve | Query succeeds | `METRIC_VIEW_SYNTAX_ERROR` |
+| Baseline reconciliation: direct SQL = MEASURE() | Values match (tolerance 0 for integers) | `METRIC_RECONCILIATION_ERROR` |
+| Measure stability: SUM before join = after join | Equal | `MEASURE_FANOUT_FAILURE` |
+| Dimension slice: grouped totals match baseline | Match | `DIMENSION_SLICE_ERROR` |
+| Ratio: numerator + denominator independently validated | Match baseline | `RATIO_DEFINITION_ERROR` |
+| Distinct count: matches direct COUNT(DISTINCT) | Equal | `DISTINCT_COUNT_ERROR` |
+| Temporal: multiple periods produce expected results | Non-zero per period | `TEMPORAL_VALIDATION_ERROR` |
 
 ---
 
-# Step 16: Baseline Metric Reconciliation
+# Step 10: Write Validation Report
 
-For EVERY KPI, create a baseline SQL calculation directly against authoritative physical source tables.
-
-Example conceptual pattern:
-
-```text
-BASELINE_SQL_RESULT
-```
-
-versus:
-
-```text
-METRIC_VIEW_RESULT
-```
-
-The baseline query MUST use:
-
-- authoritative source columns;
-- validated joins;
-- documented KPI aggregation.
-
-Compare results.
-
-Required:
-
-```text
-baseline ≈ Metric View result
-```
-
-within an explicitly justified tolerance.
-
-For integer counts and exact sums where no floating-point issue exists:
-
-```text
-tolerance = 0
-```
-
-This is a mandatory validation.
-
----
-
-# Step 17: Measure Stability Tests
-
-For additive measures test:
-
-```text
-source measure before joins
-```
-
-against:
-
-```text
-source measure after dimension joins
-```
-
-Unexpected changes indicate potential fanout.
-
-Example validation:
-
-```text
-SUM(source.measure)
-=
-SUM(metric-compatible joined measure)
-```
-
-where the dimension should not alter fact grain.
-
-Failure:
-
-```text
-MEASURE_FANOUT_FAILURE
-```
-
----
-
-# Step 18: Dimension Slice Reconciliation
-
-For major dimensions supporting KPI analysis, compare:
-
-```text
-baseline KPI GROUP BY dimension
-```
-
-against:
-
-```text
-Metric View KPI GROUP BY dimension
-```
-
-Validate both:
-
-- totals;
-- category breakdown.
-
-This catches relationships where the overall total happens to reconcile but dimensional slicing is incorrect.
-
----
-
-# Step 19: Ratio Validation
-
-For ratios validate:
-
-```text
-numerator
-denominator
-ratio
-```
-
-independently.
-
-Do not validate only that:
-
-```text
-0 <= ratio <= 1
-```
-
-or another expected range.
-
-A plausible value can still be incorrect.
-
-Compare the numerator and denominator with direct baseline SQL.
-
----
-
-# Step 20: Distinct Count Validation
-
-For every distinct-count KPI validate:
-
-```text
-COUNT(DISTINCT authoritative_business_key)
-```
-
-directly against the physical source.
-
-Ensure joins do not inflate or suppress the population.
-
----
-
-# Step 21: Temporal Validation
-
-For time-based KPIs validate multiple periods independently.
-
-For example:
-
-```text
-period 1
-period 2
-period 3
-```
-
-Do not consider a window measure valid solely because it returns multiple rows.
-
-For window measures validate:
-
-```text
-base measure
-previous/current period relationship
-derived window result
-```
-
-against direct SQL.
-
----
-
-# Step 22: Cross-Catalog / Multi-Schema Validation
-
-When Metric Views span catalogs or schemas:
-
-1. confirm all FQNs resolve;
-2. confirm all join paths return expected matches;
-3. calculate unmatched-key counts;
-4. validate measure preservation.
-
-Do not accept:
-
-```text
-join returns > 0 rows
-```
-
-as sufficient validation.
-
----
-
-> **PROGRESS REPORT:** Call `report_progress` with:
-> - `phase_id`: "validate_metric_views"
-> - `phase_name`: "Validate Metric Views"
-> - `status`: "completed"
-> - `findings`: ["Structural validation: PASS", "Measure stability: PASS", "Dimension coverage: {N} dimensions"]
-> - `stats`: {"validations_run": N, "validations_passed": P, "validations_failed": F}
-
----
-
-# Step 23: KPI Validation Report
-
-Write:
-
-```text
-{workspace.output_folder}/metric_view_validation.yaml
-```
-
-containing:
+Write `{workspace.output_folder}/metric_views/metric_view_validation.yaml`:
 
 ```yaml
 status: PASS | FAIL
-
 metric_views:
   - name:
     source:
     source_grain:
-
 kpis:
   - kpi:
-    status:
+    status: IMPLEMENTED_AND_VALIDATED | SKIPPED_*
     baseline_result:
     metric_view_result:
     difference:
-    tolerance:
     validation_status:
-
-join_validation:
-  - join:
-    expected_cardinality:
-    observed_cardinality:
-    fanout:
-    status:
-
-measure_stability:
-  - measure:
-    before_join:
-    after_join:
-    status:
-
-skipped_kpis:
-  - kpi:
-    reason:
-    classification:
-
-unresolved_items: []
+join_validation: [...]
+measure_stability: [...]
+skipped_kpis: [...]
 ```
 
----
-
-# Step 24: KPI Implementation Status
-
-Every KPI MUST end in exactly one state:
+### KPI Terminal States
 
 ```text
 IMPLEMENTED_AND_VALIDATED
@@ -1623,170 +504,122 @@ SKIPPED_UNRESOLVED_RELATIONSHIP
 SKIPPED_UNSAFE_GRAIN
 SKIPPED_UNSUPPORTED_SEMANTICS
 SKIPPED_UNSUPPORTED_METRIC_VIEW_FEATURE
+SKIPPED_FACT_TO_FACT_FANOUT_RISK
 ```
 
-There is no generic:
-
-```text
-implemented
-```
-
-state.
-
-A KPI is considered implemented only after baseline reconciliation passes.
+**GATE 10.1**: metric_view_validation.yaml exists. HALT if missing.
 
 ---
 
-# Step 25: Generate Sample Queries
+# Step 11: Generate Sample Queries
 
-Only use KPIs with:
+Only for KPIs with `IMPLEMENTED_AND_VALIDATED` status.
 
-```text
-IMPLEMENTED_AND_VALIDATED
-```
+Write `{workspace.output_folder}/genie_space/{assets.sample_queries_file}`.
 
-status.
-
-Create:
-
-```text
-{workspace.output_folder}/genie_space/{assets.sample_queries_file}
-```
-
-using Workspace API / agent tools.
-
-Generate 10–12 representative `MEASURE()` queries when enough validated metrics exist.
-
-Queries should cover a useful mix of:
-
-- overall measure;
-- dimension grouping;
-- filtering;
-- time trend;
-- multiple measures;
-- validated ratio;
-- validated window measure where available.
-
-Do not generate sample queries for skipped or unvalidated KPIs.
+Generate 10–12 representative `MEASURE()` queries covering: overall measures, dimension grouping, filtering, time trends, multiple measures, ratios, window measures.
 
 ---
 
 # Error Classification
 
-Use one of:
-
-```text
-SCHEMA_DISCOVERY_ERROR
-SCHEMA_DRIFT
-GRAIN_INFERENCE_ERROR
-KPI_MAPPING_ERROR
-MISSING_MEASURE_SOURCE
-MISSING_DIMENSION
-RELATIONSHIP_MAPPING_ERROR
-CARDINALITY_ERROR
-JOIN_FANOUT_ERROR
-FACT_TO_FACT_FANOUT_RISK
-SCD_JOIN_UNSAFE
-MEASURE_AGGREGATION_ERROR
-DISTINCT_COUNT_ERROR
-RATIO_DEFINITION_ERROR
-METRIC_VIEW_SYNTAX_ERROR
-UNSUPPORTED_METRIC_VIEW_FEATURE
-METRIC_RECONCILIATION_ERROR
-WORKSPACE_IO_ERROR
-```
-
-For each failure report:
-
-```text
-Observed problem:
-Root cause:
-Authoritative evidence:
-Affected KPI(s):
-Corrective action:
-Affected downstream artifacts:
-```
+| Code | Meaning |
+|------|---------|
+| `SCHEMA_DISCOVERY_ERROR` | Cannot resolve source tables |
+| `SCHEMA_DRIFT` | Physical schema disagrees with contracts |
+| `GRAIN_INFERENCE_ERROR` | Cannot determine source grain |
+| `KPI_MAPPING_ERROR` | KPI cannot map to physical columns |
+| `RELATIONSHIP_MAPPING_ERROR` | Join key not confirmed |
+| `JOIN_FANOUT_ERROR` | Join multiplies rows |
+| `FACT_TO_FACT_FANOUT_RISK` | Unsafe fact-to-fact join |
+| `SCD_JOIN_UNSAFE` | Temporal dimension cannot be safely joined |
+| `METRIC_VIEW_SYNTAX_ERROR` | YAML compilation failure |
+| `METRIC_RECONCILIATION_ERROR` | Baseline ≠ MEASURE() result |
+| `UNSUPPORTED_METRIC_VIEW_FEATURE` | Required feature not available |
 
 ---
 
 # Pipeline Halt Rules
 
-Return:
+HALT with `❌ EXECUTION HALTED` when: no viable source for primary KPIs, primary grain unestablishable, required measure column missing, mandatory join produces fanout, YAML invalid after 3 root-cause-based retries.
 
-```text
-❌ EXECUTION HALTED
-```
-
-when a failure prevents reliable creation of the required Metric View.
-
-Halt conditions include:
-
-- no viable source for the primary KPIs;
-- primary source grain cannot be established;
-- required measure column cannot be identified;
-- required relationship is unresolved;
-- mandatory join produces fanout;
-- Metric View source cannot support the required analytical grain;
-- baseline reconciliation fails after diagnosed correction attempts;
-- Metric View YAML remains invalid after root-cause-based retry attempts.
-
-A failure affecting only individual KPIs does NOT necessarily halt the entire Metric View stage.
-
-Skip those KPIs with explicit classifications and continue with independently valid KPIs.
+A failure affecting only individual KPIs does NOT halt the entire stage — skip those KPIs with explicit classification.
 
 ---
 
-# Brownfield Safety
+# Validated Learnings (from production runs)
 
-For:
+**1. `version` MUST be `1.1` (NOT integer `1`)**
 
-```text
-live_schema
-erd_and_live_schema
+Bare integer causes `Invalid YAML version: 1`. Omitting causes `Invalid YAML version: null`. Always use `version: 1.1`.
+
+**2. `type` is NOT a valid column property**
+
+Only: `name`, `expr`, `comment`, `display_name`, `format`, `synonyms`, `window`. Using `type: date` causes `Unrecognized field "type"`.
+
+**3. `agg` is NOT a valid measure property**
+
+Measures use full SQL in `expr`. No separate aggregation field. `agg: sum` causes `Unrecognized field "agg"`.
+
+**4. Derived measures use `MEASURE()` composition**
+
+```yaml
+- name: avg_paid_per_claim
+  expr: MEASURE(`total_paid`) / NULLIF(MEASURE(`total_claims`), 0)
 ```
 
-NEVER:
+No `agg: derived` property exists.
 
-- drop source tables;
-- alter source schemas;
-- rewrite source tables;
-- add columns to source tables;
-- modify source data merely to make a Metric View work.
+**5. `MEASURE()` references MUST use backtick quoting for multi-word names**
 
-Metric modeling must adapt to the source.
+Without backticks, `MEASURE(Total Paid Amount)` causes `PARSE_SYNTAX_ERROR: Syntax error at or near 'Paid'`. The parser interprets spaces as expression boundaries.
 
-The source must not be mutated to accommodate metric modeling.
+```yaml
+# WRONG — causes PARSE_SYNTAX_ERROR:
+  expr: MEASURE(Total Paid Amount) / NULLIF(MEASURE(Total Claims), 0)
+
+# CORRECT — backtick-quoted:
+  expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Claims`), 0)
+```
+
+Rule: ALWAYS backtick-quote measure names inside `MEASURE()` — even single-word names are safe to quote.
+
+**6. `wait_timeout` bounds: 5s–50s only**
+
+Values outside (e.g., `"60s"`) cause `INVALID_PARAMETER_VALUE`. Use `"50s"` as standard.
+
+**6. Single-source preferred for greenfield synthetic data**
+
+Avoids fact-to-fact fanout from synthetic FK distributions. Add joins only after stability test passes.
+
+**7. Column prefix rules depend on joins**
+
+No joins → bare column names. With joins → MUST prefix `source.` or `<join_name>.` on ALL references.
 
 ---
 
-# Non-Negotiable Rules
+# Output Contract
 
-1. **Determine grain before selecting Metric View source.**
-2. **Determine physical measure location before writing measure YAML.**
-3. **Every KPI must map to authoritative physical columns.**
-4. **Never invent a missing measure column.**
-5. **Never invent a join key.**
-6. **Column-name similarity alone does not prove a relationship.**
-7. **Validate relationship cardinality using actual data.**
-8. **Dimension joins must not unexpectedly multiply source facts.**
-9. **Treat fact-to-fact joins as high-risk.**
-10. **Use multiple Metric Views when KPIs require incompatible fact grains.**
-11. **Do not force every KPI into the primary Metric View.**
-12. **A valid YAML definition does not prove metric correctness.**
-13. **A successful join does not prove join correctness.**
-14. **A plausible KPI result does not prove metric correctness.**
-15. **Every KPI must reconcile against baseline source SQL.**
-16. **Ratios must validate numerator and denominator independently.**
-17. **Distinct counts must identify the correct business entity key.**
-18. **SCD/history dimensions require explicit temporal safety analysis.**
-19. **Never fix a modeling error by repeatedly guessing alternate columns or joins.**
-20. **Retries require diagnosed root cause.**
-21. **Use supported Metric View YAML syntax only.**
-22. **Use FQNs when sources span catalogs/schemas.**
-23. **Workspace writes use `workspace_file_io.md`, never `dbutils.fs`.**
-24. **Every KPI is implemented-and-validated or explicitly skipped.**
-25. On unrecoverable mandatory failure:
+| Artifact | Location | Validation |
+|----------|----------|-----------|
+| schema_profile.yaml | `{OUTPUT_FOLDER}/metric_views/` | Tables + relationships documented |
+| kpi_metric_mapping.yaml | `{OUTPUT_FOLDER}/metric_views/` | Every KPI mapped or skipped |
+| metric_view_design.yaml | `{OUTPUT_FOLDER}/metric_views/` | All joins validated safe |
+| {name}.yaml | `{OUTPUT_FOLDER}/metric_views/` | Raw YAML saved |
+| metric_view_validation.yaml | `{OUTPUT_FOLDER}/metric_views/` | `status: PASS` |
+| sample_queries file | `{OUTPUT_FOLDER}/genie_space/` | 10-12 MEASURE() queries |
 
-```text
-❌ EXECUTION HALTED
-```
+---
+
+# Progress Reporting Reference
+
+| Phase | phase_id | Key Stats |
+|-------|----------|-----------|
+| Load Inputs | `load_inputs` | kpis_defined, source_tables |
+| Profile Schema | `profile_schema` | tables_profiled, columns_total, relationships |
+| Map KPIs | `map_kpis` | kpis_mapped, kpis_skipped, measures_classified |
+| Design Metric Views | `design_metric_views` | metric_views_designed, join_paths_validated |
+| Generate Metric Views | `generate_metric_views` | metric_views_created, measures_total, dimensions_total |
+| Validate | `validate_metric_views` | validations_run, passed, failed |
+
+Call `report_progress` with `status: "started"` before, `status: "completed"` after each phase.

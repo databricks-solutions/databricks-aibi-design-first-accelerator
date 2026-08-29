@@ -67,7 +67,7 @@ pipeline:
       execution_type: api          # Call Lakeview REST API
     create_genie_space:
       enabled: true
-      execution_type: api          # Call Genie REST API
+      execution_type: notebook     # Populate template notebook → execute cells → Genie API via notebook
     create_secured_dashboards:
       enabled: false
       execution_type: api
@@ -87,9 +87,24 @@ llm:
       instruction: Must use vision model to read ERD image directly. Never read from previous version outputs.
     generate_sql:
       model: databricks-gpt-5-5
+    dashboard_design:
+      model: databricks-gpt-5-5
+      instruction: >
+        Design rich multi-page dashboard layout using reasoning model.
+        Input: KPI spec + metric view YAML + validation results + data profile.
+        Output: YAML with pages, widgets, viz types, measure/dimension mappings.
+        Validate: ≥2 canvas pages, 4-8 widgets/page, ≥3 viz types, exact measure names.
     create_dashboards:
       model: databricks-gpt-5-5
       instruction: Must read lakeview_dashboard_api.md fully before building serialized_dashboard JSON.
+    genie_design:
+      model: databricks-gpt-5-5
+      instruction: >
+        Design complete Genie Space configuration using reasoning model.
+        Input: metric view DDL + validation + KPI spec + semantic inventory + data profile.
+        Output: YAML with instructions (≥500 chars, no newlines), sample questions (≥15, ≥5 patterns),
+        example SQL (≥10, all MEASURE()), benchmarks (≥15, different phrasing).
+        Validate: measure/dimension names exact match, no skipped KPIs, grounded filter values.
     create_genie_space:
       model: databricks-gpt-5-5
 validation:

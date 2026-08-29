@@ -29,6 +29,16 @@
 #   This function checks column names against DESCRIBE TABLE and RAISES if
 #   any domain_col key doesn't match an actual column. This prevents the
 #   silent fallback to garbage data that occurs when column names are wrong.
+#
+# PYTHON COMPATIBILITY (Python 3.11 — serverless compute):
+#   DO NOT use backslashes inside f-string expressions.
+#   ILLEGAL:  f"{', '.join(items)}"  — OK
+#   ILLEGAL:  f"{'\n'.join(items)}"  — SYNTAX ERROR
+#   ILLEGAL:  f"{val.replace('\n', '')}" — SYNTAX ERROR
+#   FIX:      Use a variable: nl = '\n'; f"{nl.join(items)}"
+#   FIX:      Or use .format(): "\n".join(items)
+#   FIX:      Or assign first: joined = '\n'.join(items); f"{joined}"
+#   This is a hard Python 3.11 syntax constraint. Violation = notebook crash.
 
 # COMMAND ----------
 

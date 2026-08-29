@@ -556,3 +556,35 @@ For non-critical failures: retry once, then adapt or skip.
 9. **Steps restart from the beginning.** Phases within a completed step are never partially replayed.
 10. **run_id survives browser refresh.** URL query param is the primary mechanism.
 11. **Critical tool failures halt immediately.** See Section 11 above.
+
+---
+
+## 13. Alignment with Prompt Enforcement Headers
+
+Each step prompt (01–05) contains an `<!-- @enforcement -->` header with GATE checks.
+These gates are the **artifact verification points** for this state contract:
+
+| Step | GATE ID | Artifact Check | Maps to Phase |
+|------|---------|----------------|---------------|
+| 01 | `erd_parsed_exists` | file_exists(erd_parsed.yaml) | parse_erd |
+| 01 | `ddl_notebook_executed` | SHOW TABLES returns >= 1 | generate_ddl |
+| 01 | `synthetic_data_populated` | COUNT(*) > 0 per table | generate_synthetic_data |
+| 01 | `validation_passed` | data_layer_validation.yaml exists | validate_data |
+| 02 | `schema_profiled` | schema_profile.yaml exists | profile_schema |
+| 02 | `kpi_mapped` | kpi_metric_mapping.yaml exists | map_kpis |
+| 02 | `design_validated` | metric_view_design.yaml exists | design_metric_views |
+| 02 | `metric_view_created` | SHOW VIEWS returns >= 1 | generate_metric_views |
+| 03 | `design_contract_exists` | dashboard_design.yaml exists | design_dashboard |
+| 03 | `datasets_validated` | dashboard_dataset_validation.yaml exists | validate_datasets |
+| 03 | `dashboards_created` | manifest with dashboard_id per entry | create_dashboard |
+| 03 | `dashboards_published` | manifest.published = true | publish_dashboard |
+| 04 | `genie_space_created` | GET spaces/{id} returns valid | create_genie_space |
+
+GATE checks in prompts are the **same** verification used by artifact-as-state for resume.
+They serve double duty:
+1. During fresh execution: enforce ordering (no skipping ahead)
+2. During resume: determine which phases are already complete
+
+The `PROHIBITED ACTIONS` blocks in each prompt prevent the agent from bypassing these
+artifacts (e.g., running inline code instead of creating notebooks, skipping dataset
+validation before dashboard creation).

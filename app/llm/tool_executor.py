@@ -75,17 +75,25 @@ class ToolExecutor:
         try:
             content = self._ws.read_file(path)
             if content is None:
-                return f"ERROR: File not found: {path}"
+                return f"FILE_NOT_FOUND: {path} does not exist yet. Create it if needed, or skip if optional."
             return content
         except Exception as e:
+            err_str = str(e).lower()
+            err_type = type(e).__name__.lower()
+            # Distinguish file-not-found from other errors
+            # SDK raises ResourceDoesNotExist with message "doesn't exist" (apostrophe)
+            if any(hint in err_str for hint in ('not found', 'does not exist', "doesn't exist", '404', 'resource_does_not_exist')):
+                return f"FILE_NOT_FOUND: {path} does not exist yet. Create it if needed, or skip if optional."
+            if 'doesnotexist' in err_type or 'notfound' in err_type:
+                return f"FILE_NOT_FOUND: {path} does not exist yet. Create it if needed, or skip if optional."
             # Fallback: might be binary with unexpected extension
-            if 'codec' in str(e).lower() or 'decode' in str(e).lower():
+            if 'codec' in err_str or 'decode' in err_str:
                 try:
                     data = self._ws.read_binary(path)
                     return f"SUCCESS: Binary file ({len(data)} bytes). Cannot display content."
                 except Exception:
                     pass
-            return f"ERROR: {str(e)}"
+            return f"ERROR: WorkspaceError [read_file] {path}: {str(e)}"
 
     def _handle_write_workspace_file(self, args: dict) -> str:
         path = args["path"]
@@ -95,11 +103,17 @@ class ToolExecutor:
 
     def _handle_list_workspace_directory(self, args: dict) -> str:
         path = args["path"]
-        entries = self._ws.list_dir(path)
-        if not entries:
-            return f"Directory empty or not found: {path}"
-        lines = [f"  {e.path.split('/')[-1]} ({e.object_type})" for e in entries]
-        return "\n".join(lines)
+        try:
+            entries = self._ws.list_dir(path)
+            if not entries:
+                return f"DIRECTORY_EMPTY: {path} exists but is empty."
+            lines = [f"  {e.path.split('/')[-1]} ({e.object_type})" for e in entries]
+            return "\n".join(lines)
+        except Exception as e:
+            err_str = str(e).lower()
+            if any(hint in err_str for hint in ('not found', 'does not exist', '404', 'resource_does_not_exist')):
+                return f"DIRECTORY_NOT_FOUND: {path} does not exist yet. It will be created when needed."
+            return f"ERROR: {str(e)}"
 
     def _handle_create_dashboard(self, args: dict) -> str:
         display_name = args["display_name"]
@@ -112,10 +126,15 @@ class ToolExecutor:
         # which causes PermissionDenied when SP lacks access to user's home.
         parent_path = args.get("parent_path") or getattr(self._config, 'output_folder', None) or getattr(self._config, 'deploy_root', None)
         if dashboard_id:
+            # Explicit update of existing dashboard
             result = self._lakeview.update_dashboard(
                 dashboard_id=dashboard_id, display_name=display_name,
                 serialized_dashboard=serialized, warehouse_id=warehouse_id)
         else:
+            # Create new — if name already exists, delete old and recreate
+            existing = self._lakeview.find_by_name(display_name)
+            if existing:
+                self._lakeview.delete_dashboard(existing.dashboard_id)
             result = self._lakeview.create_dashboard(
                 display_name=display_name, serialized_dashboard=serialized,
                 warehouse_id=warehouse_id, parent_path=parent_path)
@@ -145,21 +164,45 @@ class ToolExecutor:
         return self._handle_execute_sql({"statement": f"DESCRIBE TABLE EXTENDED {args['table_name']}"})
 
     def _handle_execute_python(self, args: dict) -> str:
-        """Run a Python snippet in a subprocess and return its stdout."""
+        """Run a Python snippet in a subprocess and return its stdout.
+
+        Environment setup:
+          - cwd=/tmp (writable — os.makedirs works for local temp files)
+          - Inherits parent env + DATABRICKS_HOST/TOKEN for SDK usage
+          - sys.path includes app source so imports work
+        """
         import subprocess as _sp
+        import sys
+        import os
+
         code = args.get("code", "")
         if not code.strip():
             return "ERROR: No code provided."
+
+        # Build environment: inherit parent + ensure workspace access
+        env = os.environ.copy()
+        # Ensure /tmp exists as working directory
+        work_dir = "/tmp/pipeline_python"
+        os.makedirs(work_dir, exist_ok=True)
+
         try:
             proc = _sp.run(
-                ["python", "-c", code],
-                capture_output=True, text=True, timeout=30
+                [sys.executable, "-c", code],
+                capture_output=True, text=True, timeout=120,
+                cwd=work_dir, env=env,
             )
             if proc.returncode != 0:
-                return f"ERROR: {proc.stderr.strip()}"
+                stderr = proc.stderr.strip()
+                # Provide actionable guidance for common errors
+                if "makedirs" in stderr and "Workspace" in stderr:
+                    stderr += (
+                        "\n\nHINT: /Workspace paths are not local filesystem paths. "
+                        "Use the write_workspace_file tool instead of os.makedirs + open()."
+                    )
+                return f"ERROR: {stderr}"
             return proc.stdout.strip() or "SUCCESS: executed (no output)."
         except _sp.TimeoutExpired:
-            return "ERROR: Python execution timed out (30s limit)."
+            return "ERROR: Python execution timed out (120s limit)."
         except Exception as e:
             return f"ERROR: {type(e).__name__}: {e}"
 
@@ -250,7 +293,13 @@ class ToolExecutor:
             return f"ERROR importing notebook: {str(e)}"
 
     def _handle_execute_notebook(self, args: dict) -> str:
-        """Execute a notebook via Jobs API and wait for result."""
+        """Execute a notebook via Jobs API and wait for result.
+
+        Includes a py_compile pre-flight gate for Python notebooks:
+        reads the notebook source, splits into cells, and compiles each
+        Python cell. If any cell has a SyntaxError, returns the error
+        immediately WITHOUT submitting a job run (saves time + compute).
+        """
         path = args["path"]
         timeout_minutes = args.get("timeout_minutes", 15)
 
@@ -262,6 +311,12 @@ class ToolExecutor:
             language = "PYTHON"
             if path.endswith(".sql"):
                 language = "SQL"
+
+            # --- PY_COMPILE GATE (Python notebooks only) ---
+            if language == "PYTHON":
+                compile_error = self._py_compile_check(path)
+                if compile_error:
+                    return compile_error
 
             # Submit the run
             run_id = self._jobs.run_notebook(path, language=language)
@@ -278,6 +333,126 @@ class ToolExecutor:
                 return f"NOTEBOOK ERROR (run_id={run_id}): {error_detail}"
         except Exception as e:
             return f"ERROR executing notebook: {str(e)}"
+
+    def _py_compile_check(self, path: str) -> str | None:
+        """Pre-flight syntax check for Python notebooks.
+
+        Dual-strategy gate:
+        1. compile() — catches general SyntaxErrors (undefined names won't be
+           caught, but malformed syntax will).
+        2. Regex f-string backslash detector — catches the specific pattern
+           of backslashes inside f-string {expressions} which is illegal on
+           Python 3.11 (serverless compute) but allowed on 3.12+ (where this
+           app server may run). Without this, compile() would miss it on 3.12.
+
+        Returns an error string if any cell fails, or None if all pass.
+        """
+        import re
+
+        try:
+            source = self._ws.read_file(path)
+            if not source:
+                return None  # Empty notebook, let it run (will fail gracefully)
+        except Exception:
+            return None  # Can't read = let the job run and report its own error
+
+        # Split into cells (Databricks source format)
+        cell_separator = "# COMMAND ----------"
+        cells = source.split(cell_separator)
+
+        errors = []
+        for idx, cell in enumerate(cells):
+            cell_stripped = cell.strip()
+            if not cell_stripped:
+                continue
+
+            # Skip non-Python cells (magic commands)
+            first_line = cell_stripped.split('\n')[0].strip()
+            if first_line.startswith('%') and not first_line.startswith('%%'):
+                if any(first_line.startswith(f'%{m}') for m in ['pip', 'sql', 'md', 'sh', 'r', 'scala', 'fs']):
+                    continue
+
+            # Skip cells that are pure comments/titles
+            code_lines = [l for l in cell_stripped.split('\n')
+                         if l.strip() and not l.strip().startswith('#')]
+            if not code_lines:
+                continue
+
+            # Gate 1: compile() for general syntax errors
+            try:
+                compile(cell_stripped, f'<cell_{idx + 1}>', 'exec')
+            except SyntaxError as e:
+                line_info = f", line {e.lineno}" if e.lineno else ""
+                text_info = f"\n  Code: {e.text.strip()}" if e.text else ""
+                errors.append(
+                    f"Cell {idx + 1}{line_info}: {e.msg}{text_info}"
+                )
+                continue  # Skip Gate 2 if compile already failed
+
+            # Gate 2: f-string backslash detector (Python 3.11 compat)
+            # compile() on 3.12+ won't catch this, but serverless runs 3.11
+            fstring_issues = self._check_fstring_backslash(cell_stripped)
+            for lineno, line_text, expr in fstring_issues:
+                errors.append(
+                    f"Cell {idx + 1}, line {lineno}: "
+                    f"f-string expression contains backslash (illegal in Python 3.11)\n"
+                    f"  Code: {line_text}\n"
+                    f"  Expr: {{{expr}}}\n"
+                    f"  Fix: Assign to variable first, e.g.: sep = '\\n'; f\"{{sep.join(...)}}\""
+                )
+
+        if errors:
+            error_list = "\n".join(errors)
+            return (
+                f"SYNTAX_ERROR (pre-flight py_compile gate): "
+                f"Notebook has {len(errors)} syntax error(s). "
+                f"Fix these BEFORE re-running:\n{error_list}"
+            )
+
+        return None  # All cells passed
+
+    @staticmethod
+    def _check_fstring_backslash(source: str) -> list:
+        """Detect backslashes inside f-string {expressions}.
+
+        Returns list of (lineno, line_text, expr) tuples for violations.
+        This is illegal in Python 3.11 (serverless compute).
+        """
+        import re
+        issues = []
+        lines = source.split('\n')
+
+        for lineno, line in enumerate(lines, 1):
+            if '\\' not in line:
+                continue
+            if not re.search(r'''[fF]['"]''', line):
+                continue
+
+            # Find f-string starts and check their {expr} parts
+            for m in re.finditer(r'''[fF](['"]{{1,3}})''', line):
+                quote = m.group(1)
+                start = m.end()
+                depth = 0
+                expr_start = None
+                i = start
+                while i < len(line):
+                    ch = line[i]
+                    if ch == '{' and (i + 1 >= len(line) or line[i + 1] != '{'):
+                        if depth == 0:
+                            expr_start = i
+                        depth += 1
+                    elif ch == '}' and (i + 1 >= len(line) or line[i + 1] != '}'):
+                        depth -= 1
+                        if depth == 0 and expr_start is not None:
+                            expr = line[expr_start + 1:i]
+                            if '\\' in expr:
+                                issues.append((lineno, line.strip(), expr.strip()))
+                            expr_start = None
+                    elif ch == quote[0] and depth == 0:
+                        break
+                    i += 1
+
+        return issues
 
     def _handle_cleanup_path(self, args: dict) -> str:
         """Remove a workspace file or directory for re-generation."""

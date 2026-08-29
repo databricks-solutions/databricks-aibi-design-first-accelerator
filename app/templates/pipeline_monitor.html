@@ -36,8 +36,8 @@
         background: var(--bg-card);
         overflow-x: auto;
     }
-    .steps-row { display: flex; align-items: center; gap: 0; min-width: max-content; }
-    .step-item { display: flex; align-items: center; }
+    .steps-row { display: flex; align-items: flex-start; gap: 0; min-width: max-content; padding-top: 12px; }
+    .step-item { display: flex; align-items: flex-start; }
     .step-node { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 80px; }
     .step-circle {
         width: 32px; height: 32px; border-radius: 50%;
@@ -58,7 +58,7 @@
     .step-sublabel.done { color: var(--success-text); }
     .step-sublabel.running { color: var(--primary); }
     .step-duration-badge { font-size: 9px; color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; opacity: 0.85; }
-    .step-connector { width: 36px; height: 2px; background: var(--border); margin: 0 2px; margin-bottom: 20px; }
+    .step-connector { width: 36px; height: 2px; background: var(--border); margin: 0 2px; margin-top: 16px; }
     .step-connector.done { background: var(--success); }
     .step-connector.running { background: var(--primary); }
 
@@ -66,7 +66,7 @@
     .monitor-main { display: grid; grid-template-columns: 1fr 380px; overflow: hidden; }
 
     /* --- Left Panel (Steps + Sub-steps) --- */
-    .left-panel { padding: 0; overflow-y: auto; background: var(--bg-app); }
+    .left-panel { padding: 0 0 0 32px; overflow-y: auto; background: var(--bg-app); }
     .accordion-step { border-bottom: 1px solid var(--border); }
     .accordion-header {
         display: flex; align-items: center; gap: 12px;
@@ -141,10 +141,21 @@
     .phase-stat{display:flex;flex-direction:column;align-items:center;}
     .phase-stat-value{font-size:18px;font-weight:700;color:var(--text-primary);}
     .phase-stat-label{font-size:10px;color:var(--text-muted);text-transform:capitalize;}
-    .phase-happenings-title,.phase-findings-title{font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;margin-bottom:4px;}
-    .phase-happening-item{font-size:12px;color:var(--text-secondary);padding:2px 0;padding-left:12px;}
-    .phase-finding-item{font-size:12px;color:var(--success);padding:2px 0;padding-left:12px;}
-    .phase-findings{margin-top:8px;padding:10px;background:rgba(16,185,129,0.05);border:1px solid rgba(16,185,129,0.15);border-radius:6px;}
+    .phase-happenings-title,.phase-findings-title{font-size:11px;text-transform:uppercase;color:var(--text-muted);font-weight:600;letter-spacing:0.5px;margin-bottom:8px;}
+    .phase-happening-item{font-size:12px;color:var(--text-secondary);padding:4px 0;padding-left:4px;display:flex;align-items:center;gap:8px;}
+    .phase-happening-item .h-icon{width:16px;height:16px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;}
+    .phase-happening-item .h-icon.done{background:var(--success);color:#fff;}
+    .phase-happening-item .h-icon.pending{background:transparent;border:1.5px solid var(--text-muted);color:var(--text-muted);}
+    .phase-happening-item .h-icon.failed{background:var(--danger);color:#fff;}
+    .phase-happening-item .h-icon.running{background:var(--primary);color:#fff;}
+    .phase-happening-item .h-time{font-size:10px;color:var(--text-muted);font-family:monospace;min-width:36px;text-align:right;}
+    .phase-finding-item{font-size:12px;padding:4px 0;padding-left:4px;display:flex;align-items:center;gap:8px;}
+    .phase-finding-item .f-icon{font-size:14px;flex-shrink:0;}
+    .phase-finding-item.success{color:var(--success);}
+    .phase-finding-item.warning{color:var(--warning, #f59e0b);}
+    .phase-findings{margin-top:12px;padding:12px 14px;background:rgba(59,130,246,0.04);border:1px solid rgba(59,130,246,0.12);border-radius:8px;}
+    .phase-findings-header{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+    .phase-findings-header .info-icon{width:16px;height:16px;border-radius:50%;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;}
 
     /* Running detail box (expanded current task) */
     .running-detail {
@@ -370,7 +381,7 @@ const STEP_ID_FROM_ORDER=['','config','setup','data_layer','metrics','dashboards
 function renderSteps(){
     const row=document.getElementById('steps-row');
     row.innerHTML=STEPS.map((s,i)=>{
-        const icon=s.status==='completed'?'&#10003;':s.status==='failed'?'&#10007;':s.status==='skipped'?'&#8212;':(i+1);
+        const icon=(i+1);
         const sublabelClass=s.status==='completed'?'done':s.status==='running'?'running':'waiting';
         const sublabelText=s.status==='completed'?'Done':s.status==='running'?'In Progress':s.status==='failed'?'Error':s.status==='skipped'?'Skipped':'Waiting';
         const connStatus=s.status==='completed'?'done':s.status==='running'?'running':'';
@@ -384,7 +395,7 @@ function renderSteps(){
 function renderAccordion(){
     const panel=document.getElementById('left-panel');
     panel.innerHTML=STEPS.map((s,i)=>{
-        const icon=s.status==='completed'?'&#10003;':s.status==='running'?'&#9654;':s.status==='failed'?'&#10007;':s.status==='skipped'?'&#8212;':(i+1);
+        const icon=s.status==='failed'?'&#10007;':s.status==='skipped'?'&#8212;':(i+1);
         const iconClass=s.status==='completed'?'done':s.status==='running'?'running':s.status==='failed'?'failed':'pending';
         const statusClass=s.status==='completed'?'completed':s.status==='running'?'in-progress':s.status==='failed'?'failed':s.status==='skipped'?'skipped':'waiting';
         const statusLabel=s.status==='completed'?'Completed':s.status==='running'?'In Progress':s.status==='failed'?'Failed':s.status==='skipped'?'Skipped':'Pending';
@@ -469,25 +480,40 @@ function renderPhaseDetail(phase, recentTools){
         </div>`:'';
 
     // Combine LLM-authored happenings with live tool call context
-    let happeningItems = (phase.happenings||[]).map(h=>`<div class="phase-happening-item">&#9679; ${h}</div>`);
+    let happeningItems = (phase.happenings||[]).map(h=>{
+        return `<div class="phase-happening-item"><span class="h-icon done">\u2713</span><span>${h}</span></div>`;
+    });
     // Add recent tool calls as live activity (shows WHAT is being done right now)
     if(recentTools.length > 0){
         const toolItems = recentTools.map((tc, idx)=>{
             const isFailed = tc.status==='failed';
-            const icon = tc.status==='completed' ? '\u2713' : isFailed ? '\u274c' : '\u25B8';
+            const iconCls = tc.status==='completed' ? 'done' : isFailed ? 'failed' : 'running';
+            const iconChar = tc.status==='completed' ? '\u2713' : isFailed ? '\u2717' : '\u25B8';
             // Detect retry: same tool label failed previously in this batch
             const isRetry = isFailed && recentTools.slice(0, idx).some(prev => prev.label===tc.label && prev.status==='failed');
-            const retryTag = isRetry ? '<span style="color:var(--danger);font-size:10px;font-weight:600;margin-left:6px;">RETRY</span>' : '';
-            // Cap detail at 60 chars to prevent overflow from long SQL
+            const retryTag = isRetry ? ' <span style="color:var(--danger);font-size:10px;font-weight:600;">RETRY</span>' : '';
+            // Cap detail at 50 chars
             let detail = tc.detail || '';
-            if(detail.length > 60) detail = detail.slice(0, 57) + '\u2026';
-            // Red styling for failed/retry items
+            if(detail.length > 50) detail = detail.slice(0, 47) + '\u2026';
+            const detailHtml = detail ? ` \u2014 <span style="color:var(--text-muted);font-style:italic;font-size:11px;">${detail}</span>` : '';
             const failStyle = isFailed ? 'color:var(--danger);' : '';
-            const detailHtml = detail ? ` \u2014 <span style="color:${isFailed?'var(--danger)':'var(--text-muted)'};font-style:italic;">${detail}</span>` : '';
-            const errorHtml = isFailed && tc.error ? `<div style="font-size:11px;color:var(--danger);opacity:0.9;padding-left:16px;margin-top:2px;">${(tc.error||'').slice(0,80)}</div>` : '';
-            return `<div class="phase-happening-item" style="opacity:0.85;${failStyle}">${icon} ${tc.label}${retryTag}${detailHtml}</div>${errorHtml}`;
+            // Format duration for completed tool calls
+            let durationStr = '';
+            if(tc.duration_ms != null){
+                const ms = tc.duration_ms;
+                if(ms < 1000) durationStr = ms+'ms';
+                else if(ms < 60000) durationStr = (ms/1000).toFixed(1)+'s';
+                else durationStr = Math.floor(ms/60000)+'m '+ Math.round((ms%60000)/1000)+'s';
+            }
+            const timeHtml = durationStr ? `<span class="h-time">${durationStr}</span>` : '';
+            return `<div class="phase-happening-item" style="${failStyle}">${timeHtml}<span class="h-icon ${iconCls}">${iconChar}</span><span>${tc.label}${retryTag}${detailHtml}</span></div>`;
         });
         happeningItems = happeningItems.concat(toolItems);
+    }
+    // Mark last item as "pending" (currently executing) if there are tool items running
+    const pendingHappenings = (phase.happenings||[]).filter(h=>!recentTools.some(tc=>tc.label===h));
+    if(pendingHappenings.length > happeningItems.length){
+        // Any remaining happenings that aren't done yet get pending icons
     }
     const happeningsHtml = happeningItems.length>0 ? `
         <div class="phase-happenings">
@@ -497,8 +523,13 @@ function renderPhaseDetail(phase, recentTools){
 
     const findingsHtml=(phase.findings&&phase.findings.length>0)?`
         <div class="phase-findings">
-            <div class="phase-findings-title">Latest Findings</div>
-            ${phase.findings.map(f=>`<div class="phase-finding-item">&#10003; ${f}</div>`).join('')}
+            <div class="phase-findings-header"><span class="info-icon">i</span><span class="phase-findings-title" style="margin-bottom:0;">Latest Findings</span></div>
+            ${phase.findings.map(f=>{
+                const isWarning = f.toLowerCase().includes('warning') || f.toLowerCase().includes('requires') || f.toLowerCase().includes('validation');
+                const cls = isWarning ? 'warning' : 'success';
+                const icon = isWarning ? '\u26A0' : '\u2713';
+                return `<div class="phase-finding-item ${cls}"><span class="f-icon">${icon}</span><span>${f}</span></div>`;
+            }).join('')}
         </div>`:'';
 
     return `<div class="phase-detail-panel">
@@ -525,13 +556,18 @@ function renderCompletedPhaseDetail(phase){
     const happeningsHtml=(phase.happenings&&phase.happenings.length>0)?`
         <div class="phase-happenings">
             <div class="phase-happenings-title">What happened</div>
-            ${phase.happenings.map(h=>`<div class="phase-happening-item">&#9679; ${h}</div>`).join('')}
+            ${phase.happenings.map(h=>`<div class="phase-happening-item"><span class="h-icon done">\u2713</span><span>${h}</span></div>`).join('')}
         </div>`:'';
 
     const findingsHtml=(phase.findings&&phase.findings.length>0)?`
         <div class="phase-findings">
-            <div class="phase-findings-title">Findings</div>
-            ${phase.findings.map(f=>`<div class="phase-finding-item">&#10003; ${f}</div>`).join('')}
+            <div class="phase-findings-header"><span class="info-icon">i</span><span class="phase-findings-title" style="margin-bottom:0;">Findings</span></div>
+            ${phase.findings.map(f=>{
+                const isWarning = f.toLowerCase().includes('warning') || f.toLowerCase().includes('requires') || f.toLowerCase().includes('validation');
+                const cls = isWarning ? 'warning' : 'success';
+                const icon = isWarning ? '\u26A0' : '\u2713';
+                return `<div class="phase-finding-item ${cls}"><span class="f-icon">${icon}</span><span>${f}</span></div>`;
+            }).join('')}
         </div>`:'';
 
     const taskHtml = phase.currentTask ? `<div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px;">Last task: ${phase.currentTask}</div>` : '';
@@ -797,6 +833,7 @@ async function pollStatus(){
                     detail: tc.args_summary||'',
                     status: tc.status||'running',
                     error: tc.error||'',
+                    duration_ms: tc.duration_ms||null,
                 }));
             }
         }

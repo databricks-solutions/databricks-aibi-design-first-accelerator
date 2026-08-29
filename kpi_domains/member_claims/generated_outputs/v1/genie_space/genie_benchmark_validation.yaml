@@ -1,0 +1,28 @@
+summary:
+  space_id: 01f1a356f08c12b0a314cc0077f7048b
+  title: member_claims_analytics_genie_v1
+  benchmarks_total: 15
+  benchmarks_passed: 15
+  benchmarks_failed: 0
+  pass_rate: 1.0
+  status: PASS
+validation_method: benchmark SQL ground truth executed against validated metric view
+thresholds:
+  pass_rate_required: 0.8
+  min_benchmark_questions: 15
+results:
+  - {question: "Give me the overall claim volume, line volume, and dollars paid.", status: PASS}
+  - {question: "How did claims and paid dollars move month by month?", status: PASS}
+  - {question: "Summarize paid and billed amounts for each claim type.", status: PASS}
+  - {question: "For professional claims serviced during calendar year 2024, what percent of lines were denied?", status: PASS}
+  - {question: "List benefit categories from highest to lowest paid amount.", status: PASS}
+  - {question: "Paid dollars for Institutional versus Professional claims.", status: PASS}
+  - {question: "By benefit level, show claim counts, member counts, and claims per member.", status: PASS}
+  - {question: "What are paid-to-billed and paid-to-allowed ratios across claim types?", status: PASS}
+  - {question: "Calculate the overall paid amount per claim.", status: PASS}
+  - {question: "For 2023, show monthly denied line rate and clean line rate.", status: PASS}
+  - {question: "Allowed dollars by each claim line status.", status: PASS}
+  - {question: "For the inpatient benefit category, summarize claims and paid amount by service place.", status: PASS}
+  - {question: "Top procedure codes based on number of claim lines.", status: PASS}
+  - {question: "Show total paid using the inpatient and outpatient paid measures.", status: PASS}
+  - {question: "By type of claim, report claim lines per claim and paid dollars per member.", status: PASS}

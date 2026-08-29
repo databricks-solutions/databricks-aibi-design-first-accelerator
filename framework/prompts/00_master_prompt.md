@@ -61,7 +61,9 @@ This prompt can be invoked from:
 - User opens a file in the example folder and pastes/references this prompt
 - Agent reads files using workspace tools (`readAssetById`)
 - Agent executes SQL via `executeCode`
-- Agent calls REST APIs via `executeCode` (Python `requests` or SDK)
+- Agent calls REST APIs via `executeCode` using the Databricks SDK (`w.api_client.do()`)
+- NEVER extract auth tokens manually or use `requests.post()` with raw tokens — this triggers safety guardrails
+- For long-running LLM calls (vision, reasoning): use `WorkspaceClient(config=Config(http_timeout_seconds=600))`
 - Context window: single conversation thread; use `run_context.yaml` to carry state between stages
 
 **2. Databricks App (programmatic execution):**
@@ -73,7 +75,63 @@ This prompt can be invoked from:
 
 In both patterns, the pipeline contract and stage prompts are identical. Only the execution mechanism differs.
 
-### Strict Execution Guardrails
+### Global Enforcement Rules (Apply to ALL Sub-Prompts)
+
+<!-- @global_enforcement
+  ddl_pattern: CREATE TABLE IF NOT EXISTS (NEVER CREATE OR REPLACE TABLE)
+  notebook_execution: When templates exist, agent MUST create notebook from template and execute it (not run code inline)
+  multi_asset_mandatory: If config specifies N dashboards or N metric views, create exactly N (not fewer)
+  filter_mandatory: Every dashboard MUST have dimension filters
+  gate_pattern: Every step has GATE checks that must pass before proceeding
+  output_contracts: Every step has an Output Contract table listing required artifacts
+-->
+
+### Anti-Shortcut Enforcement
+
+The agent MUST NOT take shortcuts even when:
+- It "knows" the answer and could skip steps
+- Context window pressure makes it tempting to summarize
+- A faster path exists that bypasses the template
+- Previous versions of artifacts exist that could be reused
+- The agent believes the step is "simple enough" to do inline
+
+The prompts are a CONTRACT. Every numbered step must execute. Every GATE must be verified. Every Output Contract artifact must exist.
+
+### HARD STOP on Execution Environment Blocks
+
+If at ANY point the execution environment blocks an operation (safety guardrail, permission denied, tool limitation, API timeout), the agent MUST:
+
+1. **STOP immediately** — do not continue to the next step
+2. **Report the exact block** — include the error message and which operation was blocked
+3. **DO NOT find workarounds** — do not silently switch from Statement Execution API to spark.sql(), do not change .mode("overwrite") to something else, do not skip the blocked step
+4. **DO NOT continue** — the pipeline is halted until the block is resolved
+
+The ONLY correct response to an environment block is:
+
+```
+EXECUTION HALTED: {blocked_operation}
+Error: {error_message}
+Prescribed approach: {what the prompt says to do}
+Cannot proceed without resolution.
+```
+
+This rule exists because workarounds violate the prompt contract. If the prompt says "use notebook execution" and that's blocked, switching to inline code is not "adapting" — it's breaking the contract. The correct fix is to update the prompt's prescribed approach, not to silently bypass it at runtime.
+
+**Environment-specific exceptions:**
+
+| Block Type | Genie Code | Databricks App |
+|---|---|---|
+| DML on generated data (DELETE/TRUNCATE/UPDATE) | Report as `DATA_QUALITY_WARNING`, proceed if pre-write check was missed | Use TRUNCATE + re-generate (App has full DML access via service principal) |
+| `.mode("overwrite")` | HALT — always prohibited (use append pattern) | HALT — always prohibited (use append pattern) |
+| Permission denied on schema/catalog | HALT | HALT — check service principal grants |
+| Notebook execution failure | Fall back to `executeCode` (see stage prompt) | Retry via `w.jobs.submit()` with explicit error |
+| API timeout | HALT | Retry once with increased timeout, then HALT |
+
+The `monotonically_increasing_id()` limitation on serverless (Spark Connect) applies to BOTH environments — always use `F.row_number()` for sequential/unique ID generation (see `01_create_data_layer.md` § "Serverless Safe Patterns").
+
+---
+
+## Strict Execution Guardrails
 
 These rules are **non-negotiable** and override any creative shortcuts the agent might attempt:
 
@@ -236,7 +294,13 @@ Only a mandatory stage failure prevents dependent downstream creation.
 
 Optional failures must be recorded and surfaced without being silently ignored.
 
-**HARD STOP RULE**: When a MANDATORY_STAGE_FAILURE occurs (steps 1-2: Config or Setup), the pipeline MUST halt immediately. Do NOT continue to any downstream step. Do NOT call generate_documentation. Do NOT attempt graceful degradation. Report the failure and stop. This applies identically in Genie Code and App execution modes.
+**HARD STOP RULE**: When a MANDATORY_STAGE_FAILURE occurs, the pipeline MUST:
+1. **Update version_registry.yaml** — set `status: failed` and `completed_at` for the current version entry (see "On Run Failure" section)
+2. **Update run_manifest.json** — record the failure details
+3. **HALT immediately** — do NOT continue to any downstream step, do NOT call generate_documentation, do NOT attempt graceful degradation
+4. **Report the failure** and stop
+
+This applies identically in Genie Code and App execution modes. The registry update in step 1 is MANDATORY — without it, the next run will incorrectly resume the failed version instead of getting a clean retry opportunity.
 
 ---
 
@@ -555,11 +619,29 @@ versions:
 
 ### Version Resolution Algorithm
 
-**Key principle: Resume ONLY within the same environment. Cross-environment always creates a new version.**
+**Key principles:**
+1. Cross-environment always creates a new version (App never resumes Genie Code's work, and vice versa).
+2. The resolution supports **3 modes** — shared by both App and Genie Code:
 
-A partial run from the App should never be resumed by Genie Code (and vice versa).
-Each environment owns its own incomplete work. Cross-environment coordination is
-limited to: "I see version N exists, so I create version N+1."
+```text
+Mode     | Trigger (App)                    | Trigger (Genie Code)
+---------|----------------------------------|-------------------------------------
+auto     | "Run Pipeline" button (default)  | User says "run the pipeline"
+retry    | "Retry" button on a failed run   | User says "retry the failed run"
+fresh    | "New Version" or forced fresh    | User says "start a completely new version"
+```
+
+**Mode behavior summary:**
+
+| Mode | `running` (same env) | `failed` (same env) | `completed` / `abandoned` |
+|------|---------------------|---------------------|---------------------------|
+| `auto` | RESUME | NEW VERSION | NEW VERSION |
+| `retry` | RESUME | RESUME (retry) | NEW VERSION |
+| `fresh` | NEW VERSION | NEW VERSION | NEW VERSION |
+
+---
+
+**Algorithm (applies identically in App and Genie Code):**
 
 1. Read `{EXAMPLE_DIR}/version_registry.yaml`.
 
@@ -572,15 +654,97 @@ limited to: "I see version N exists, so I create version N+1."
 
    a. Find the **latest entry** (highest version number).
 
-   b. Check if this is a **same-environment resume**:
-      - Latest entry has `status: running` or `status: failed`
-      - AND `created_by` matches the current execution context
-      - THEN this is a **RESUME**: set `NEXT_VERSION = latest.version`
+   b. **MODE = fresh**: Always create a new version. Skip to step 3e.
 
-   c. Otherwise (completed, OR different `created_by`):
-      - This is a **new version**. Set `NEXT_VERSION = max(all versions) + 1`.
+   c. **MODE = retry**: Find the latest entry with `status: running` OR `status: failed` AND `created_by` matches current environment:
+      - If found: this is a **RESUME** (retry the failed/running version). Set `NEXT_VERSION = that.version`. Update that entry's status back to `running`.
+      - If NOT found: fall through to step 3e (create new version).
+
+   d. **MODE = auto** (default): Check for same-environment resume:
+      - Latest entry has `status: running`
+      - AND `created_by` matches the current execution context
+      - AND the output folder `{OUTPUT_BASE}/v{latest.version}` **exists**
+       - THEN this is a **RESUME**: set `NEXT_VERSION = latest.version`
+       - If the output folder does NOT exist (cleaned up or never created):
+         → Treat as **abandoned**. Mark the entry `status: failed` in the registry.
+         → Proceed to step 3e (create a new version).
+      - If no `running` entry exists for this environment: proceed to step 3e.
+
+   e. **Create new version**: Set `NEXT_VERSION = max(all versions) + 1`.
       - A partial run from the other environment stays as-is (it can be resumed
-        by that environment later, or cleaned up manually).
+         by that environment later, or cleaned up manually).
+      - An `abandoned` entry from the SAME environment also triggers a new version.
+      - A `failed` entry under `auto` mode triggers a new version (non-recoverable).
+
+**Explicit version number override:**
+
+In addition to the 3 modes, both environments support forcing a specific version number:
+- App: `{"version_override": 2}` in the request body
+- Genie Code: User says "retry version 2" or "rerun v2"
+
+When a version number is explicitly specified, ALL mode logic is skipped.
+The pipeline locks to that version and resumes it (equivalent to `mode=retry` but targeting a specific version). The registry entry is updated to `running`.
+
+**Shared Implementation (SINGLE SOURCE OF TRUTH):**
+
+The version resolution algorithm is implemented in ONE file:
+
+```text
+{REPO_ROOT}/app/shared/resolve_version.py
+```
+
+where `{REPO_ROOT}` is the accelerator repository root (parent of `kpi_domains/`, `app/`, `framework/`).
+
+Both App and Genie Code execute this SAME Python file:
+- **App**: imports it directly (`from shared.resolve_version import ...`) — the file deploys with the app snapshot
+- **Genie Code**: adds `app/shared/` to sys.path and imports the same module
+
+There is NO second copy. This file is the single source of truth.
+
+**Genie Code execution pattern:**
+
+```python
+import sys
+sys.path.insert(0, '{EXAMPLE_DIR}/../../app/shared')
+from resolve_version import resolve_version, mark_version_status
+
+result = resolve_version(
+    example_dir='{EXAMPLE_DIR}',
+    created_by='genie_code',
+    mode='<auto|retry|fresh>',  # determined from user intent
+    run_id='<generated_uuid>',
+    # override=N,  # only if user specifies a version number
+)
+
+print(f"Version: {result.version}, suffix: {result.suffix}, is_new: {result.is_new}")
+```
+
+Do NOT reimplement the version resolution logic in prose. Execute the shared file.
+
+**Genie Code mode detection:**
+
+The executing agent determines the mode from the user's intent:
+- User says "run the pipeline" / "execute" / no qualifier → `auto`
+- User says "retry" / "rerun the failed version" / "resume from failure" → `retry`
+- User says "retry version 2" / "rerun v2" / a specific version number → `override` with that number
+- User says "start fresh" / "new version" / "clean start" → `fresh`
+
+When in doubt, default to `auto`.
+
+**On pipeline failure, Genie Code marks the registry:**
+
+```python
+from resolve_version import mark_version_status
+
+mark_version_status(
+    example_dir='{EXAMPLE_DIR}',
+    version=CURRENT_VERSION,
+    status='failed',
+    error='<one-line error description>',
+)
+```
+
+This is MANDATORY before halting. See "On Run Failure" section above.
 
 4. **Register the new/resumed version**:
    - If resuming: no registry change needed (entry already exists as `running`)
@@ -621,11 +785,38 @@ assets_created:
   genie_spaces: <count>
 ```
 
-On failure, update:
+### On Run Failure (MANDATORY — execute before halting)
+
+When ANY step fails with a MANDATORY_STAGE_FAILURE or unrecoverable error, the pipeline MUST update the version registry **before** reporting the failure and stopping. This is NOT optional — without this update, the next run from the same environment will incorrectly resume the failed version instead of creating a fresh one.
+
+**Required actions on failure (in order):**
+
+1. Update `{EXAMPLE_DIR}/version_registry.yaml`:
 
 ```yaml
 status: failed
+completed_at: <ISO timestamp>
 ```
+
+2. Update `{OUTPUT_FOLDER}/run_manifest.json` with failure details
+3. THEN halt and report the error
+
+**Why this is mandatory:**
+
+The Version Resolution Algorithm (Step 0.3, section 3b) treats `status: running` as resumable by the same environment. If a failed run leaves its registry entry as `running`, every subsequent run from that environment will resume the broken version indefinitely — inheriting stale tables, mismatched schemas, and partial artifacts. Marking `failed` breaks this loop: the next run sees `status: failed` and still resumes (giving it a chance to recover with updated prompts/gates), but a truly unrecoverable failure can be manually escalated to `status: abandoned` to force a new version.
+
+**Failure classification for version resolution (mode=auto, the default):**
+
+| Registry Status | mode=auto | mode=retry | mode=fresh |
+|---|---|---|---|
+| `running` | RESUME | RESUME | NEW VERSION |
+| `failed` | NEW VERSION | RESUME (retry) | NEW VERSION |
+| `abandoned` | NEW VERSION | NEW VERSION | NEW VERSION |
+| `completed` | NEW VERSION | NEW VERSION | NEW VERSION |
+
+**Key insight:** Under `auto` mode (the default for "Run Pipeline"), a `failed` version creates a fresh new version. Under `retry` mode (explicit user action), a `failed` version is resumed from its failure point. This gives users both options:
+- "Run Pipeline" → auto → fresh start (v3)
+- "Retry" → retry → resume failed run (v2 again, with gates to fix the issue)
 
 ### Cross-Environment Coordination Examples
 
@@ -872,6 +1063,139 @@ This ensures:
 - no re-computation drift between stages;
 - the run is reproducible from the serialized context.
 
+### Produce step_handoff.yaml (Pre-Formatted Values for Downstream Steps)
+
+Immediately after writing `run_context.yaml`, produce:
+
+```text
+{OUTPUT_FOLDER}/step_handoff.yaml
+```
+
+This file contains **pre-formatted values that downstream steps paste verbatim** — no interpretation, no assembly, no quoting decisions required by the executing agent.
+
+#### Why This Artifact Exists
+
+In prior runs, downstream agents introduced errors when they had to:
+- Assemble a 3-part fully qualified name and decide how to backtick-quote it
+- Format a display name from component parts and decide casing
+- Construct a parent_path from separate user/host fields
+
+These are deterministic transformations that should happen ONCE at configuration time, not repeatedly at each downstream step where the agent may shortcut or misformat.
+
+#### Schema
+
+```yaml
+# step_handoff.yaml — pre-formatted values for Steps 2-5
+# Produced by Step 0. Consumed verbatim by downstream steps.
+# DO NOT re-derive these values. Paste them exactly as shown.
+
+# SQL-ready metric view FQN (paste directly into SQL queries)
+# Each segment is separately backtick-quoted. This is the ONLY correct format.
+metric_view_fqns:
+  - name: "<metric_view_resolved_name>"   # e.g., member_claims_metric_view_v3
+    sql_fqn: "`<catalog>`.`<schema>`.`<metric_view_name>`"  # e.g., `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v3`
+    primary: true/false
+
+# Exact display names for deployed assets (paste as-is into API calls)
+# These are snake_case per Step 0.6 validation. NEVER reformat to Title Case.
+dashboard_display_names:
+  - id: "<dashboard_id>"               # from accelerator.yaml assets.dashboards[].id
+    display_name: "<resolved_name>"     # e.g., member_claims_kpis_dashboard_v3
+
+genie_title: "<resolved_genie_space_name>"  # e.g., member_claims_analytics_genie_v3
+
+# Runtime values (paste as-is)
+warehouse_id: "<sql_warehouse_id>"
+parent_path: "/Users/<user_name>"
+workspace_host: "<https://workspace-url>"
+
+# Catalog/schema (for constructing table references)
+catalog: "<catalog_name>"
+schema: "<schema_name>"
+```
+
+#### Generation Rules
+
+1. **`sql_fqn`** MUST use 3 separate backtick pairs:
+   ```
+   `catalog`.`schema`.`table`
+   ```
+   NEVER:
+   ```
+   `catalog.schema.table`
+   ```
+
+2. **`dashboard_display_names[].display_name`** MUST be the exact output of Step 0.6 name resolution (snake_case, validated against `^[a-z0-9_]+$`).
+
+3. **`genie_title`** MUST be the exact output of Step 0.6 name resolution for `assets.genie.space_name`.
+
+4. **`parent_path`** MUST be `/Users/{resolved_user_name}` with no trailing slash.
+
+#### Consumption Rule (MANDATORY for Steps 2-5)
+
+When a downstream step needs any of these values, it MUST:
+
+```text
+1. Read {OUTPUT_FOLDER}/step_handoff.yaml
+2. Use the value EXACTLY as written (no reformatting, no re-quoting)
+3. If the value looks wrong, HALT and report — do NOT fix it locally
+```
+
+A downstream step that re-derives a display name or re-constructs FQN quoting instead of reading from `step_handoff.yaml` is in violation of the pipeline contract.
+
+#### Example (for member_claims domain, v3)
+
+```yaml
+metric_view_fqns:
+  - name: "member_claims_metric_view_v3"
+    sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v3`"
+    primary: true
+
+dashboard_display_names:
+  - id: "kpis"
+    display_name: "member_claims_kpis_dashboard_v3"
+  - id: "utilization"
+    display_name: "member_claims_utilization_dashboard_v3"
+
+genie_title: "member_claims_analytics_genie_v3"
+
+warehouse_id: "2d8e531640ffa469"
+parent_path: "/Users/arun.wagle@databricks.com"
+workspace_host: "https://fevm-aw-serverless-stable.cloud.databricks.com"
+
+catalog: "aw_serverless_stable_catalog"
+schema: "aibi_member_claims"
+```
+
+---
+
+### GATE 0.7: Verify step_handoff.yaml Written (MANDATORY)
+
+Immediately after writing `step_handoff.yaml`, verify the file exists and is non-empty:
+
+```text
+{OUTPUT_FOLDER}/step_handoff.yaml
+```
+
+Verification:
+
+1. File exists at the canonical path
+2. File is non-empty (size > 0 bytes)
+3. File contains `metric_view_fqns:` key
+4. File contains `sql_fqn:` with backtick-quoted 3-part name
+
+**If verification fails:**
+
+```text
+❌ EXECUTION HALTED — step_handoff.yaml was not written by Step 0.7
+This file is MANDATORY for all downstream steps (Metric Views, Dashboards, Genie).
+Re-execute Step 0.7 before proceeding.
+```
+
+This gate exists because prior runs have completed Steps 0-2 without writing `step_handoff.yaml`, causing Step 3 (Metric Views) to halt with no recovery path. The file MUST be verified here — it cannot be deferred.
+
+---
+
 ### Artifact Path Resolution
 
 When a downstream stage needs an upstream artifact, resolve its path using:
@@ -883,11 +1207,12 @@ When a downstream stage needs an upstream artifact, resolve its path using:
 Canonical artifact locations:
 
 ```text
+{OUTPUT_FOLDER}/run_context.yaml
+{OUTPUT_FOLDER}/step_handoff.yaml
 {OUTPUT_FOLDER}/erd_parsed.yaml
 {OUTPUT_FOLDER}/semantic_model.yaml
 {OUTPUT_FOLDER}/synthetic_data_spec.yaml
 {OUTPUT_FOLDER}/data_layer_validation.yaml
-{OUTPUT_FOLDER}/run_context.yaml
 {OUTPUT_FOLDER}/metric_views/<name>.yaml
 {OUTPUT_FOLDER}/metric_views/schema_profile.yaml
 {OUTPUT_FOLDER}/metric_views/kpi_metric_mapping.yaml
@@ -897,9 +1222,11 @@ Canonical artifact locations:
 {OUTPUT_FOLDER}/dashboards/<name>_validation.yaml
 {OUTPUT_FOLDER}/dashboards/dashboard_design.yaml
 {OUTPUT_FOLDER}/dashboards/dashboard_dataset_validation.yaml
+{OUTPUT_FOLDER}/dashboards/llm_dashboard_design.yaml
 {OUTPUT_FOLDER}/genie_space/<name>_manifest.json
 {OUTPUT_FOLDER}/genie_space/<name>_validation.yaml
 {OUTPUT_FOLDER}/genie_space/genie_semantic_inventory.yaml
+{OUTPUT_FOLDER}/genie_space/llm_genie_design.yaml
 {OUTPUT_FOLDER}/notebooks/
 {OUTPUT_FOLDER}/readme.md
 {OUTPUT_FOLDER}/run_manifest.json
@@ -1181,6 +1508,27 @@ llm.default_model
 
 for normal generation stages unless a stage-specific model is configured.
 
+### Stage-Specific LLM Models
+
+The following stages use dedicated LLM reasoning calls (configured per-step):
+
+```text
+llm.steps.erd_parse.model          → Vision model for ERD image interpretation
+llm.steps.dashboard_design.model   → Reasoning model for multi-page dashboard layout design
+llm.steps.genie_design.model       → Reasoning model for Genie Space instructions/questions/SQL
+```
+
+Fallback for all: `llm.default_model` (e.g., `databricks-gpt-5-5`).
+
+All LLM calls MUST use:
+
+```python
+w_llm = WorkspaceClient(config=Config(http_timeout_seconds=600))
+result = w_llm.api_client.do("POST", f"/serving-endpoints/{model}/invocations", body={...})
+```
+
+NEVER use `requests.post()` with extracted tokens.
+
 Read and enforce:
 
 ```text
@@ -1214,9 +1562,22 @@ Allowed prior-version operations are limited to operational tasks such as:
 listing vN folders to calculate NEXT_VERSION
 explicit version-management inspection
 explicit cleanup when configured
+ERD image cache (see exception below)
 ```
 
 Prior outputs must not be copied or used to infer the new version's schema or semantic design.
+
+### Approved Exception: ERD Image Cache
+
+The ERD image is an **authoritative input**, not a generated artifact. When the ERD image file has not changed (verified by SHA-256 hash comparison), reusing a prior version's `erd_parsed.yaml` is permitted because:
+
+1. The parse is deterministic for a given image (same bytes → same schema)
+2. Vision model calls are expensive (3-7 min, ~20K tokens for reasoning models)
+3. The ERD does not change between most version runs
+
+This is implemented via the `_erd_image_hash` field in `erd_parsed.yaml`. See `01_create_data_layer.md` § "ERD Image Cache" for the algorithm.
+
+This exception applies ONLY to `erd_parsed.yaml`. All other artifacts (`semantic_model.yaml`, metric views, dashboards, etc.) MUST be regenerated fresh each version.
 
 ---
 
@@ -1441,6 +1802,8 @@ target schema exists (CREATE SCHEMA IF NOT EXISTS succeeded)
 Databricks configuration resolved
 warehouse resolved
 domain configuration validated
+run_context.yaml exists in OUTPUT_FOLDER
+step_handoff.yaml exists in OUTPUT_FOLDER (written by Step 0.7)
 ```
 
 **If ANY of the above fails:**
@@ -1490,6 +1853,7 @@ outputs:
 Before any stage execution, verify:
 
 - [ ] `run_context.yaml` written to OUTPUT_FOLDER
+- [ ] `step_handoff.yaml` written to OUTPUT_FOLDER (MANDATORY — downstream steps halt without this)
 - [ ] All resolved asset names pass `^[a-z0-9_]+$` validation
 - [ ] Target schema exists
 - [ ] `sql_warehouse_id` resolved and accessible
@@ -1727,7 +2091,34 @@ Dashboard structure is ENTIRELY determined by:
 1. accelerator.yaml → assets.dashboards[] defines HOW MANY dashboards and their names
 2. KPI Spec → Dashboard Mapping section defines pages, KPI assignments, visualization types
 3. Metric View DESCRIBE → actual column names for SQL (never assumed)
+4. Metric View YAML definition → exact measure names, aggregation expressions, dimension names
+5. metric_view_validation.yaml → which KPIs are IMPLEMENTED vs SKIPPED
 ```
+
+### LLM-Assisted Dashboard Design (Step 2.2 in 03_create_dashboards.md)
+
+Before building dashboards, an LLM reasoning model call proposes the multi-page layout. The LLM receives:
+
+```text
+- KPI specification (business context)
+- Complete metric view definition (SHOW CREATE TABLE output)
+- Validation results (implemented vs skipped KPIs)
+- Data profile (row counts, date ranges, categorical samples)
+- Aggregation semantics reference (additive vs ratio measures)
+```
+
+The LLM output is validated against:
+
+```text
+- Page count ≥ 2 canvas pages per dashboard
+- Widget density 4-8 per page
+- Viz diversity ≥ 3 types per dashboard
+- Measure/dimension names EXACTLY match metric view
+- Ratio measures use AVG (not SUM)
+- No SKIPPED KPIs referenced
+```
+
+Saved to `{OUTPUT_FOLDER}/dashboards/llm_dashboard_design.yaml` (skip-if-exists checkpointed).
 
 The pipeline must NOT:
 
@@ -1737,9 +2128,12 @@ The pipeline must NOT:
 - create fewer dashboards than configured
 - guess column names without running DESCRIBE on the metric view
 - use assumed/derived column aliases as if they were actual dimensions
+- collapse multi-page LLM design into a single page
+- propose widgets using measures that don't exist in the metric view
+- SUM ratio/rate measures (must use AVG or component reconstruction)
 ```
 
-Every widget must trace back to a specific KPI in the spec. Every column name must trace back to DESCRIBE output.
+Every widget must trace back to a specific KPI in the spec. Every column name must trace back to DESCRIBE output or the metric view definition.
 
 ---
 
@@ -1790,8 +2184,8 @@ If any dataset SQL fails, the dashboard MUST NOT be created until the SQL is fix
 
 <!-- @tool
 name: create_genie_space
-description: Create a Genie Space. YOU provide the title, table_identifiers, instructions, and sample_questions. The executor calls the Genie API.
-type: api
+description: Create a fully-configured Genie Space via template notebook execution. This is a MULTI-PHASE step requiring LLM design, SQL validation, template population, and notebook execution. A title-only or blank space is ALWAYS invalid. The executor builds the notebook, validates SQL, then calls the Genie API with a FULL serialized_space payload.
+type: notebook
 step_order: 6
 inputs:
   - name: title
@@ -1854,10 +2248,38 @@ Genie Space content is ENTIRELY determined by:
 
 ```text
 1. metric_view_validation.yaml → which KPIs are IMPLEMENTED_AND_VALIDATED
-2. Metric View DESCRIBE → actual column names (measures + dimensions)
-3. KPI Spec → business descriptions and terminology
-4. Metric View profiling → actual categorical values for filter examples
+2. Metric View YAML definition → exact measure names, expressions, dimension names
+3. Metric View DESCRIBE → actual column names (measures + dimensions)
+4. KPI Spec → business descriptions and terminology
+5. Metric View profiling → actual categorical values for filter examples
 ```
+
+### LLM-Assisted Genie Design (Step 2.2 in 04_create_genie_space.md)
+
+Before writing instructions and questions, an LLM reasoning model call proposes the full Genie configuration. The LLM receives:
+
+```text
+- Complete metric view DDL (SHOW CREATE TABLE output)
+- Validation results (implemented vs skipped KPIs)
+- KPI specification (business context and terminology)
+- Semantic inventory (profiled measures, dimensions, sample values)
+- Data profile (row counts, date ranges, categorical samples)
+```
+
+The LLM output is validated against:
+
+```text
+- Instructions ≥ 500 chars, markdown-formatted (## headers, - bullets), mentions MEASURE() syntax
+- Sample questions ≥ 15, covering ≥ 5 of 8 analytical patterns
+- Example SQL ≥ 10, ALL using MEASURE() syntax with exact measure names
+- Benchmark questions ≥ 15, different phrasing than samples
+- Every IMPLEMENTED KPI in ≥ 2 questions
+- Every dimension used in ≥ 1 question
+- No SKIPPED KPIs referenced
+- Filter values match actual profiled data
+```
+
+Saved to `{OUTPUT_FOLDER}/genie_space/llm_genie_design.yaml` (skip-if-exists checkpointed).
 
 The pipeline must NOT:
 
@@ -1868,6 +2290,9 @@ The pipeline must NOT:
 - include example SQL that hasn't been validated on the warehouse
 - use derived aliases (service_month) as if they were actual dimensions
 - fabricate filter values without profiling actual data
+- accept instructions shorter than 500 chars or containing newlines
+- produce paraphrase-duplicate questions (same pattern + measure + dimension)
+- use raw SUM/COUNT instead of MEASURE() syntax in example SQL
 ```
 
 Every instruction, sample question, and example SQL must trace back to the validated semantic inventory.
@@ -1913,6 +2338,24 @@ Do NOT gate execution on specific notebook cell numbers.
 Notebook cell layout is an implementation detail owned by the Genie stage/template.
 
 A title-only or blank Genie Space is always invalid.
+
+### POST-STEP VALIDATION (MANDATORY before proceeding to Step 6)
+
+After Step 5 completes, execute this validation:
+
+```python
+# POST-STEP 5 VALIDATION — verify Genie Space is NOT blank
+result = w.api_client.do("GET", f"/api/2.0/genie/spaces/{space_id}", query={"include_serialized_space": "true"})
+ss = json.loads(result.get("serialized_space", "{}"))
+assert ss.get("instructions", {}).get("text_instructions"), "BLANK GENIE: No instructions"
+assert ss.get("config", {}).get("sample_questions"), "BLANK GENIE: No sample questions"
+assert ss.get("instructions", {}).get("example_question_sqls"), "BLANK GENIE: No example SQL"
+assert ss.get("benchmarks", {}).get("questions"), "BLANK GENIE: No benchmarks"
+```
+
+If ANY assertion fails: **DO NOT proceed to Step 6. Re-execute Step 5 from Phase A.**
+
+This gate exists because prior runs created blank spaces and declared success. The API returning a `space_id` does NOT prove correct configuration.
 
 ---
 

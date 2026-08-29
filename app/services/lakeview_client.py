@@ -136,6 +136,48 @@ class LakeviewService:
         except Exception as e:
             raise LakeviewError(str(e), operation="create_dashboard") from e
 
+    def update_dashboard(
+        self,
+        dashboard_id: str,
+        display_name: str,
+        serialized_dashboard: str,
+        warehouse_id: Optional[str] = None,
+    ) -> Dashboard:
+        """Update an existing Lakeview dashboard.
+
+        Args:
+            dashboard_id: ID of the dashboard to update.
+            display_name: Updated display name.
+            serialized_dashboard: Updated JSON spec string.
+            warehouse_id: Optional warehouse ID override.
+
+        Returns:
+            Dashboard object with updated metadata.
+
+        Raises:
+            LakeviewError: If update fails.
+        """
+        try:
+            response = self._client.lakeview.update(
+                dashboard_id=dashboard_id,
+                display_name=display_name,
+                serialized_dashboard=serialized_dashboard,
+                warehouse_id=warehouse_id,
+            )
+            dashboard = Dashboard(
+                dashboard_id=response.dashboard_id,
+                display_name=response.display_name,
+                path=response.path,
+                warehouse_id=response.warehouse_id,
+                lifecycle_state=response.lifecycle_state.value if response.lifecycle_state else None
+            )
+            logger.info(f"Updated dashboard: {display_name} (id={dashboard_id})")
+            return dashboard
+        except Exception as e:
+            raise LakeviewError(
+                str(e), dashboard_id=dashboard_id, operation="update_dashboard"
+            ) from e
+
     def publish_dashboard(
         self,
         dashboard_id: str,

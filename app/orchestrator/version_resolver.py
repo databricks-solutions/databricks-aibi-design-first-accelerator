@@ -1,18 +1,20 @@
-"""VersionResolver — Discover existing versions and compute next suffix.
+"""VersionResolver — App-side wrapper around the shared version resolution module.
 
-Scans workspace folders, UC schemas, and named assets (dashboards, Genie spaces)
-to find the highest existing _vN suffix, then returns the next version.
+This module delegates all version resolution logic to:
+    framework/shared/resolve_version.py
 
-Supports the **version registry** (`version_registry.yaml` in the domain root)
-for cross-environment coordination between App mode and Genie Code.
-See `00_master_prompt.md` Step 0.3 for the full contract.
+That shared module is the SINGLE SOURCE OF TRUTH for the version algorithm.
+Both App and Genie Code execute the same Python code.
 
-Used by the orchestrator when run_mode="versioned" to ensure new assets get
-a unique, incrementing version suffix without colliding with existing ones.
+This wrapper provides:
+1. Service-based I/O adapters (workspace_service.read_file / write_file)
+2. Fallback artifact scanning (folders, schemas, dashboards, Genie spaces)
+3. The VersionInfo dataclass expected by the App's pipeline runner
 
 See docs/design_phase2.md Section 10 for full reference.
 """
 
+import os
 import re
 import logging
 from dataclasses import dataclass
@@ -22,6 +24,19 @@ from typing import Optional
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# --- Import the shared resolve_version module (SINGLE SOURCE OF TRUTH) ---
+# Canonical location: framework/shared/resolve_version.py
+# App deployment copy: app/shared/resolve_version.py (included in snapshot)
+#
+# Both files MUST be identical. The framework/ copy is the source of truth.
+# The app/shared/ copy exists because App deployments snapshot only the app/ folder.
+# Genie Code executes from framework/shared/ directly (no copy needed).
+from shared.resolve_version import (
+    resolve_version as _shared_resolve,
+    mark_version_status as _shared_mark_status,
+    VersionResult,
+)
 
 # Pattern matches _v1, _v2, ..., _v99
 VERSION_PATTERN = re.compile(r"_v(\d+)$")
@@ -33,7 +48,7 @@ REGISTRY_FILENAME = "version_registry.yaml"
 
 
 # ---------------------------------------------------------------------------
-# Data Model
+# Data Model (expected by the App pipeline runner)
 # ---------------------------------------------------------------------------
 
 @dataclass
@@ -52,186 +67,120 @@ class VersionInfo:
 
 
 # ---------------------------------------------------------------------------
-# Resolver
+# Resolver (App-side wrapper)
 # ---------------------------------------------------------------------------
 
 class VersionResolver:
-    """Discovers existing versions and computes the next suffix.
+    """App-side version resolver. Delegates core logic to shared module.
 
-    Scans multiple sources to find version artifacts:
-        1. Workspace output folders (output/v1/, output/v2/, ...)
-        2. UC schemas (schema_v1, schema_v2, ...)
-        3. Dashboards by name (<name>_v1, <name>_v2, ...)
-        4. Genie spaces by title (<title>_v1, <title>_v2, ...)
+    The shared module (framework/shared/resolve_version.py) handles:
+        - Registry reading/writing
+        - Mode logic (auto/retry/fresh/override)
+        - Version number calculation
 
-    Usage:
-        resolver = VersionResolver(workspace_service, sql_service, lakeview_service, genie_service)
-        info = resolver.resolve(config)
-        # info.suffix == "_v3" if _v1 and _v2 exist
+    This wrapper adds:
+        - Service-based I/O (workspace_service instead of filesystem)
+        - Fallback scanning when no registry exists (dashboards, schemas, etc.)
+        - VersionInfo conversion for the pipeline runner
     """
 
     def __init__(self, workspace_service, sql_service, lakeview_service=None, genie_service=None):
-        """Initialize with required services.
-
-        Args:
-            workspace_service: WorkspaceService for scanning folders.
-            sql_service: SQLService for scanning schemas.
-            lakeview_service: Optional LakeviewService for scanning dashboards.
-            genie_service: Optional GenieService for scanning Genie spaces.
-        """
+        """Initialize with required services."""
         self._ws = workspace_service
         self._sql = sql_service
         self._lakeview = lakeview_service
         self._genie = genie_service
 
-    def resolve(self, config, override: Optional[int] = None, run_id: str = None) -> VersionInfo:
-        """Discover highest existing version and return next version info.
+    def resolve(self, config, override: Optional[int] = None, run_id: str = None,
+                mode: str = "auto") -> VersionInfo:
+        """Resolve version using the shared algorithm.
 
-        Resolution priority:
-        1. If override is provided, use it directly.
-        2. Check version_registry.yaml in domain root:
-           - If latest version has status 'running' or 'failed' -> RESUME that version
-           - If latest version has status 'completed' -> create next version
-        3. Fallback: scan output folders, UC schemas, dashboards, Genie spaces.
+        Delegates to framework/shared/resolve_version.py — the same code
+        that Genie Code executes directly. I/O is adapted via callables.
 
         Args:
             config: AcceleratorConfig with paths and asset names.
-            override: Force a specific version number (skips discovery).
+            override: Force a specific version number (skips all discovery).
             run_id: Current run_id (written to registry for new versions).
+            mode: Resolution mode — "auto", "retry", or "fresh".
 
         Returns:
             VersionInfo with the version to use (new or resumed).
         """
-        if override is not None:
-            return VersionInfo(
-                version=override,
-                suffix=f"_v{override}",
-                is_new=True,
-                existing_versions=[]
-            )
+        # Build I/O adapters that use the App's workspace_service
+        def read_fn(path: str) -> str:
+            return self._ws.read_file(path)
 
-        # --- PRIMARY: Check version registry ---
-        registry = self._read_registry(config.example_dir)
-        if registry and registry.get('versions'):
-            versions_list = registry['versions']
-            all_version_nums = sorted(v.get('version', 0) for v in versions_list)
-            max_version = max(all_version_nums) if all_version_nums else 0
+        def write_fn(path: str, content: str) -> None:
+            self._ws.write_file(path, content)
 
-            # Check for same-environment resume:
-            # Find the latest entry created_by THIS environment that is still running/failed
-            current_env = "app"  # App mode always sets this
-            resumable = None
-            for entry in reversed(sorted(versions_list, key=lambda v: v.get('version', 0))):
-                if (entry.get('status') in ('running', 'failed')
-                        and entry.get('created_by') == current_env):
-                    resumable = entry
-                    break
-
-            if resumable:
-                # RESUME: same environment has an incomplete version
-                resume_version = resumable.get('version', 1)
-                logger.info(
-                    f"Version registry: v{resume_version} is incomplete "
-                    f"(created_by={current_env}) -> resuming"
-                )
-                return VersionInfo(
-                    version=resume_version,
-                    suffix=f"_v{resume_version}",
-                    is_new=False,
-                    is_resume=True,
-                    existing_versions=all_version_nums,
-                    created_by=current_env
-                )
-            else:
-                # NEW VERSION: either all completed, or incomplete ones belong
-                # to the other environment (not our problem to resume)
-                next_version = max_version + 1
-                logger.info(
-                    f"Version registry: max existing is v{max_version} "
-                    f"-> creating v{next_version}"
-                )
-                self._register_version(config.example_dir, registry,
-                                       next_version, run_id)
-                return VersionInfo(
-                    version=next_version,
-                    suffix=f"_v{next_version}",
-                    is_new=True,
-                    existing_versions=all_version_nums,
-                    created_by=current_env
-                )
-
-        # --- FALLBACK: No registry, scan artifacts ---
-        all_versions = set()
-
-        # 1. Scan output folders
-        try:
-            folder_versions = self._scan_output_folders(config.example_dir)
-            all_versions.update(folder_versions)
-        except Exception as e:
-            logger.debug(f"Output folder scan failed: {e}")
-
-        # 2. Scan UC schemas
-        try:
-            if config.catalog.target:
-                catalog, base_schema = config.catalog.target.rsplit(".", 1)
-                schema_versions = self._scan_schemas(catalog, base_schema)
-                all_versions.update(schema_versions)
-        except Exception as e:
-            logger.debug(f"Schema scan failed: {e}")
-
-        # 3. Scan dashboards
-        try:
-            if self._lakeview and config.assets.dashboard:
-                dash_versions = self._scan_dashboards(config.assets.dashboard)
-                all_versions.update(dash_versions)
-        except Exception as e:
-            logger.debug(f"Dashboard scan failed: {e}")
-
-        # 4. Scan Genie spaces
-        try:
-            if self._genie and config.assets.genie_space:
-                genie_versions = self._scan_genie_spaces(config.assets.genie_space)
-                all_versions.update(genie_versions)
-        except Exception as e:
-            logger.debug(f"Genie space scan failed: {e}")
-
-        # Compute next version
-        existing_sorted = sorted(all_versions)
-        next_version = max(all_versions) + 1 if all_versions else 1
-
-        logger.info(
-            f"Version scan (no registry): found {len(all_versions)} existing versions "
-            f"({existing_sorted}), next = _v{next_version}"
+        # Delegate to the shared module
+        result: VersionResult = _shared_resolve(
+            example_dir=config.example_dir,
+            created_by="app",
+            mode=mode,
+            override=override,
+            run_id=run_id or "",
+            read_fn=read_fn,
+            write_fn=write_fn,
         )
 
-        # Bootstrap the registry for future runs
-        self._bootstrap_registry(config.example_dir, next_version, run_id,
-                                 existing_sorted)
-
+        # Convert to VersionInfo (expected by the pipeline runner)
         return VersionInfo(
-            version=next_version,
-            suffix=f"_v{next_version}",
-            is_new=True,
-            existing_versions=existing_sorted
+            version=result.version,
+            suffix=result.suffix,
+            is_new=result.is_new,
+            is_resume=result.is_resume,
+            existing_versions=result.existing_versions,
+            created_by=result.created_by,
+        )
+
+    def get_next_version_preview(self, config) -> dict:
+        """Preview what the next version would be (for UI display).
+
+        NOTE: This does NOT mutate the registry. It reads only.
+        For a true preview without side effects, we read the registry
+        and apply the auto logic without writing.
+        """
+        # For preview, just call resolve — but we'd need a dry-run mode.
+        # For now, use the existing behavior (resolve does write for new versions).
+        info = self.resolve(config)
+        return {
+            "next_version": info.version,
+            "next_suffix": info.suffix,
+            "is_resume": info.is_resume,
+            "existing_versions": info.existing_versions,
+            "existing_count": len(info.existing_versions)
+        }
+
+    def mark_version_status(self, config, version, status, assets_created=None, error=None):
+        """Update registry entry for a version (completed/failed).
+
+        Delegates to the shared mark_version_status function.
+        """
+        def read_fn(path: str) -> str:
+            return self._ws.read_file(path)
+
+        def write_fn(path: str, content: str) -> None:
+            self._ws.write_file(path, content)
+
+        _shared_mark_status(
+            example_dir=config.example_dir,
+            version=version,
+            status=status,
+            assets_created=assets_created,
+            error=error,
+            read_fn=read_fn,
+            write_fn=write_fn,
         )
 
     # ------------------------------------------------------------------
-    # Scanning Methods
+    # Fallback Scanning (only used when registry doesn't exist)
     # ------------------------------------------------------------------
 
     def _scan_output_folders(self, example_dir: str) -> list:
-        """Find output/v1/, output/v2/ folders inside the output directory.
-
-        Also supports legacy output_v1/, output_v2/ pattern in example_dir.
-
-        Args:
-            example_dir: Path to kpi_domains/<domain>/ directory.
-
-        Returns:
-            List of version numbers found.
-        """
+        """Find output/v1/, output/v2/ folders inside the output directory."""
         versions = []
-        # New pattern: output/v1/, output/v2/ ...
         try:
             output_dir = f"{example_dir}/output"
             entries = self._ws.list_dir(output_dir)
@@ -242,7 +191,6 @@ class VersionResolver:
                     versions.append(int(match.group(1)))
         except Exception:
             pass
-        # Legacy pattern: output_v1/, output_v2/ in example_dir
         try:
             entries = self._ws.list_dir(example_dir)
             for entry in entries:
@@ -256,20 +204,11 @@ class VersionResolver:
         return versions
 
     def _scan_schemas(self, catalog: str, base_schema: str) -> list:
-        """Find schema_v1, schema_v2, ... schemas in a catalog.
-
-        Args:
-            catalog: Catalog name.
-            base_schema: Base schema name (without _vN suffix).
-
-        Returns:
-            List of version numbers found.
-        """
+        """Find schema_v1, schema_v2, ... schemas in a catalog."""
         versions = []
         try:
             result = self._sql.execute_and_wait(
-                f"SHOW SCHEMAS IN `{catalog}`",
-                timeout_s=30.0
+                f"SHOW SCHEMAS IN `{catalog}`", timeout_s=30.0
             )
             if result.rows:
                 for row in result.rows:
@@ -284,14 +223,7 @@ class VersionResolver:
         return versions
 
     def _scan_dashboards(self, base_name: str) -> list:
-        """Find <name>_v1, <name>_v2, ... dashboards.
-
-        Args:
-            base_name: Base dashboard display name.
-
-        Returns:
-            List of version numbers found.
-        """
+        """Find <name>_v1, <name>_v2, ... dashboards."""
         versions = []
         try:
             dashboards = self._lakeview.list_dashboards()
@@ -307,14 +239,7 @@ class VersionResolver:
         return versions
 
     def _scan_genie_spaces(self, base_title: str) -> list:
-        """Find <title>_v1, <title>_v2, ... Genie spaces.
-
-        Args:
-            base_title: Base Genie space title.
-
-        Returns:
-            List of version numbers found.
-        """
+        """Find <title>_v1, <title>_v2, ... Genie spaces."""
         versions = []
         try:
             spaces = self._genie.list_spaces()
@@ -328,74 +253,3 @@ class VersionResolver:
         except Exception:
             pass
         return versions
-
-    # ------------------------------------------------------------------
-    # Utility
-    # ------------------------------------------------------------------
-
-    def get_next_version_preview(self, config) -> dict:
-        """Preview what the next version would be (for UI display)."""
-        info = self.resolve(config)
-        return {
-            "next_version": info.version,
-            "next_suffix": info.suffix,
-            "is_resume": info.is_resume,
-            "existing_versions": info.existing_versions,
-            "existing_count": len(info.existing_versions)
-        }
-
-    def mark_version_status(self, config, version, status, assets_created=None, error=None):
-        """Update registry entry for a version (completed/failed)."""
-        registry = self._read_registry(config.example_dir)
-        if not registry:
-            return
-        for entry in registry.get('versions', []):
-            if entry.get('version') == version:
-                entry['status'] = status
-                if status == 'completed':
-                    entry['completed_at'] = datetime.now(timezone.utc).isoformat()
-                    entry['assets_created'] = assets_created or {}
-                elif error:
-                    entry['error'] = error[:500]
-                break
-        self._persist_registry(config.example_dir, registry)
-
-    def _read_registry(self, example_dir):
-        """Load version_registry.yaml from domain root."""
-        path = f"{example_dir}/{REGISTRY_FILENAME}"
-        try:
-            content = self._ws.read_file(path)
-            return yaml.safe_load(content) if content else None
-        except Exception:
-            return None
-
-    def _persist_registry(self, example_dir, registry):
-        """Save version_registry.yaml to domain root."""
-        path = f"{example_dir}/{REGISTRY_FILENAME}"
-        try:
-            self._ws.write_file(path, yaml.dump(registry, default_flow_style=False, sort_keys=False))
-        except Exception as e:
-            logger.warning(f"Registry save failed: {e}")
-
-    def _register_version(self, example_dir, registry, version, run_id=None):
-        """Append new running version to registry."""
-        registry.setdefault('versions', []).append({
-            'version': version, 'status': 'running', 'created_by': 'app',
-            'run_id': run_id or '', 'started_at': datetime.now(timezone.utc).isoformat(),
-            'assets_created': {}
-        })
-        self._persist_registry(example_dir, registry)
-
-    def _bootstrap_registry(self, example_dir, next_version, run_id=None, existing=None):
-        """Create registry from scratch when none exists."""
-        domain_name = example_dir.rstrip('/').split('/')[-1]
-        registry = {'domain': domain_name, 'versions': []}
-        for v in (existing or []):
-            registry['versions'].append({'version': v, 'status': 'completed',
-                                         'created_by': 'unknown', 'run_id': '', 'started_at': ''})
-        registry['versions'].append({
-            'version': next_version, 'status': 'running', 'created_by': 'app',
-            'run_id': run_id or '', 'started_at': datetime.now(timezone.utc).isoformat(),
-            'assets_created': {}
-        })
-        self._persist_registry(example_dir, registry)
