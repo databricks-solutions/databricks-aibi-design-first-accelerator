@@ -80,7 +80,7 @@ In both patterns, the pipeline contract and stage prompts are identical. Only th
 <!-- @global_enforcement
   ddl_pattern: CREATE TABLE IF NOT EXISTS (NEVER CREATE OR REPLACE TABLE)
   notebook_execution: When templates exist, agent MUST create notebook from template and execute it (not run code inline)
-  multi_asset_mandatory: If config specifies N dashboards or N metric views, create exactly N (not fewer)
+  multi_asset_mandatory: If config specifies N dashboards, create exactly N (not fewer). For metric views with strategy=auto, the metric view step determines the count via grain analysis.
   filter_mandatory: Every dashboard MUST have dimension filters
   gate_pattern: Every step has GATE checks that must pass before proceeding
   output_contracts: Every step has an Output Contract table listing required artifacts
@@ -171,6 +171,7 @@ METRIC LAYER
         ↓
 schema_profile.yaml
 kpi_metric_mapping.yaml
+metric_view_plan.yaml
 metric_view_design.yaml
 metric_view_validation.yaml
         ↓
@@ -464,7 +465,7 @@ At the start of each run, the LLM checks for `run_context.yaml` in the output fo
 
 The file tracks: `run_id`, `domain`, `version_suffix`, `current_step`, `status`, and `phases_completed` (list of step+phase entries with timestamps).
 
-This works identically in App mode and Genie Code. See `07_state_contract.md` Section 8 for the full schema and flow.
+This works identically in App mode and Genie Code. See `06_state_contract.md` Section 8 for the full schema and flow.
 
 ---
 
@@ -555,7 +556,7 @@ data_source.type                    # erd | live_schema | erd_and_live_schema
 pipeline.steps                      # dict of step_name: true/false/auto
 
 # Assets (at least one asset definition)
-assets.metric_views                 # array with at least one entry
+assets.metric_views                 # object with strategy: auto|explicit, OR array (legacy)
 
 # Paths
 paths.framework_root                # relative path to framework/
@@ -949,13 +950,29 @@ ASSET_SUFFIX
 exactly once to all versioned generated assets:
 
 ```text
-assets.metric_views[].name
+assets.metric_views[].name         (only when strategy: explicit or legacy array)
 assets.dashboards[].name
 assets.genie.space_name
 assets.genie.notebook_name
 assets.sample_queries_file
 generated greenfield table names
 ```
+
+### Metric View Auto-Resolution (strategy: auto)
+
+When `assets.metric_views.strategy` is `auto`:
+
+1. Do NOT resolve metric view names in Step 0.6. Record `metric_views: auto` in `run_context.yaml`.
+2. The metric view step (02_create_metric_views) determines the optimal count, names, and primary designation based on grain analysis, KPI coverage, and join safety.
+3. The metric view step writes the resolved metric view FQNs into `step_handoff.yaml` under `metric_view_fqns[]`.
+4. Downstream stages (dashboards, Genie) consume `step_handoff.yaml` — they never read metric view names from `accelerator.yaml` directly.
+5. Naming convention: `{naming_prefix}_metric_view{ASSET_SUFFIX}` for the primary view, `{naming_prefix}_{grain_qualifier}_metric_view{ASSET_SUFFIX}` for secondary views where `grain_qualifier` describes the source grain (e.g., `enrollment`).
+
+When `assets.metric_views.strategy` is `explicit` (or legacy array format):
+
+1. Resolve metric view names by appending ASSET_SUFFIX in Step 0.6 (original behavior).
+2. Write resolved names into `step_handoff.yaml`.
+3. The metric view step MUST create exactly the listed views.
 
 For files with an extension, append the suffix before the extension.
 
@@ -1027,7 +1044,8 @@ run_context:
     schema:
 
   assets:
-    metric_views: []
+    metric_views: []           # populated in Step 0.6 (explicit) or by 02_create_metric_views (auto)
+    metric_view_strategy: auto # auto | explicit — indicates how metric views are resolved
     dashboards: []
     genie:
       space_name:
@@ -1089,8 +1107,15 @@ These are deterministic transformations that should happen ONCE at configuration
 # Produced by Step 0. Consumed verbatim by downstream steps.
 # DO NOT re-derive these values. Paste them exactly as shown.
 
+# Metric view strategy (auto or explicit)
+metric_view_strategy: "auto"  # or "explicit"
+metric_view_naming_prefix: "<naming_prefix>"  # e.g., "member_claims" (only when strategy=auto)
+
 # SQL-ready metric view FQN (paste directly into SQL queries)
 # Each segment is separately backtick-quoted. This is the ONLY correct format.
+# When strategy=auto: this section is EMPTY initially. Step 4.5 of 02_create_metric_views
+# populates it after grain analysis determines the optimal metric view count and names.
+# When strategy=explicit: pre-populated from accelerator.yaml in Step 0.6.
 metric_view_fqns:
   - name: "<metric_view_resolved_name>"   # e.g., member_claims_metric_view_v3
     sql_fqn: "`<catalog>`.`<schema>`.`<metric_view_name>`"  # e.g., `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v3`
@@ -1143,13 +1168,14 @@ When a downstream step needs any of these values, it MUST:
 
 A downstream step that re-derives a display name or re-constructs FQN quoting instead of reading from `step_handoff.yaml` is in violation of the pipeline contract.
 
-#### Example (for member_claims domain, v3)
+#### Example (for member_claims domain, v3, strategy=auto)
 
 ```yaml
-metric_view_fqns:
-  - name: "member_claims_metric_view_v3"
-    sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v3`"
-    primary: true
+metric_view_strategy: "auto"
+metric_view_naming_prefix: "member_claims"
+
+# Initially empty — populated by 02_create_metric_views Step 4.5 after grain analysis
+metric_view_fqns: []
 
 dashboard_display_names:
   - id: "kpis"
@@ -1181,8 +1207,9 @@ Verification:
 
 1. File exists at the canonical path
 2. File is non-empty (size > 0 bytes)
-3. File contains `metric_view_fqns:` key
-4. File contains `sql_fqn:` with backtick-quoted 3-part name
+3. File contains `metric_view_fqns:` key (may be empty list `[]` when `metric_view_strategy: auto`)
+4. When `metric_view_strategy: explicit`: file contains `sql_fqn:` with backtick-quoted 3-part name
+5. When `metric_view_strategy: auto`: file contains `metric_view_naming_prefix:` with a non-empty value
 
 **If verification fails:**
 
@@ -1216,6 +1243,7 @@ Canonical artifact locations:
 {OUTPUT_FOLDER}/metric_views/<name>.yaml
 {OUTPUT_FOLDER}/metric_views/schema_profile.yaml
 {OUTPUT_FOLDER}/metric_views/kpi_metric_mapping.yaml
+{OUTPUT_FOLDER}/metric_views/metric_view_plan.yaml
 {OUTPUT_FOLDER}/metric_views/metric_view_design.yaml
 {OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml
 {OUTPUT_FOLDER}/dashboards/<name>_manifest.json
@@ -1471,7 +1499,6 @@ Expected stage prompts:
 03_create_dashboards.md
 04_create_genie_space.md
 05_generate_documentation.md
-06_create_secured_dashboards.md
 ```
 
 as configured.
@@ -1944,7 +1971,7 @@ mandatory relationship integrity fails
 
 <!-- @tool
 name: create_metric_views
-description: Autonomous LLM-powered stage. Reads 02_create_metric_views.md, profiles schema, maps KPIs to metric views, generates SQL, executes on warehouse, validates. Returns metric_view_validation results.
+description: Autonomous LLM-powered stage. Reads 02_create_metric_views.md, profiles schema, maps KPIs to metric views, plans multi-metric-view architecture (metric_view_plan.yaml), creates intermediate materialized views if needed, generates metric view SQL, executes on warehouse, validates. Returns metric_view_validation results.
 type: sql
 step_order: 4
 inputs:
@@ -1987,11 +2014,12 @@ Expected artifacts include:
 ```text
 schema_profile.yaml
 kpi_metric_mapping.yaml
+metric_view_plan.yaml
 metric_view_design.yaml
 metric_view_validation.yaml
 ```
 
-Require at least one viable validated Metric View if downstream Dashboard or Genie stages are enabled.
+Require at least one viable validated Metric View if downstream Dashboard or Genie stages are enabled. The `metric_view_plan.yaml` is the authoritative plan for multi-metric-view domains — it specifies which KPIs go to which metric view, intermediate views needed, and NOT_IMPLEMENTED KPIs with reference SQL.
 
 The authoritative KPI state comes from:
 
@@ -2426,48 +2454,6 @@ in that order of authority.
 
 ---
 
-# Step 7: Secured Dashboards
-
-<!-- @tool
-name: create_secured_dashboards
-description: Create row-level-security enabled dashboards following the same contract as standard dashboards but with RLS policies applied. Optional stage.
-type: api
-step_order: 8
-inputs:
-  - name: run_context
-    type: string
-    description: Serialized run_context YAML
-  - name: dashboard_validation
-    type: string
-    description: Standard dashboard validation results
-outputs:
-  - name: secured_dashboard_validation
-    type: string
-    description: JSON with secured dashboard IDs and validation status
--->
-
-If:
-
-```text
-pipeline.steps.create_secured_dashboards = true
-```
-
-execute:
-
-```text
-06_create_secured_dashboards.md
-```
-
-Otherwise mark:
-
-```text
-create_secured_dashboards = SKIPPED
-```
-
-This optional stage must follow the same contract and validation principles as the main Dashboard stage.
-
-It must never weaken or bypass source security.
-
 ---
 
 # Downstream Halt Policy
@@ -2860,7 +2846,7 @@ where allowed.
 
 ## Critical Tool Failures (Immediate HALT)
 
-See `07_state_contract.md` Section 11 for the full contract.
+See `06_state_contract.md` Section 11 for the full contract.
 
 If any of these tools return an ERROR, **halt immediately** — do NOT adapt or skip:
 - `execute_sql` (DDL/DML only — not SELECT/SHOW/DESCRIBE)

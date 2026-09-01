@@ -7,15 +7,20 @@ Forget all execution details from prior steps (ERD parsing, synthetic data, metr
 **Your ONLY inputs are:**
 
 1. `{OUTPUT_FOLDER}/step_handoff.yaml` — contains pre-formatted values (paste verbatim):
-   - `metric_view_fqns[].sql_fqn` — the EXACT backtick-quoted FQN for example SQL (do NOT re-derive)
+   - `metric_view_fqns[].sql_fqn` — the EXACT backtick-quoted FQN for example SQL (do NOT re-derive) — may contain 1-4 metric views
+   - `metric_view_fqns[].primary` — whether this is the primary metric view
    - `genie_title` — the EXACT title for the Genie Space API call (do NOT reformat)
    - `warehouse_id` — paste as-is
 
-2. `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` — which KPIs are IMPLEMENTED
+2. `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` — which KPIs are IMPLEMENTED and which metric view implements each
 
-3. `{OUTPUT_FOLDER}/metric_views/metric_view_design.yaml` — measure/dimension definitions
+3. `{OUTPUT_FOLDER}/metric_views/metric_view_design.yaml` — measure/dimension definitions for ALL metric views
 
-4. KPI specification — business context for instructions
+4. `{OUTPUT_FOLDER}/metric_views/metric_view_plan.yaml` — the multi-metric-view plan including:
+   - All metric views with their assigned KPIs and grains
+   - NOT_IMPLEMENTED KPIs with reasons (these are **excluded from Genie**)
+
+5. KPI specification — business context for instructions
 
 **Rules:**
 - Read `step_handoff.yaml` BEFORE any other action in this step
@@ -49,10 +54,11 @@ If `step_handoff.yaml` does NOT exist in `{OUTPUT_FOLDER}`:
    - HALT with: `"❌ EXECUTION HALTED: Cannot resolve asset names. Neither step_handoff.yaml, run_context.yaml, nor accelerator.yaml are accessible."`
 
 **MANDATORY FIRST ACTIONS (execute these in order before anything else):**
-1. Read `{OUTPUT_FOLDER}/step_handoff.yaml` → extract `sql_fqn`, `genie_title`, `warehouse_id`
+1. Read `{OUTPUT_FOLDER}/step_handoff.yaml` → extract ALL `metric_view_fqns[].sql_fqn` entries, `genie_title`, `warehouse_id`
 2. Read `{deploy_root}/framework/inputs/genie_space_configuration.md` → understand the template workflow
 3. Read `{EXAMPLE_DIR}/{templates.genie_notebook}` → understand the notebook structure (cells 1-10)
 4. Read `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` → know which KPIs are IMPLEMENTED
+5. Read `{OUTPUT_FOLDER}/metric_views/metric_view_plan.yaml` → know all metric views and NOT_IMPLEMENTED KPIs
 
 If ANY of these reads fail, HALT. Do NOT proceed to generate content without these inputs.
 
@@ -65,11 +71,13 @@ This prompt is long (2500+ lines). To prevent shortcutting, here is the EXACT ex
 
 ```text
 PHASE A — LOAD & PROFILE (Steps 1-2)
-  1. Read step_handoff.yaml (has sql_fqn, genie_title, warehouse_id)
-  2. Read metric_view_validation.yaml + metric_view_design.yaml
+  1. Read step_handoff.yaml (has ALL metric_view_fqns[], genie_title, warehouse_id)
+  2. Read metric_view_validation.yaml + metric_view_design.yaml + metric_view_plan.yaml
   3. Read genie_space_configuration.md (MANDATORY — defines serialized_space contract)
-  4. DESCRIBE the metric view + profile categorical values
-  5. Write genie_semantic_inventory.yaml
+  4. DESCRIBE ALL metric views + profile categorical values for each
+  5. Write genie_semantic_inventory.yaml (covering ALL metric views)
+     NOTE: The Genie table list MUST include ALL metric views from the plan.
+     NOT_IMPLEMENTED KPIs are excluded from sample questions and instructions.
 
 PHASE B — LLM DESIGN (Step 2.2)
   6. Call reasoning model with metric view DDL + KPI spec + semantic inventory
@@ -187,7 +195,7 @@ The following actions are STRICTLY FORBIDDEN:
 2. **DO NOT bypass the notebook template** — if `templates.genie_notebook` is configured, use it (read template, populate, execute)
 3. **DO NOT hardcode domain-specific instructions** in the template — instructions are generated from the validated KPI/metric inventory
 4. **DO NOT skip benchmark validation** — sample questions must be tested against the Genie space to verify it answers correctly
-5. **DO NOT create sample questions that cannot be answered** by the metric view — every sample question must map to available measures/dimensions
+5. **DO NOT create sample questions that cannot be answered** by the metric view — every sample question must map to available measures/dimensions from IMPLEMENTED metric views. **Exclude NOT_IMPLEMENTED KPIs** (those with HAVING/LAG/window requirements) from sample questions, example SQL, benchmarks, and instructions. These KPIs have no metric view and cannot be queried via `MEASURE()`.
 6. **DO NOT use raw SQL in example queries** when `MEASURE()` syntax should be used — Genie must learn the metric view query pattern
 7. **DO NOT skip the instruction quality check** — instructions must explicitly mention: measure names, dimension names, MEASURE() syntax rules, ratio non-additivity warnings
 8. **DO NOT create fewer sample questions than `validation.min_benchmark_questions`** from accelerator.yaml
@@ -387,7 +395,11 @@ The correct structure:
 body = {
     "title": ...,
     "warehouse_id": ...,
-    "table_identifiers": ["catalog.schema.metric_view"],  # HERE
+    "table_identifiers": [   # HERE — include ALL metric views from the plan
+        "catalog.schema.primary_metric_view",
+        "catalog.schema.secondary_metric_view",
+        # ... one entry per metric view in metric_view_plan.yaml
+    ],
     "serialized_space": json.dumps({...}),  # NOT inside here
 }
 ```
@@ -472,7 +484,7 @@ Do not compensate by querying raw tables or recreating KPI formulas inside Genie
 
 ## State & Checkpoint Contract
 
-This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+This step uses **artifact-as-state** checkpointing (see `06_state_contract.md`).
 The same rules apply in App mode and Genie Code — no backend infrastructure required.
 
 **Before executing each phase**, check whether its output artifact already exists.
@@ -482,7 +494,7 @@ If it does not exist → execute the phase normally.
 **Verification flow (run at the START of this step, after loading config):**
 
 1. List the output folder.
-2. Manage `run_context.yaml` per `07_state_contract.md` Section 8.
+2. Manage `run_context.yaml` per `06_state_contract.md` Section 8.
 3. For each artifact below, apply ONE cheap check:
    - `genie_semantic_inventory.yaml` exists: skip build_inventory
    - Genie manifest (`*_genie_manifest.json`) exists with `space_id` field: skip create_genie_space
@@ -548,9 +560,30 @@ DESCRIBE says: measure=denial_rate, dimension=line_of_business, values=['Commerc
 ✗ Including example SQL that hasn't been validated on the warehouse
 ✗ Adding instructions about capabilities the metric view doesn't support
 ✗ Using shortened/semantic column names from memory instead of exact DDL names
+✗ Creating sample questions for NOT_IMPLEMENTED KPIs (HAVING, LAG, window function KPIs)
+✗ Mixing measures from different metric views in a single example SQL query
 ```
 
 Every instruction, sample question, and example SQL must trace back to either the KPI spec or the DESCRIBE output. If it can't be traced, it must not be included.
+
+### Multi-Metric View Instructions
+
+When multiple metric views exist (from `metric_view_plan.yaml`), the Genie instructions MUST include:
+
+1. **Metric view catalog** — list each metric view with its purpose and the KPI categories it covers
+2. **Which metric view to query** — for each KPI category, specify which metric view FQN to use
+3. **Cross-metric-view guidance** — explain that measures from different metric views cannot be mixed in a single query
+4. **Common dimensions** — document shared dimensions (e.g., `service_month`) that enable cross-view filtering
+
+Example instruction snippet:
+```text
+This analytics space has 2 metric views:
+- `member_claims_metric_view_v2`: For claims metrics (Total Claims, Paid Amount, Denial Rate, etc.)
+- `member_enrollment_metric_view_v2`: For enrollment metrics (Active Members, Member Months, etc.)
+
+Always query the correct metric view for the KPI category.
+Do NOT combine measures from different metric views in a single SELECT statement.
+```
 
 ### Column Name Source of Truth (DETERMINISM RULE)
 
@@ -2589,7 +2622,11 @@ sample_questions = [...]  # inserted in generation order, not sorted
 body = {
     "title": "member_claims_analytics_genie_v3",  # exact configured name
     "warehouse_id": warehouse_id,
-    "table_identifiers": ["catalog.schema.metric_view"],  # TOP LEVEL
+    "table_identifiers": [  # TOP LEVEL — include ALL metric views from plan
+        "catalog.schema.primary_metric_view",
+        "catalog.schema.secondary_metric_view",
+        # ... one per metric view in metric_view_plan.yaml
+    ],
     "serialized_space": json.dumps({...}),  # does NOT contain table_identifiers
 }
 

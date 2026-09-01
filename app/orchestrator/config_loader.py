@@ -51,6 +51,9 @@ class PipelineConfig:
 class AssetsConfig:
     """Named asset identifiers (all must be snake_case)."""
     metric_view: Optional[str] = None
+    metric_view_strategy: str = "explicit"  # "auto" or "explicit"
+    metric_view_naming_prefix: Optional[str] = None  # Base prefix for auto-generated names
+    metric_views_raw: list = field(default_factory=list)  # Full list when explicit: [{name, primary}, ...]
     dashboard: Optional[str] = None
     dashboards: list = field(default_factory=list)  # Full list: [{id, name}, ...]
     genie_space: Optional[str] = None
@@ -199,12 +202,31 @@ class ConfigLoader:
         # Parse assets — handle both singular and plural (list) formats
         assets_block = raw.get("assets", {})
 
-        # metric_view: singular string or first primary from metric_views list
+        # metric_view: singular string, auto strategy dict, or explicit list
         mv = assets_block.get("metric_view")
+        mv_strategy = "explicit"
+        mv_naming_prefix = None
+        mv_raw_list = []
         if not mv:
-            mv_list = assets_block.get("metric_views", [])
-            if mv_list:
-                primary = next((m for m in mv_list if m.get("primary")), mv_list[0])
+            mv_config = assets_block.get("metric_views", [])
+            if isinstance(mv_config, dict):
+                # New format: {strategy: auto, naming_prefix: ...} or {strategy: explicit, views: [...]}
+                mv_strategy = mv_config.get("strategy", "explicit")
+                mv_naming_prefix = mv_config.get("naming_prefix")
+                if mv_strategy == "auto":
+                    # Auto mode: metric view names determined at runtime by grain analysis
+                    # Use naming_prefix as a placeholder for config display
+                    mv = mv_naming_prefix
+                else:
+                    # Explicit mode with dict wrapper
+                    mv_raw_list = mv_config.get("views", [])
+                    if mv_raw_list:
+                        primary = next((m for m in mv_raw_list if m.get("primary")), mv_raw_list[0])
+                        mv = primary.get("name")
+            elif isinstance(mv_config, list) and mv_config:
+                # Legacy format: [{name: ..., primary: true}, ...]
+                mv_raw_list = mv_config
+                primary = next((m for m in mv_config if m.get("primary")), mv_config[0])
                 mv = primary.get("name")
 
         # dashboard: singular string or first from dashboards list
@@ -225,6 +247,9 @@ class ConfigLoader:
 
         assets = AssetsConfig(
             metric_view=mv,
+            metric_view_strategy=mv_strategy,
+            metric_view_naming_prefix=mv_naming_prefix,
+            metric_views_raw=mv_raw_list,
             dashboard=dash,
             dashboards=dash_list,
             genie_space=genie_space,

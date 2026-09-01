@@ -7,13 +7,19 @@ Forget all execution details from prior steps (ERD parsing, synthetic data gener
 **Your ONLY inputs are:**
 
 1. `{OUTPUT_FOLDER}/step_handoff.yaml` — contains pre-formatted values (paste verbatim):
-   - `metric_view_fqns[].sql_fqn` — the EXACT backtick-quoted FQN for SQL (do NOT re-derive)
+   - `metric_view_fqns[].sql_fqn` — the EXACT backtick-quoted FQN for SQL (do NOT re-derive) — may contain 1-4 metric views
+   - `metric_view_fqns[].primary` — whether this is the primary metric view
    - `dashboard_display_names[].display_name` — the EXACT name for API calls (do NOT reformat)
    - `warehouse_id`, `parent_path` — paste as-is
 
-2. `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` — which KPIs are IMPLEMENTED
+2. `{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml` — which KPIs are IMPLEMENTED and which metric view implements each
 
-3. KPI specification Dashboard Mapping — which KPIs go on which page
+3. `{OUTPUT_FOLDER}/metric_views/metric_view_plan.yaml` — the multi-metric-view plan including:
+   - All metric views with their assigned KPIs
+   - NOT_IMPLEMENTED KPIs with reasons (these are **excluded from dashboards**)
+   - Intermediate view details
+
+4. KPI specification Dashboard Mapping — which KPIs go on which page
 
 **Rules:**
 - Read `step_handoff.yaml` BEFORE any other action in this step
@@ -108,11 +114,11 @@ The following actions are STRICTLY FORBIDDEN:
 1. **DO NOT create only 1 dashboard when `assets.dashboards[]` specifies multiple** — each entry MUST produce a separate deployed dashboard
 2. **DO NOT create dashboards without filters** — every dashboard MUST include filter widgets for at least the primary dimensions (e.g., claim_type, line_of_business, service_month or equivalent)
 3. **DO NOT create single-page dashboards when KPI spec Dashboard Mapping specifies multiple pages** — page count MUST match the mapping. A dashboard with 1 filter page + 1 canvas page is a SINGLE-PAGE dashboard (the filter page does not count). If the KPI spec maps N analytical pages, the dashboard MUST have N canvas pages + 1 filter page = N+1 total pages.
-4. **DO NOT bypass `MEASURE()` syntax** — all validated KPI measures must use `MEASURE(measure_name)` from the Metric View
+4. **DO NOT bypass `MEASURE()` syntax** — all validated KPI measures must use `MEASURE(measure_name)` from the appropriate Metric View. Each dataset references ONE metric view — do NOT mix measures from different metric views in a single dataset query. Use `metric_view_plan.yaml` to determine which metric view FQN to use for each KPI.
 5. **DO NOT construct dashboard JSON from memory** — ALWAYS use `lakeview_dashboard_api.md` as the structural authority
 6. **DO NOT skip dataset SQL validation** — every dataset query must execute successfully BEFORE building the dashboard JSON
 7. **DO NOT jump directly to Lakeview API** without completing the design contract (`dashboard_design.yaml`)
-8. **DO NOT silently implement skipped KPIs in dashboard SQL** — if a KPI was SKIPPED in metric view validation, it stays skipped
+8. **DO NOT silently implement skipped or NOT_IMPLEMENTED KPIs in dashboard SQL** — if a KPI was SKIPPED or NOT_IMPLEMENTED in metric view validation, it stays excluded from the dashboard. NOT_IMPLEMENTED KPIs have validated reference SQL in `metric_view_plan.yaml` but are documentation-only artifacts — they do NOT appear as dashboard widgets or datasets.
 9. **DO NOT create empty/placeholder widgets** — every widget must have a valid dataset with real data
 10. **DO NOT improvise or use custom logic** — this prompt defines the EXACT sequence. Do NOT substitute your own dashboard creation workflow, skip gates, or collapse multiple steps into a single API call. Every numbered step in this prompt exists because prior runs failed when it was skipped.
 11. **DO NOT use `query` (string) in dataset objects** — MUST use `queryLines` (array of strings) per `lakeview_dashboard_api.md`. Using `query` causes silent rendering failures.
@@ -212,10 +218,14 @@ The `lakeview_dashboard_helpers.py.template` provides **programmatic builders** 
 
 ```python
 # 1. Discover actual metric view columns (SINGLE SOURCE OF TRUTH)
-columns = describe_metric_view(metric_view_fqn)
-validate_column_refs(columns, [list of columns you'll use], "dataset_name")
+#    For multi-metric-view domains: describe EACH metric view separately
+#    Use metric_view_plan.yaml to know which KPIs map to which metric view
+for mv_fqn in all_metric_view_fqns:
+    columns = describe_metric_view(mv_fqn)
+    validate_column_refs(columns, [columns for this mv's KPIs], f"datasets_for_{mv_name}")
 
 # 2. Build datasets WITH validation (SQL must execute before assembly)
+#    Each dataset references ONE metric view — never mix measures across metric views
 ds = build_validated_dataset("ds_name", sql, "Display Name")
 
 # 3. Build filters page using shared dataset (deterministic structure)
@@ -281,7 +291,7 @@ Do not bypass `MEASURE()` with raw-table calculations merely to make a visualiza
 
 ## State & Checkpoint Contract
 
-This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+This step uses **artifact-as-state** checkpointing (see `06_state_contract.md`).
 The same rules apply in App mode and Genie Code — no backend infrastructure required.
 
 **Before executing each phase**, check whether its output artifact already exists.
@@ -291,7 +301,7 @@ If it does not exist → execute the phase normally.
 **Verification flow (run at the START of this step, after loading config):**
 
 1. List the output folder.
-2. Manage `run_context.yaml` per `07_state_contract.md` Section 8.
+2. Manage `run_context.yaml` per `06_state_contract.md` Section 8.
 3. For each artifact below, apply ONE cheap check:
    - `dashboard_design.yaml` exists → skip design_dashboard
    - `dashboard_dataset_validation.yaml` exists → skip validate_datasets

@@ -93,7 +93,6 @@ aibi-design-first-accelerator/
 │       ├── 03_create_dashboards.md
 │       ├── 04_create_genie_space.md
 │       ├── 05_generate_documentation.md
-│       └── 06_create_secured_dashboards.md
 ├── examples/
 │   └── member_claims/             # inputs + accelerator.yaml only; assets generated at runtime
 └── utils/notebooks/
@@ -226,7 +225,6 @@ flowchart TB
 | 03 | `03_create_dashboards.md` | `lakeview_dashboard_api.md` | Live Lakeview dashboards + `{output_folder}/dashboards/*_manifest.json` |
 | 04 | `04_create_genie_space.md` | `genie_space_notebook.py.template` | Genie notebook + space |
 | 05 | `05_generate_documentation.md` | — | `{output_folder}/readme.md` |
-| 06 | `06_create_secured_dashboards.md` | — | RLS (v2, optional) |
 
 ---
 

@@ -303,14 +303,14 @@ class AgentLoop:
                             iterations=iterations,
                             tool_calls_made=tool_calls_made,
                         )
-                    if per_tool_errors[tool_name] >= MAX_CONSECUTIVE_ERRORS:
+                    if per_tool_errors.get(tool_name, 0) >= MAX_CONSECUTIVE_ERRORS:
                         logger.error(
-                            f"Tool '{tool_name}' failed {per_tool_errors[tool_name]} times total — hard failing. "
+                            f"Tool '{tool_name}' failed {per_tool_errors.get(tool_name, 0)} times total — hard failing. "
                             f"Last error: {result_str[:500]}"
                         )
                         return AgentResult(
                             success=False,
-                            error=f"Hard fail: '{tool_name}' failed {per_tool_errors[tool_name]} times. Last: {result_str[:1000]}",
+                            error=f"Hard fail: '{tool_name}' failed {per_tool_errors.get(tool_name, 0)} times. Last: {result_str[:1000]}",
                             iterations=iterations,
                             tool_calls_made=tool_calls_made,
                         )

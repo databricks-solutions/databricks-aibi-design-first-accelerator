@@ -59,7 +59,7 @@ Do not present planned assets as successfully created assets.
 
 ## State & Checkpoint Contract
 
-This step uses **artifact-as-state** checkpointing (see `07_state_contract.md`).
+This step uses **artifact-as-state** checkpointing (see `06_state_contract.md`).
 The same rules apply in App mode and Genie Code — no backend infrastructure required.
 
 **Before executing each phase**, check whether its output artifact already exists.
@@ -69,7 +69,7 @@ If it does not exist → execute the phase normally.
 **Verification flow (run at the START of this step, after loading config):**
 
 1. List the output folder.
-2. Manage `run_context.yaml` per `07_state_contract.md` Section 8.
+2. Manage `run_context.yaml` per `06_state_contract.md` Section 8.
 3. For each artifact below, apply ONE cheap check:
    - `readme.md` exists: skip generate_documentation
    - `run_manifest.json` exists: skip generate_manifest
@@ -140,6 +140,7 @@ data_layer_validation.yaml
 
 schema_profile.yaml
 kpi_metric_mapping.yaml
+metric_view_plan.yaml
 metric_view_design.yaml
 metric_view_validation.yaml
 
@@ -457,7 +458,7 @@ For each include:
 ```text
 name
 FQN
-source table
+source table (or intermediate materialized view)
 source grain
 validated measures
 major dimensions
@@ -467,16 +468,24 @@ validation status
 Source from:
 
 ```text
+metric_view_plan.yaml
 metric_view_design.yaml
 metric_view_validation.yaml
 ```
 
 Use a table such as:
 
-| Metric View | Source Grain | Measures | Dimensions | Status |
-|---|---|---|---|---|
+| Metric View | Source | Source Grain | Measures | Dimensions | Status |
+|---|---|---|---|---|---|
 
-If multiple Metric Views were created because of incompatible fact grains, explain that briefly.
+If multiple Metric Views were created because of incompatible fact grains, explain the grouping rationale briefly (e.g., claim-line grain vs member-month grain).
+
+If any **intermediate materialized views** were created to support a metric view (e.g., joining fact_claim_detail with fact_claim_header), document them:
+
+| Intermediate View | Source Tables | Join Type | Fanout Check |
+|---|---|---|---|
+
+Source from `metric_view_plan.yaml` → `metric_views[].intermediate_view`.
 
 ---
 
@@ -497,6 +506,7 @@ Allowed documentation statuses should reflect the Metric View validation artifac
 
 ```text
 IMPLEMENTED_AND_VALIDATED
+NOT_IMPLEMENTED
 SKIPPED_MISSING_DATA
 SKIPPED_UNRESOLVED_RELATIONSHIP
 SKIPPED_UNSAFE_GRAIN
@@ -512,6 +522,55 @@ Use:
 Do not collapse all skipped KPIs into a generic "not implemented."
 
 Include the actual reason.
+
+**NOT_IMPLEMENTED vs SKIPPED distinction in documentation:**
+- `NOT_IMPLEMENTED`: The KPI is well-defined and the SQL is known, but metric view syntax cannot express it (HAVING, LAG, window functions). Reference SQL is provided in `metric_view_plan.yaml`. These KPIs are **not in dashboards or Genie** but their SQL is documented for manual implementation.
+- `SKIPPED_*`: The KPI cannot be implemented due to data quality, missing relationships, or unsafe grain. No reference SQL is available.
+
+---
+
+# 6.1 Not Implemented KPIs
+
+If `metric_view_plan.yaml` contains a `not_implemented` section with any entries, include this dedicated section in the README.
+
+Source from:
+
+```text
+metric_view_plan.yaml → not_implemented[]
+```
+
+For each NOT_IMPLEMENTED KPI, document:
+
+1. **KPI ID and name**
+2. **Reason** it cannot be expressed as a metric view measure
+3. **Full reference SQL query** (copy from `metric_view_plan.yaml`)
+4. **Manual implementation notes** (how to use the SQL if needed later)
+
+Use this structure:
+
+```markdown
+## Not Implemented KPIs
+
+The following KPIs could not be implemented as metric view measures due to SQL
+semantics that Databricks Metric Views do not support. The validated SQL queries
+are provided below for manual implementation if needed.
+
+### <KPI-ID>: <KPI Name>
+
+**Reason:** <reason from metric_view_plan.yaml>
+
+**Status:** NOT_IMPLEMENTED — documentation only
+
+<sql block with the full validated SQL from metric_view_plan.yaml>
+
+**To implement manually:** <manual_implementation_notes from metric_view_plan.yaml>
+```
+
+**Rules:**
+- Include the FULL SQL query — do not truncate or summarize
+- The SQL was already validated during the Metric View step (executed against the warehouse)
+- These KPIs are NOT in dashboards or Genie spaces
+- This section provides a clear handoff for anyone who wants to implement these KPIs manually (e.g., as named SQL datasets in a dashboard)
 
 ---
 
@@ -768,6 +827,7 @@ Schema
 
 Metrics
 - kpi_metric_mapping.yaml
+- metric_view_plan.yaml
 - metric_view_design.yaml
 - metric_view_validation.yaml
 

@@ -74,8 +74,6 @@ def list_domains():
                 'name': entry_name,
                 'display_name': domain_info.get('display_name', entry_name.replace('_', ' ').title()),
                 'description': domain_info.get('description', ''),
-                'version': workspace.get('version', 'v1'),
-                'version_suffix': workspace.get('version_suffix', ''),
             })
         except Exception as e:
             logger.debug(f"Skipping '{entry_name}': {e}")
@@ -84,11 +82,158 @@ def list_domains():
                 'name': entry_name,
                 'display_name': entry_name.replace('_', ' ').title(),
                 'description': f'Config load error: {e}',
-                'version': 'unknown',
-                'version_suffix': '',
             })
 
     return jsonify({'domains': domains, 'debug': debug_info})
+
+
+def _get_latest_version_info(domain_name, config):
+    """Get latest completed version and its asset counts from UC + workspace."""
+    catalog_cfg = config.get('catalog', {}).get('target', {})
+    catalog = catalog_cfg.get('catalog', '')
+    schema = catalog_cfg.get('schema', '')
+
+    registry_path = f"{_get_examples_path()}/{domain_name}/version_registry.yaml"
+    latest_version = None
+    all_versions = []
+    try:
+        registry = _load_yaml_from_workspace(registry_path)
+        all_versions = registry.get('versions', [])
+        for v in reversed(all_versions):
+            if v.get('status') == 'completed':
+                latest_version = v.get('version')
+                break
+        if latest_version is None and all_versions:
+            latest_version = all_versions[-1].get('version')
+    except Exception:
+        pass
+
+    result = {
+        'version': latest_version,
+        'version_count': len(all_versions),
+        'tables': 0,
+        'metric_views': 0,
+        'dashboards': 0,
+        'genie_spaces': 0,
+    }
+
+    if not catalog or not schema or latest_version is None:
+        return result
+
+    try:
+        from databricks.sdk.service.sql import StatementState
+        w = _get_client()
+        warehouse_id = current_app.config.get('SQL_WAREHOUSE_ID', '')
+        suffix = f'_v{latest_version}'
+
+        tables_resp = w.statement_execution.execute_statement(
+            warehouse_id=warehouse_id,
+            statement=f"SHOW TABLES IN {catalog}.{schema} LIKE '%{suffix}'",
+            wait_timeout='30s',
+        )
+        if tables_resp.status and tables_resp.status.state == StatementState.SUCCEEDED:
+            table_rows = tables_resp.result.data_array if tables_resp.result and tables_resp.result.data_array else []
+            result['tables'] = len(table_rows)
+
+        views_resp = w.statement_execution.execute_statement(
+            warehouse_id=warehouse_id,
+            statement=f"SHOW VIEWS IN {catalog}.{schema} LIKE '%{suffix}'",
+            wait_timeout='30s',
+        )
+        if views_resp.status and views_resp.status.state == StatementState.SUCCEEDED:
+            view_rows = views_resp.result.data_array if views_resp.result and views_resp.result.data_array else []
+            result['metric_views'] = len(view_rows)
+
+        output_subpath = config.get('workspace', {}).get('output_subpath', 'generated_outputs')
+        version_path = f"{_get_examples_path()}/{domain_name}/{output_subpath}/v{latest_version}"
+
+        # Count dashboards
+        try:
+            dash_items = list(w.workspace.list(path=f"{version_path}/dashboards"))
+            result['dashboards'] = sum(
+                1 for item in dash_items
+                if item.object_type == ObjectType.DASHBOARD_V3
+                   or ((item.path or '').endswith('_manifest.json'))
+            )
+        except Exception:
+            pass
+
+        # Count Genie spaces
+        try:
+            genie_items = list(w.workspace.list(path=f"{version_path}/genie_space"))
+            result['genie_spaces'] = sum(
+                1 for item in genie_items
+                if (item.path or '').endswith('_manifest.json')
+            )
+        except Exception:
+            pass
+
+    except Exception as e:
+        logger.warning(f"Asset count query failed for {domain_name}: {e}")
+
+    return result
+
+
+@domain_bp.route('/<domain_name>/asset-counts', methods=['GET'])
+def get_asset_counts(domain_name):
+    """Return live counts of tables, metric views, dashboards, and genie spaces."""
+    config_ws_path = f"{_get_examples_path()}/{domain_name}/accelerator.yaml"
+    try:
+        config = _load_yaml_from_workspace(config_ws_path)
+    except Exception as e:
+        return jsonify({'error': f'Domain {domain_name} not found: {e}'}), 404
+    return jsonify(_get_latest_version_info(domain_name, config))
+
+
+@domain_bp.route('/<domain_name>/detail', methods=['GET'])
+def get_domain_detail(domain_name):
+    """Return full domain detail for the UI: config, input files, prompts, version info."""
+    config_ws_path = f"{_get_examples_path()}/{domain_name}/accelerator.yaml"
+    try:
+        config = _load_yaml_from_workspace(config_ws_path)
+    except Exception as e:
+        return jsonify({'error': f'Domain {domain_name} not found: {e}'}), 404
+
+    domain_info = config.get('domain', {})
+    catalog_cfg = config.get('catalog', {}).get('target', {})
+
+    # List input files from the domain's inputs/ directory
+    input_files = []
+    inputs_path = f"{_get_examples_path()}/{domain_name}/inputs"
+    w = _get_client()
+    try:
+        for item in w.workspace.list(path=inputs_path):
+            fname = (item.path or '').split('/')[-1]
+            input_files.append(fname)
+    except Exception:
+        pass
+
+    # List framework prompt files
+    prompts = []
+    prompts_path = f"{_get_workspace_root()}/framework/prompts"
+    try:
+        for item in sorted(w.workspace.list(path=prompts_path), key=lambda x: x.path or ''):
+            fname = (item.path or '').split('/')[-1]
+            if fname.endswith('.md'):
+                prompts.append(fname)
+    except Exception:
+        pass
+
+    # Get version info + asset counts
+    version_info = _get_latest_version_info(domain_name, config)
+
+    return jsonify({
+        'name': domain_name,
+        'display_name': domain_info.get('display_name', domain_name.replace('_', ' ').title()),
+        'description': domain_info.get('description', ''),
+        'catalog': catalog_cfg.get('catalog', ''),
+        'schema': catalog_cfg.get('schema', ''),
+        'input_files': input_files,
+        'prompts': prompts,
+        'pipeline_steps': list((config.get('pipeline', {}).get('steps', {}) or {}).keys()),
+        'version_info': version_info,
+        'path': f"{_get_examples_path()}/{domain_name}",
+    })
 
 
 @domain_bp.route('/<domain_name>/config', methods=['GET'])

@@ -1,10 +1,24 @@
 {
   "datasets": [
     {
-      "name": "ds_kpis_shared",
-      "displayName": "Member Claims KPIs Shared Dataset",
+      "name": "ds_kpis_financial_claims",
+      "displayName": "Financial claims shared dataset",
       "queryLines": [
-        "SELECT `Service Date` AS service_date, `Service Month` AS service_month, `Claim Type` AS claim_type, `Line Status` AS line_status, `Adjudication Status` AS adjudication_status, `Clean Claim Indicator` AS clean_claim_indicator, `Benefit Category` AS benefit_category, `Place of Service` AS place_of_service, `Procedure Code` AS procedure_code, `Revenue Code` AS revenue_code, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Claim Lines`) AS total_claim_lines, MEASURE(`Total Paid Amount`) AS total_paid_amount, MEASURE(`Total Billed Amount`) AS total_billed_amount, MEASURE(`Total Allowed Amount`) AS total_allowed_amount, MEASURE(`Unique Members With Claims`) AS unique_members_with_claims, MEASURE(`Denied Lines`) AS denied_lines, MEASURE(`Clean Claim Lines`) AS clean_claim_lines, MEASURE(`Inpatient Paid Amount`) AS inpatient_paid_amount, MEASURE(`Outpatient Paid Amount`) AS outpatient_paid_amount, MEASURE(`Average Paid per Claim`) AS average_paid_per_claim, MEASURE(`Denial Rate`) AS denial_rate, MEASURE(`Clean Claim Rate`) AS clean_claim_rate, MEASURE(`Payment-to-Billed Ratio`) AS payment_to_billed_ratio, MEASURE(`Payment-to-Allowed Ratio`) AS payment_to_allowed_ratio, MEASURE(`Average Paid per Member`) AS average_paid_per_member, MEASURE(`Claims per Member`) AS claims_per_member, MEASURE(`Lines per Claim`) AS lines_per_claim FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY `Service Date`, `Service Month`, `Claim Type`, `Line Status`, `Adjudication Status`, `Clean Claim Indicator`, `Benefit Category`, `Place of Service`, `Procedure Code`, `Revenue Code`"
+        "SELECT `Service Date`, service_month, `Claim Type`, `Line Status`, `Benefit Category`, MEASURE(`Total Paid Amount`) AS total_paid, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Average Paid per Claim`) AS average_paid_per_claim, MEASURE(`Denied Lines`) AS denied_lines, MEASURE(`Denial Rate`) AS denial_rate, MEASURE(`Clean Lines`) AS clean_lines, MEASURE(`Clean Claim Rate`) AS clean_claim_rate, MEASURE(`Total Claim Lines`) AS total_claim_lines, MEASURE(`Inpatient Paid Amount`) AS inpatient_paid, MEASURE(`Outpatient Paid Amount`) AS outpatient_paid, MEASURE(`Payment-to-Billed Ratio`) AS payment_to_billed, MEASURE(`Payment-to-Allowed Ratio`) AS payment_to_allowed FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY `Service Date`, service_month, `Claim Type`, `Line Status`, `Benefit Category`"
+      ]
+    },
+    {
+      "name": "ds_kpis_claims_analysis",
+      "displayName": "Claims analysis shared dataset",
+      "queryLines": [
+        "SELECT `Service Date`, service_month, `Claim Type`, `Line Status`, `Adjudication Status`, `Benefit Category`, MEASURE(`Total Paid Amount`) AS total_paid, MEASURE(`Average Paid per Claim`) AS average_paid_per_claim, MEASURE(`Denied Lines`) AS denied_lines, MEASURE(`Denial Rate`) AS denial_rate, MEASURE(`Clean Lines`) AS clean_lines, MEASURE(`Clean Claim Rate`) AS clean_claim_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY `Service Date`, service_month, `Claim Type`, `Line Status`, `Adjudication Status`, `Benefit Category`"
+      ]
+    },
+    {
+      "name": "ds_kpis_member_demographics",
+      "displayName": "Member demographics shared dataset",
+      "queryLines": [
+        "SELECT `Enrollment Effective Date`, service_month, `Enrollment Status`, `Line of Business`, `Member State`, `Member Sex`, MEASURE(`New Member Enrollment`) AS new_member_enrollment, MEASURE(`Active Members`) AS active_members, MEASURE(`Enrollment Records`) AS enrollment_records FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` GROUP BY `Enrollment Effective Date`, service_month, `Enrollment Status`, `Line of Business`, `Member State`, `Member Sex`"
       ]
     }
   ],
@@ -20,11 +34,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_financial_claims",
                   "fields": [
                     {
-                      "name": "service_date",
-                      "expression": "`service_date`"
+                      "name": "Service Date",
+                      "expression": "`Service Date`"
                     }
                   ],
                   "disaggregated": true
@@ -37,7 +51,7 @@
               "encodings": {
                 "fields": [
                   {
-                    "fieldName": "service_date",
+                    "fieldName": "Service Date",
                     "displayName": "Service Date",
                     "queryName": "main_query"
                   }
@@ -63,11 +77,11 @@
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_financial_claims",
                   "fields": [
                     {
-                      "name": "claim_type",
-                      "expression": "`claim_type`"
+                      "name": "Claim Type",
+                      "expression": "`Claim Type`"
                     }
                   ],
                   "disaggregated": true
@@ -80,7 +94,7 @@
               "encodings": {
                 "fields": [
                   {
-                    "fieldName": "claim_type",
+                    "fieldName": "Claim Type",
                     "displayName": "Claim Type",
                     "queryName": "main_query"
                   }
@@ -101,59 +115,16 @@
         },
         {
           "widget": {
-            "name": "filter-line-status",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_kpis_shared",
-                  "fields": [
-                    {
-                      "name": "line_status",
-                      "expression": "`line_status`"
-                    }
-                  ],
-                  "disaggregated": true
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "filter-multi-select",
-              "encodings": {
-                "fields": [
-                  {
-                    "fieldName": "line_status",
-                    "displayName": "Line Status",
-                    "queryName": "main_query"
-                  }
-                ]
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Line Status"
-              }
-            }
-          },
-          "position": {
-            "x": 4,
-            "y": 0,
-            "width": 2,
-            "height": 2
-          }
-        },
-        {
-          "widget": {
             "name": "filter-benefit-category",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_financial_claims",
                   "fields": [
                     {
-                      "name": "benefit_category",
-                      "expression": "`benefit_category`"
+                      "name": "Benefit Category",
+                      "expression": "`Benefit Category`"
                     }
                   ],
                   "disaggregated": true
@@ -166,7 +137,7 @@
               "encodings": {
                 "fields": [
                   {
-                    "fieldName": "benefit_category",
+                    "fieldName": "Benefit Category",
                     "displayName": "Benefit Category",
                     "queryName": "main_query"
                   }
@@ -179,24 +150,24 @@
             }
           },
           "position": {
-            "x": 0,
-            "y": 2,
+            "x": 4,
+            "y": 0,
             "width": 2,
             "height": 2
           }
         },
         {
           "widget": {
-            "name": "filter-clean-claim-indicator",
+            "name": "filter-line-status",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_claims_analysis",
                   "fields": [
                     {
-                      "name": "clean_claim_indicator",
-                      "expression": "`clean_claim_indicator`"
+                      "name": "Line Status",
+                      "expression": "`Line Status`"
                     }
                   ],
                   "disaggregated": true
@@ -205,25 +176,154 @@
             ],
             "spec": {
               "version": 2,
-              "widgetType": "filter-single-select",
+              "widgetType": "filter-multi-select",
               "encodings": {
                 "fields": [
                   {
-                    "fieldName": "clean_claim_indicator",
-                    "displayName": "Clean Claim Indicator",
+                    "fieldName": "Line Status",
+                    "displayName": "Line Status",
                     "queryName": "main_query"
                   }
                 ]
               },
               "frame": {
                 "showTitle": true,
-                "title": "Clean Claim Indicator"
+                "title": "Line Status"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-enrollment-effective-date",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_member_demographics",
+                  "fields": [
+                    {
+                      "name": "Enrollment Effective Date",
+                      "expression": "`Enrollment Effective Date`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Enrollment Effective Date",
+                    "displayName": "Enrollment Effective Date",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Enrollment Effective Date"
               }
             }
           },
           "position": {
             "x": 2,
             "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-line-of-business",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_member_demographics",
+                  "fields": [
+                    {
+                      "name": "Line of Business",
+                      "expression": "`Line of Business`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Line of Business",
+                    "displayName": "Line of Business",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Line of Business"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-member-state",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_member_demographics",
+                  "fields": [
+                    {
+                      "name": "Member State",
+                      "expression": "`Member State`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "Member State",
+                    "displayName": "Member State",
+                    "queryName": "main_query"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Member State"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
             "width": 2,
             "height": 2
           }
@@ -253,12 +353,52 @@
         },
         {
           "widget": {
-            "name": "kpi_total_claims",
+            "name": "kpis-fin-total-paid",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_financial_claims",
+                  "fields": [
+                    {
+                      "name": "sum(total_paid)",
+                      "expression": "SUM(`total_paid`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(total_paid)",
+                  "displayName": "Total Paid"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Total Paid Amount"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpis-fin-total-claims",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_financial_claims",
                   "fields": [
                     {
                       "name": "sum(total_claims)",
@@ -275,52 +415,12 @@
               "encodings": {
                 "value": {
                   "fieldName": "sum(total_claims)",
-                  "displayName": "Total Claims"
+                  "displayName": "Claims"
                 }
               },
               "frame": {
                 "showTitle": true,
                 "title": "Total Claims"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 1,
-            "width": 2,
-            "height": 3
-          }
-        },
-        {
-          "widget": {
-            "name": "kpi_total_paid_amount",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_kpis_shared",
-                  "fields": [
-                    {
-                      "name": "sum(total_paid_amount)",
-                      "expression": "SUM(`total_paid_amount`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "sum(total_paid_amount)",
-                  "displayName": "Total Paid Amount"
-                }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Total Paid Amount"
               }
             }
           },
@@ -333,16 +433,16 @@
         },
         {
           "widget": {
-            "name": "kpi_average_paid_per_member",
+            "name": "kpis-fin-avg-paid-claim",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_financial_claims",
                   "fields": [
                     {
-                      "name": "avg(average_paid_per_member)",
-                      "expression": "AVG(`average_paid_per_member`)"
+                      "name": "avg(average_paid_per_claim)",
+                      "expression": "AVG(`average_paid_per_claim`)"
                     }
                   ],
                   "disaggregated": false
@@ -354,13 +454,13 @@
               "widgetType": "counter",
               "encodings": {
                 "value": {
-                  "fieldName": "avg(average_paid_per_member)",
-                  "displayName": "Average Paid per Member"
+                  "fieldName": "avg(average_paid_per_claim)",
+                  "displayName": "Avg Paid/Claim"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Average Paid per Member"
+                "title": "Average Paid per Claim"
               }
             }
           },
@@ -373,74 +473,20 @@
         },
         {
           "widget": {
-            "name": "paid_by_benefit_category",
+            "name": "kpis-fin-paid-trend",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
-                  "fields": [
-                    {
-                      "name": "benefit_category",
-                      "expression": "`benefit_category`"
-                    },
-                    {
-                      "name": "sum(total_paid_amount)",
-                      "expression": "SUM(`total_paid_amount`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 3,
-              "widgetType": "bar",
-              "encodings": {
-                "x": {
-                  "fieldName": "benefit_category",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Benefit Category"
-                },
-                "y": {
-                  "fieldName": "sum(total_paid_amount)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Total Paid Amount"
-                }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Paid Amount by Benefit Category"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 4,
-            "width": 3,
-            "height": 5
-          }
-        },
-        {
-          "widget": {
-            "name": "paid_trend_service_month",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_financial_claims",
                   "fields": [
                     {
                       "name": "service_month",
                       "expression": "`service_month`"
                     },
                     {
-                      "name": "sum(total_paid_amount)",
-                      "expression": "SUM(`total_paid_amount`)"
+                      "name": "sum(total_paid)",
+                      "expression": "SUM(`total_paid`)"
                     }
                   ],
                   "disaggregated": false
@@ -456,19 +502,73 @@
                   "scale": {
                     "type": "temporal"
                   },
-                  "displayName": "Service Month"
+                  "displayName": "service_month"
                 },
                 "y": {
-                  "fieldName": "sum(total_paid_amount)",
+                  "fieldName": "sum(total_paid)",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Total Paid Amount"
+                  "displayName": "Total Paid"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Paid Amount Trend by Service Month"
+                "title": "Paid Amount Trend"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "kpis-fin-cost-drivers",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_financial_claims",
+                  "fields": [
+                    {
+                      "name": "Benefit Category",
+                      "expression": "`Benefit Category`"
+                    },
+                    {
+                      "name": "sum(total_paid)",
+                      "expression": "SUM(`total_paid`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "Benefit Category",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Benefit Category"
+                },
+                "y": {
+                  "fieldName": "sum(total_paid)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Total Paid"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Top Benefit Cost Drivers"
               }
             }
           },
@@ -481,20 +581,28 @@
         },
         {
           "widget": {
-            "name": "claims_by_claim_type",
+            "name": "kpis-fin-detail-table",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_financial_claims",
                   "fields": [
                     {
-                      "name": "claim_type",
-                      "expression": "`claim_type`"
+                      "name": "Claim Type",
+                      "expression": "`Claim Type`"
+                    },
+                    {
+                      "name": "sum(total_paid)",
+                      "expression": "SUM(`total_paid`)"
                     },
                     {
                       "name": "sum(total_claims)",
                       "expression": "SUM(`total_claims`)"
+                    },
+                    {
+                      "name": "avg(average_paid_per_claim)",
+                      "expression": "AVG(`average_paid_per_claim`)"
                     }
                   ],
                   "disaggregated": false
@@ -502,27 +610,31 @@
               }
             ],
             "spec": {
-              "version": 3,
-              "widgetType": "bar",
+              "version": 2,
+              "widgetType": "table",
               "encodings": {
-                "x": {
-                  "fieldName": "claim_type",
-                  "scale": {
-                    "type": "categorical"
+                "columns": [
+                  {
+                    "fieldName": "Claim Type",
+                    "displayName": "Claim Type"
                   },
-                  "displayName": "Claim Type"
-                },
-                "y": {
-                  "fieldName": "sum(total_claims)",
-                  "scale": {
-                    "type": "quantitative"
+                  {
+                    "fieldName": "sum(total_paid)",
+                    "displayName": "Total Paid"
                   },
-                  "displayName": "Total Claims"
-                }
+                  {
+                    "fieldName": "sum(total_claims)",
+                    "displayName": "Total Claims"
+                  },
+                  {
+                    "fieldName": "avg(average_paid_per_claim)",
+                    "displayName": "Avg Paid per Claim"
+                  }
+                ]
               },
               "frame": {
                 "showTitle": true,
-                "title": "Claims by Claim Type"
+                "title": "Financial Detail by Claim Type"
               }
             }
           },
@@ -558,52 +670,12 @@
         },
         {
           "widget": {
-            "name": "avg_paid_per_claim",
+            "name": "kpis-claim-denial-rate",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
-                  "fields": [
-                    {
-                      "name": "avg(average_paid_per_claim)",
-                      "expression": "AVG(`average_paid_per_claim`)"
-                    }
-                  ],
-                  "disaggregated": false
-                }
-              }
-            ],
-            "spec": {
-              "version": 2,
-              "widgetType": "counter",
-              "encodings": {
-                "value": {
-                  "fieldName": "avg(average_paid_per_claim)",
-                  "displayName": "Average Paid per Claim"
-                }
-              },
-              "frame": {
-                "showTitle": true,
-                "title": "Average Paid per Claim"
-              }
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 1,
-            "width": 2,
-            "height": 3
-          }
-        },
-        {
-          "widget": {
-            "name": "denial_rate",
-            "queries": [
-              {
-                "name": "main_query",
-                "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_claims_analysis",
                   "fields": [
                     {
                       "name": "avg(denial_rate)",
@@ -630,7 +702,7 @@
             }
           },
           "position": {
-            "x": 2,
+            "x": 0,
             "y": 1,
             "width": 2,
             "height": 3
@@ -638,12 +710,12 @@
         },
         {
           "widget": {
-            "name": "clean_claim_rate",
+            "name": "kpis-claim-clean-rate",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_claims_analysis",
                   "fields": [
                     {
                       "name": "avg(clean_claim_rate)",
@@ -670,6 +742,46 @@
             }
           },
           "position": {
+            "x": 2,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpis-claim-denied-lines",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_claims_analysis",
+                  "fields": [
+                    {
+                      "name": "sum(denied_lines)",
+                      "expression": "SUM(`denied_lines`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(denied_lines)",
+                  "displayName": "Denied Lines"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Denied Lines"
+              }
+            }
+          },
+          "position": {
             "x": 4,
             "y": 1,
             "width": 2,
@@ -678,20 +790,20 @@
         },
         {
           "widget": {
-            "name": "monthly_claims_trend",
+            "name": "kpis-claim-avg-paid-trend",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_claims_analysis",
                   "fields": [
                     {
                       "name": "service_month",
                       "expression": "`service_month`"
                     },
                     {
-                      "name": "sum(total_claims)",
-                      "expression": "SUM(`total_claims`)"
+                      "name": "avg(average_paid_per_claim)",
+                      "expression": "AVG(`average_paid_per_claim`)"
                     }
                   ],
                   "disaggregated": false
@@ -707,19 +819,19 @@
                   "scale": {
                     "type": "temporal"
                   },
-                  "displayName": "Service Month"
+                  "displayName": "service_month"
                 },
                 "y": {
-                  "fieldName": "sum(total_claims)",
+                  "fieldName": "avg(average_paid_per_claim)",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Total Claims"
+                  "displayName": "Avg Paid/Claim"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Monthly Claims Trend"
+                "title": "Average Paid per Claim by Month"
               }
             }
           },
@@ -732,16 +844,16 @@
         },
         {
           "widget": {
-            "name": "monthly_denial_rate_trend",
+            "name": "kpis-claim-denial-by-type",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_claims_analysis",
                   "fields": [
                     {
-                      "name": "service_month",
-                      "expression": "`service_month`"
+                      "name": "Claim Type",
+                      "expression": "`Claim Type`"
                     },
                     {
                       "name": "avg(denial_rate)",
@@ -754,14 +866,14 @@
             ],
             "spec": {
               "version": 3,
-              "widgetType": "line",
+              "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "service_month",
+                  "fieldName": "Claim Type",
                   "scale": {
-                    "type": "temporal"
+                    "type": "categorical"
                   },
-                  "displayName": "Service Month"
+                  "displayName": "Claim Type"
                 },
                 "y": {
                   "fieldName": "avg(denial_rate)",
@@ -773,7 +885,7 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Monthly Denial Rate Trend"
+                "title": "Denial Rate by Claim Type"
               }
             }
           },
@@ -786,20 +898,20 @@
         },
         {
           "widget": {
-            "name": "denied_lines_by_status",
+            "name": "kpis-claim-clean-by-status",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_claims_analysis",
                   "fields": [
                     {
-                      "name": "line_status",
-                      "expression": "`line_status`"
+                      "name": "Line Status",
+                      "expression": "`Line Status`"
                     },
                     {
-                      "name": "sum(denied_lines)",
-                      "expression": "SUM(`denied_lines`)"
+                      "name": "avg(clean_claim_rate)",
+                      "expression": "AVG(`clean_claim_rate`)"
                     }
                   ],
                   "disaggregated": false
@@ -811,30 +923,96 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "line_status",
+                  "fieldName": "Line Status",
                   "scale": {
                     "type": "categorical"
                   },
                   "displayName": "Line Status"
                 },
                 "y": {
-                  "fieldName": "sum(denied_lines)",
+                  "fieldName": "avg(clean_claim_rate)",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Denied Lines"
+                  "displayName": "Clean Claim Rate"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Denied Lines by Line Status"
+                "title": "Clean Claim Rate by Line Status"
               }
             }
           },
           "position": {
             "x": 0,
             "y": 9,
-            "width": 6,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "kpis-claim-quality-detail",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_claims_analysis",
+                  "fields": [
+                    {
+                      "name": "Claim Type",
+                      "expression": "`Claim Type`"
+                    },
+                    {
+                      "name": "Line Status",
+                      "expression": "`Line Status`"
+                    },
+                    {
+                      "name": "avg(denial_rate)",
+                      "expression": "AVG(`denial_rate`)"
+                    },
+                    {
+                      "name": "avg(clean_claim_rate)",
+                      "expression": "AVG(`clean_claim_rate`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "Claim Type",
+                    "displayName": "Claim Type"
+                  },
+                  {
+                    "fieldName": "Line Status",
+                    "displayName": "Line Status"
+                  },
+                  {
+                    "fieldName": "avg(denial_rate)",
+                    "displayName": "Denial Rate"
+                  },
+                  {
+                    "fieldName": "avg(clean_claim_rate)",
+                    "displayName": "Clean Claim Rate"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Claim Quality Detail"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 9,
+            "width": 3,
             "height": 5
           }
         }
@@ -863,20 +1041,16 @@
         },
         {
           "widget": {
-            "name": "claims_by_benefit_category",
+            "name": "kpis-member-active-members",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_member_demographics",
                   "fields": [
                     {
-                      "name": "benefit_category",
-                      "expression": "`benefit_category`"
-                    },
-                    {
-                      "name": "sum(total_claims)",
-                      "expression": "SUM(`total_claims`)"
+                      "name": "sum(active_members)",
+                      "expression": "SUM(`active_members`)"
                     }
                   ],
                   "disaggregated": false
@@ -884,53 +1058,39 @@
               }
             ],
             "spec": {
-              "version": 3,
-              "widgetType": "bar",
+              "version": 2,
+              "widgetType": "counter",
               "encodings": {
-                "x": {
-                  "fieldName": "benefit_category",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Benefit Category"
-                },
-                "y": {
-                  "fieldName": "sum(total_claims)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Total Claims"
+                "value": {
+                  "fieldName": "sum(active_members)",
+                  "displayName": "Active Members"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Claims by Benefit Category"
+                "title": "Active Members"
               }
             }
           },
           "position": {
             "x": 0,
             "y": 1,
-            "width": 3,
-            "height": 5
+            "width": 2,
+            "height": 3
           }
         },
         {
           "widget": {
-            "name": "avg_paid_member_by_type",
+            "name": "kpis-member-new-enrollment",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_member_demographics",
                   "fields": [
                     {
-                      "name": "claim_type",
-                      "expression": "`claim_type`"
-                    },
-                    {
-                      "name": "avg(average_paid_per_member)",
-                      "expression": "AVG(`average_paid_per_member`)"
+                      "name": "sum(new_member_enrollment)",
+                      "expression": "SUM(`new_member_enrollment`)"
                     }
                   ],
                   "disaggregated": false
@@ -938,53 +1098,83 @@
               }
             ],
             "spec": {
-              "version": 3,
-              "widgetType": "bar",
+              "version": 2,
+              "widgetType": "counter",
               "encodings": {
-                "x": {
-                  "fieldName": "claim_type",
-                  "scale": {
-                    "type": "categorical"
-                  },
-                  "displayName": "Claim Type"
-                },
-                "y": {
-                  "fieldName": "avg(average_paid_per_member)",
-                  "scale": {
-                    "type": "quantitative"
-                  },
-                  "displayName": "Average Paid per Member"
+                "value": {
+                  "fieldName": "sum(new_member_enrollment)",
+                  "displayName": "New Members"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Average Paid per Member by Claim Type"
+                "title": "New Member Enrollment"
               }
             }
           },
           "position": {
-            "x": 3,
+            "x": 2,
             "y": 1,
-            "width": 3,
-            "height": 5
+            "width": 2,
+            "height": 3
           }
         },
         {
           "widget": {
-            "name": "claims_per_member_by_benefit",
+            "name": "kpis-member-records",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_member_demographics",
                   "fields": [
                     {
-                      "name": "benefit_category",
-                      "expression": "`benefit_category`"
+                      "name": "sum(enrollment_records)",
+                      "expression": "SUM(`enrollment_records`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(enrollment_records)",
+                  "displayName": "Enrollment Records"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Enrollment Records"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 1,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpis-member-by-lob",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_member_demographics",
+                  "fields": [
+                    {
+                      "name": "Line of Business",
+                      "expression": "`Line of Business`"
                     },
                     {
-                      "name": "avg(claims_per_member)",
-                      "expression": "AVG(`claims_per_member`)"
+                      "name": "sum(active_members)",
+                      "expression": "SUM(`active_members`)"
                     }
                   ],
                   "disaggregated": false
@@ -996,49 +1186,49 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "benefit_category",
+                  "fieldName": "Line of Business",
                   "scale": {
                     "type": "categorical"
                   },
-                  "displayName": "Benefit Category"
+                  "displayName": "Line of Business"
                 },
                 "y": {
-                  "fieldName": "avg(claims_per_member)",
+                  "fieldName": "sum(active_members)",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Claims per Member"
+                  "displayName": "Active Members"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Claims per Member by Benefit Category"
+                "title": "Members by Line of Business"
               }
             }
           },
           "position": {
             "x": 0,
-            "y": 6,
+            "y": 4,
             "width": 3,
             "height": 5
           }
         },
         {
           "widget": {
-            "name": "claims_by_place_service",
+            "name": "kpis-member-by-state",
             "queries": [
               {
                 "name": "main_query",
                 "query": {
-                  "datasetName": "ds_kpis_shared",
+                  "datasetName": "ds_kpis_member_demographics",
                   "fields": [
                     {
-                      "name": "place_of_service",
-                      "expression": "`place_of_service`"
+                      "name": "Member State",
+                      "expression": "`Member State`"
                     },
                     {
-                      "name": "sum(total_claims)",
-                      "expression": "SUM(`total_claims`)"
+                      "name": "sum(active_members)",
+                      "expression": "SUM(`active_members`)"
                     }
                   ],
                   "disaggregated": false
@@ -1050,29 +1240,137 @@
               "widgetType": "bar",
               "encodings": {
                 "x": {
-                  "fieldName": "place_of_service",
+                  "fieldName": "Member State",
                   "scale": {
                     "type": "categorical"
                   },
-                  "displayName": "Place of Service"
+                  "displayName": "Member State"
                 },
                 "y": {
-                  "fieldName": "sum(total_claims)",
+                  "fieldName": "sum(active_members)",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Total Claims"
+                  "displayName": "Active Members"
                 }
               },
               "frame": {
                 "showTitle": true,
-                "title": "Claim Mix by Place of Service"
+                "title": "Members by State"
               }
             }
           },
           "position": {
             "x": 3,
-            "y": 6,
+            "y": 4,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "kpis-member-by-sex",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_member_demographics",
+                  "fields": [
+                    {
+                      "name": "Member Sex",
+                      "expression": "`Member Sex`"
+                    },
+                    {
+                      "name": "sum(active_members)",
+                      "expression": "SUM(`active_members`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "pie",
+              "encodings": {
+                "color": {
+                  "fieldName": "Member Sex",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Member Sex"
+                },
+                "theta": {
+                  "fieldName": "sum(active_members)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Active Members"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Members by Sex"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 9,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "kpis-member-enroll-trend",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpis_member_demographics",
+                  "fields": [
+                    {
+                      "name": "service_month",
+                      "expression": "`service_month`"
+                    },
+                    {
+                      "name": "sum(new_member_enrollment)",
+                      "expression": "SUM(`new_member_enrollment`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "service_month",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "service_month"
+                },
+                "y": {
+                  "fieldName": "sum(new_member_enrollment)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "New Members"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Enrollment Trend"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 9,
             "width": 3,
             "height": 5
           }

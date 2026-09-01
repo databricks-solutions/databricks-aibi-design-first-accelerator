@@ -38,8 +38,14 @@ inputs:
   best_practices: ../../framework/inputs/best_practices.md
 assets:
   metric_views:
-  - name: member_claims_metric_view
-    primary: true
+    # strategy: auto — pipeline determines count and names via grain analysis
+    # strategy: explicit — use the hardcoded list below (legacy behavior)
+    strategy: auto
+    naming_prefix: member_claims   # Base prefix for auto-generated metric view names
+    # Explicit list (used only when strategy: explicit)
+    # views:
+    # - name: member_claims_metric_view
+    #   primary: true
   dashboards:
   - id: kpis
     name: member_claims_kpis_dashboard
@@ -68,9 +74,6 @@ pipeline:
     create_genie_space:
       enabled: true
       execution_type: notebook     # Populate template notebook → execute cells → Genie API via notebook
-    create_secured_dashboards:
-      enabled: false
-      execution_type: api
     generate_documentation:
       enabled: true
       execution_type: file         # Write file to output folder

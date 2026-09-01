@@ -116,7 +116,6 @@ pipeline:
     create_metric_views: { type: boolean, default: true }
     create_dashboards: { type: boolean, default: true }
     create_genie_space: { type: boolean, default: true }
-    create_secured_dashboards: { type: boolean, default: false }
     generate_documentation: { type: boolean, default: true }
   clean_start: { type: boolean, default: true }
 

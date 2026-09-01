@@ -132,97 +132,25 @@
         <p>Select a domain to view its configuration files and launch the AI pipeline</p>
     </div>
 
+    <!-- Domain cards rendered dynamically -->
     <div class="domain-grid" id="domain-grid">
-        <div class="domain-card" data-domain="member_claims"
-             data-path="/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims">
-            <div class="domain-card-header">
-                <div class="domain-icon healthcare">&#9829;</div>
-                <div class="domain-name">Member Claims</div>
-            </div>
-            <div class="domain-desc">Healthcare member claims analysis — cost drivers, utilization patterns, and provider performance metrics.</div>
-            <div class="domain-meta">
-                <span>14 tables</span>
-                <span>9 metric views</span>
-                <span>2 dashboards</span>
-            </div>
-        </div>
+        <div style="color:var(--text-muted); font-size:0.85rem;">Loading domains...</div>
     </div>
 
-    <!-- Domain Detail Panel -->
+    <!-- Domain Detail Panel (populated dynamically) -->
     <div class="domain-detail" id="domain-detail">
         <div class="domain-detail-header">
-            <h3 id="detail-title">Member Claims</h3>
+            <h3 id="detail-title"></h3>
             <button class="close-btn" onclick="hideDetail()">&times;</button>
         </div>
         <div class="domain-detail-body">
-            <!-- Left: Files -->
-            <div class="files-panel">
+            <!-- Left: Files (dynamic) -->
+            <div class="files-panel" id="files-panel">
                 <h4>Pipeline Input Files</h4>
-
-                <div class="file-group">
-                    <div class="file-group-title">Domain Configuration</div>
-                    <div class="file-item">
-                        <span class="file-icon yaml">&#9998;</span>
-                        <span class="file-name">accelerator.yaml</span>
-                        <span class="file-desc">Domain config</span>
-                    </div>
-                </div>
-
-                <div class="file-group">
-                    <div class="file-group-title">KPI Inputs</div>
-                    <div class="file-item">
-                        <span class="file-icon md">&#9776;</span>
-                        <span class="file-name">kpi_spec.md</span>
-                        <span class="file-desc">KPI definitions &amp; measures</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-icon png">&#9634;</span>
-                        <span class="file-name">erd.png</span>
-                        <span class="file-desc">Entity relationship diagram</span>
-                    </div>
-                </div>
-
-                <div class="file-group">
-                    <div class="file-group-title">Framework Prompts</div>
-                    <div class="file-item">
-                        <span class="file-icon prompt">&#9654;</span>
-                        <span class="file-name">00_master_prompt.md</span>
-                        <span class="file-desc">Main orchestration prompt</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-icon prompt">&#9654;</span>
-                        <span class="file-name">01_create_data_layer.md</span>
-                        <span class="file-desc">Data layer generation</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-icon prompt">&#9654;</span>
-                        <span class="file-name">02_create_metric_views.md</span>
-                        <span class="file-desc">Metric view creation</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-icon prompt">&#9654;</span>
-                        <span class="file-name">03_create_dashboards.md</span>
-                        <span class="file-desc">Dashboard generation</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-icon prompt">&#9654;</span>
-                        <span class="file-name">04_create_genie_space.md</span>
-                        <span class="file-desc">Genie space setup</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-icon prompt">&#9654;</span>
-                        <span class="file-name">05_generate_documentation.md</span>
-                        <span class="file-desc">Auto-documentation</span>
-                    </div>
-                    <div class="file-item">
-                        <span class="file-icon prompt">&#9654;</span>
-                        <span class="file-name">06_create_secured_dashboards.md</span>
-                        <span class="file-desc">Row-level security</span>
-                    </div>
-                </div>
+                <div id="files-content">Loading...</div>
             </div>
 
-            <!-- Right: Run Config -->
+            <!-- Right: Run Config (dynamic) -->
             <div class="config-panel-right">
                 <h4>Run Configuration</h4>
                 <div class="config-grid">
@@ -231,16 +159,12 @@
                         <input type="text" id="cfg-domain" readonly>
                     </div>
                     <div class="config-field">
-                        <label>Version</label>
-                        <input type="text" id="cfg-version" value="v1_dev">
-                    </div>
-                    <div class="config-field">
                         <label>Catalog</label>
-                        <input type="text" id="cfg-catalog" value="aw_serverless_stable_catalog">
+                        <input type="text" id="cfg-catalog" readonly>
                     </div>
                     <div class="config-field">
                         <label>Schema</label>
-                        <input type="text" id="cfg-schema" value="aibi_member_claims">
+                        <input type="text" id="cfg-schema" readonly>
                     </div>
                     <div class="config-field full">
                         <label>Domain Path</label>
@@ -266,27 +190,130 @@
 <script>
 let selectedDomain = null;
 let selectedPath = null;
+let domainCache = {};  // Cache detail data per domain
 
-document.querySelectorAll('.domain-card').forEach(card => {
-    card.addEventListener('click', () => {
-        document.querySelectorAll('.domain-card').forEach(c => c.classList.remove('selected'));
-        card.classList.add('selected');
-        selectedDomain = card.dataset.domain;
-        selectedPath = card.dataset.path;
+const ICON_MAP = {
+    healthcare: '&#9829;', finance: '&#36;', retail: '&#128722;',
+    logistics: '&#128666;', default: '&#9733;'
+};
 
-        // Populate config fields
-        document.getElementById('cfg-domain').value = selectedDomain;
-        document.getElementById('cfg-schema').value = 'aibi_' + selectedDomain;
-        document.getElementById('cfg-path').value = selectedPath;
-        document.getElementById('detail-title').textContent = card.querySelector('.domain-name').textContent;
+// --- Render domain cards dynamically from API ---
+async function loadDomains() {
+    const grid = document.getElementById('domain-grid');
+    try {
+        const resp = await fetch('/api/domains');
+        if (!resp.ok) throw new Error('Failed to load domains');
+        const data = await resp.json();
+        const domains = data.domains || [];
+        if (domains.length === 0) {
+            grid.innerHTML = '<div style="color:var(--text-muted);">No domains found.</div>';
+            return;
+        }
+        grid.innerHTML = domains.map(d => `
+            <div class="domain-card" data-domain="${d.name}" onclick="selectDomain('${d.name}')">
+                <div class="domain-card-header">
+                    <div class="domain-icon healthcare">${ICON_MAP.healthcare}</div>
+                    <div class="domain-name">${d.display_name}</div>
+                </div>
+                <div class="domain-desc">${d.description || ''}</div>
+                <div class="domain-meta" id="meta-${d.name}">
+                    <span class="meta-version" style="font-weight:600; color:var(--primary);">loading...</span>
+                    <span class="meta-tables">&mdash; tables</span>
+                    <span class="meta-views">&mdash; metric views</span>
+                    <span class="meta-dashboards">&mdash; dashboards</span>
+                    <span class="meta-genie">&mdash; genie</span>
+                </div>
+            </div>
+        `).join('');
+        // Fetch asset counts for each card
+        for (const d of domains) { loadAssetCounts(d.name); }
+    } catch(e) {
+        grid.innerHTML = `<div style="color:var(--danger);">Error: ${e.message}</div>`;
+    }
+}
 
-        // Check for resumable runs (async, non-blocking)
-        checkResumableRun(selectedDomain);
+async function loadAssetCounts(domain) {
+    const metaEl = document.getElementById('meta-' + domain);
+    if (!metaEl) return;
+    try {
+        const resp = await fetch(`/api/domains/${domain}/asset-counts`);
+        if (!resp.ok) return;
+        const c = await resp.json();
+        const vLabel = c.version ? `v${c.version}` : 'no version';
+        metaEl.querySelector('.meta-version').textContent = vLabel;
+        metaEl.querySelector('.meta-tables').textContent = `${c.tables} tables`;
+        metaEl.querySelector('.meta-views').textContent = `${c.metric_views} views`;
+        metaEl.querySelector('.meta-dashboards').textContent = `${c.dashboards} dashboards`;
+        metaEl.querySelector('.meta-genie').textContent = `${c.genie_spaces} genie`;
+    } catch(e) { console.debug('counts failed for', domain, e); }
+}
 
-        // Show detail panel
-        document.getElementById('domain-detail').classList.add('visible');
-    });
-});
+// --- Select a domain card and load detail panel ---
+async function selectDomain(domain) {
+    document.querySelectorAll('.domain-card').forEach(c => c.classList.remove('selected'));
+    const card = document.querySelector(`.domain-card[data-domain="${domain}"]`);
+    if (card) card.classList.add('selected');
+    selectedDomain = domain;
+
+    // Show detail panel with loading state
+    document.getElementById('domain-detail').classList.add('visible');
+    document.getElementById('detail-title').textContent = 'Loading...';
+    document.getElementById('files-content').innerHTML = '<span style="color:var(--text-muted);">Loading files...</span>';
+
+    try {
+        const resp = await fetch(`/api/domains/${domain}/detail`);
+        if (!resp.ok) throw new Error('Failed to load detail');
+        const d = await resp.json();
+        domainCache[domain] = d;
+        selectedPath = d.path;
+
+        // Populate header and config fields
+        document.getElementById('detail-title').textContent = d.display_name;
+        document.getElementById('cfg-domain').value = d.name;
+        document.getElementById('cfg-catalog').value = d.catalog || '';
+        document.getElementById('cfg-schema').value = d.schema || '';
+        document.getElementById('cfg-path').value = d.path || '';
+
+        // Build files panel dynamically
+        let html = '';
+
+        // Domain configuration (always present)
+        html += `<div class="file-group">
+            <div class="file-group-title">Domain Configuration</div>
+            <div class="file-item"><span class="file-icon yaml">&#9998;</span><span class="file-name">accelerator.yaml</span></div>
+        </div>`;
+
+        // Input files
+        if (d.input_files && d.input_files.length > 0) {
+            html += '<div class="file-group"><div class="file-group-title">KPI Inputs</div>';
+            for (const f of d.input_files) {
+                const ext = f.split('.').pop();
+                const iconClass = ext === 'png' || ext === 'jpg' ? 'png' : ext === 'md' ? 'md' : 'yaml';
+                html += `<div class="file-item"><span class="file-icon ${iconClass}">&#9776;</span><span class="file-name">${f}</span></div>`;
+            }
+            html += '</div>';
+        }
+
+        // Framework prompts
+        if (d.prompts && d.prompts.length > 0) {
+            html += '<div class="file-group"><div class="file-group-title">Framework Prompts</div>';
+            for (const p of d.prompts) {
+                html += `<div class="file-item"><span class="file-icon prompt">&#9654;</span><span class="file-name">${p}</span></div>`;
+            }
+            html += '</div>';
+        }
+
+        document.getElementById('files-content').innerHTML = html;
+
+        // Check for resumable runs
+        checkResumableRun(domain);
+    } catch(e) {
+        document.getElementById('detail-title').textContent = domain;
+        document.getElementById('files-content').innerHTML = `<span style="color:var(--danger);">Error: ${e.message}</span>`;
+    }
+}
+
+loadDomains();
 
 function hideDetail() {
     document.getElementById('domain-detail').classList.remove('visible');

@@ -1,55 +1,51 @@
 dashboard:
-  dashboard_id: 01f1a352cb9e1ec181db6bd7d2817d50
+  dashboard_id: 01f1a5afeb821a4c9c96c68ed7d307bf
   display_name: member_claims_utilization_dashboard_v1
   status: CREATED
   published: true
 source_metric_views:
   - "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
+  - "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1`"
 pages:
   expected: 4
   actual: 4
-  canvas_expected: 3
-  canvas_actual: 3
+  canvas_pages_expected: 3
+  canvas_pages_actual: 3
   status: PASS
 datasets:
-  expected: 1
-  actual: 1
+  expected: 3
+  actual: 3
   empty_queries: []
   failed_queries: []
   status: PASS
 widgets:
-  expected: 21
-  actual: 21
+  expected: 22
+  actual: 22
   invalid_widgets: []
   status: PASS
 filters:
-  expected: 5
-  actual: 5
+  expected: 7
+  actual: 7
   binding_failures: []
   impact_tests:
-    - filter: claim_type
-      value: Institutional
-      unfiltered_total_paid_amount: 12497500.0000
-      filtered_total_paid_amount: 5016880.0000
-      unfiltered_total_claims: 5000
-      filtered_total_claims: 2003
-      status: PASS
+    - {filter: Claim Type = Professional, unfiltered_total_paid: 404550.0000, filtered_total_paid: 169805.0000, status: PASS}
+    - {filter: Participating Rendering Provider = true, unfiltered_total_paid: 404550.0000, filtered_total_paid: 202050.0000, status: PASS}
   status: PASS
 kpis:
-  - {name: C-1 Total Claims, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util_total_claims, page: Utilization Patterns}
-  - {name: C-2 Total Claim Lines, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util_total_claim_lines, page: Utilization Patterns}
-  - {name: C-3 Total Paid Amount, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: paid_by_pos, page: Provider Insights}
-  - {name: ADD-8 Inpatient Paid Amount, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: inpatient_paid, page: Utilization Patterns}
-  - {name: ADD-9 Outpatient Paid Amount, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: outpatient_paid, page: Utilization Patterns}
-  - {name: ADD-1 Denial Rate, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: ops_denial_rate, page: Operational Metrics}
-  - {name: ADD-2 Clean Claim Rate, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: clean_rate_by_type, page: Operational Metrics}
-  - {name: ADD-3 Payment-to-Billed Ratio, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: ops_payment_billed, page: Operational Metrics}
-  - {name: ADD-4 Payment-to-Allowed Ratio, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: ops_payment_allowed, page: Operational Metrics}
-  - {name: ADD-7 Lines per Claim, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: lines_per_claim_by_type, page: Provider Insights}
-  - {name: Participating Provider Rate, metric_validation_status: SKIPPED_MISSING_DATA, dashboard_status: SKIPPED_NOT_VALIDATED_IN_METRIC_LAYER, widget: null, page: Provider Insights}
-  - {name: Specialty Rankings, metric_validation_status: SKIPPED_MISSING_DATA, dashboard_status: SKIPPED_MISSING_DATA, widget: null, page: Provider Insights}
+  - {name: C-1, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-total-claims, page: Utilization Patterns}
+  - {name: C-2, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-total-lines, page: Utilization Patterns}
+  - {name: C-3, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-paid-by-claim-type, page: Utilization Patterns}
+  - {name: D-8, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-inpatient-paid, page: Utilization Patterns}
+  - {name: D-9, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-outpatient-paid, page: Utilization Patterns}
+  - {name: D-10, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-par-rate, page: Provider Insights}
+  - {name: D-5, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-avg-paid-member, page: Provider Insights}
+  - {name: D-6, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-claims-per-member, page: Provider Insights}
+  - {name: D-1, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-denial-rate, page: Operational Metrics}
+  - {name: D-3, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-payment-billed, page: Operational Metrics}
+  - {name: D-4, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-payment-allowed, page: Operational Metrics}
+  - {name: D-2, metric_validation_status: IMPLEMENTED_AND_VALIDATED, dashboard_status: RENDERED_AND_VALIDATED, widget: util-operational-detail, page: Operational Metrics}
 api:
-  create_status: SUCCESS
-  get_status: NOT_AVAILABLE_IN_TOOLSET_STRUCTURAL_VALIDATED_FROM_CREATE_RESPONSE_AND_ARTIFACTS
-  publish_status: SUCCESS
+  create_status: PASS
+  get_status: VALIDATED_BY_CREATE_RESPONSE_AND_STRUCTURAL_PREFLIGHT
+  publish_status: PASS
 overall_status: PASS

@@ -280,6 +280,61 @@ def _detect_resume_step_from_artifacts(output_folder: str, workspace_service) ->
         return None  # All steps completed
 
 
+def _collect_assets_created(run: dict) -> dict:
+    """Extract created asset names from run step data for the version registry."""
+    assets = {}
+    step_data = run.get('step_data', {})
+    for step_name, step_info in step_data.items():
+        if step_name == 'create_metric_views':
+            # Metric view names from sub-step artifacts
+            mv_names = []
+            for sub in step_info.get('sub_steps', []):
+                name = sub.get('artifact_name', '')
+                if name and 'metric_view' in name:
+                    mv_names.append(name)
+            if mv_names:
+                assets['metric_views'] = mv_names
+        elif step_name == 'create_dashboards':
+            db_names = []
+            for sub in step_info.get('sub_steps', []):
+                name = sub.get('artifact_name', '')
+                if name and 'dashboard' in name:
+                    db_names.append(name)
+            if db_names:
+                assets['dashboards'] = db_names
+        elif step_name == 'create_genie_space':
+            genie_names = []
+            for sub in step_info.get('sub_steps', []):
+                name = sub.get('artifact_name', '')
+                if name and 'genie' in name:
+                    genie_names.append(name)
+            if genie_names:
+                assets['genie_spaces'] = genie_names
+    return assets
+
+
+def _sync_version_registry(run_mode, config, services, pipeline_run, run, log):
+    """Sync version_registry.yaml after pipeline run completes or fails."""
+    from orchestrator.version_resolver import VersionResolver
+    if run_mode != 'versioned' or not hasattr(config, 'version'):
+        return
+    try:
+        final_status = pipeline_run.status.value
+        assets = _collect_assets_created(run)
+        resolver = VersionResolver(
+            services["workspace"], services["sql"],
+            services.get("lakeview"), services.get("genie")
+        )
+        resolver.mark_version_status(
+            config, config.version, final_status,
+            assets_created=assets,
+            error=pipeline_run.error,
+        )
+        log.info(f"Version registry synced: v{config.version} -> {final_status}")
+    except Exception as e:
+        log.warning(f"Version registry sync failed (non-fatal): {e}")
+
+
 def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: str,
                               version_override, user_token: str = "",
                               resume_from: dict = None, version_mode: str = "auto"):
@@ -572,8 +627,9 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
             config.output_folder = config.output_folder + f"/v{version_info.version}"
             # Append version suffix to all asset names
             suffix = version_info.suffix  # "_v1", "_v2", etc.
-            if config.assets.metric_view:
+            if config.assets.metric_view and config.assets.metric_view_strategy != "auto":
                 config.assets.metric_view = config.assets.metric_view + suffix
+            # For auto strategy, metric view names are determined dynamically by the pipeline agent
             if config.assets.dashboard:
                 config.assets.dashboard = config.assets.dashboard + suffix
             if config.assets.dashboards:
@@ -666,6 +722,9 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
         # Build run manifest from tracked sub-steps and persist
         _finalize_run_manifest(run_id, run, domain, run_mode, config,
                                services, run_store, logger)
+
+        # Sync version registry so the UI reflects the final run outcome
+        _sync_version_registry(run_mode, config, services, pipeline_run, run, logger)
 
     except Exception as e:
         logger.exception(f"Pipeline background execution failed: {e}")
@@ -1239,9 +1298,24 @@ def rerun_from_failure(run_id):
     resume_point = run_store.get_resume_point(run_id)
     resume_from = None
     if resume_point:
+        resume_step_name = resume_point.get("step_name", resume_steps[0])
+        # Guard: ensure resume step is actually in the steps to run.
+        # Phases from already-completed steps may have been reset to 'pending'
+        # by a prior rerun, causing get_resume_point to return a step that
+        # isn't in resume_steps. If that happens, fall back to the first
+        # pending step and skip phase-level resume.
+        if resume_step_name not in resume_steps:
+            logger.warning(
+                f"Resume point step '{resume_step_name}' not in resume_steps "
+                f"{resume_steps}. Falling back to '{resume_steps[0]}'."
+            )
+            resume_step_name = resume_steps[0]
+            resume_phase_name = None  # Can't resume at phase level for a different step
+        else:
+            resume_phase_name = resume_point.get("phase_name")
         resume_from = {
-            "step_name": resume_point.get("step_name", resume_steps[0]),
-            "phase_name": resume_point.get("phase_name"),
+            "step_name": resume_step_name,
+            "phase_name": resume_phase_name,
         }
 
     # Update the SAME run record back to running
@@ -1250,9 +1324,26 @@ def rerun_from_failure(run_id):
     version_override = original_run.get('version')
 
     # Reset run status in Delta
-    run_store.update_run_status(run_id, 'running', error='', error_detail='', current_step=resume_steps[0])
+    run_store.update_run_status(run_id, 'running', error='', current_step=resume_steps[0])
     # Reset failed/pending steps back to pending
     run_store.reset_steps_for_rerun(run_id, resume_steps)
+
+    # Insert step records for any steps that were never reached in the
+    # original run (they won't exist in the steps table). Without this,
+    # the pipeline runner can't update their status via update_step.
+    from app.services.run_store import STEP_ORDER
+    existing_steps = {s.get('step_name') or s.get('name') for s in (original_run.get('steps') or [])}
+    max_idx = max((s.get('step_index', 0) for s in (original_run.get('steps') or [])), default=-1)
+    for step_name in resume_steps:
+        if step_name not in existing_steps:
+            max_idx += 1
+            next_s = None
+            try:
+                si = STEP_ORDER.index(step_name)
+                next_s = STEP_ORDER[si + 1] if si < len(STEP_ORDER) - 1 else None
+            except ValueError:
+                pass
+            run_store.insert_step(run_id, step_name, max_idx, next_step=next_s)
 
     # Initialize in-memory run state (using same run_id, marked as rerun)
     completed_steps = []

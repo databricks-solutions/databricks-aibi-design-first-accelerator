@@ -414,6 +414,5 @@ def _step_name_from_order(order: int) -> str:
         5: "create_dashboards",
         6: "create_genie_space",
         7: "generate_documentation",
-        8: "create_secured_dashboards",
-        9: "write_run_manifest",
+        8: "write_run_manifest",
     }.get(order, f"step_{order}")

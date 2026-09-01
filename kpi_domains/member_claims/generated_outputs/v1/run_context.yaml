@@ -2,51 +2,24 @@ catalog: aw_serverless_stable_catalog
 schema: aibi_member_claims
 version_suffix: _v1
 warehouse_id: 2d8e531640ffa469
-domain_name: member_claims
 output_folder: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1
+domain: member_claims
 status: completed
-completed_at: '2026-08-29T00:00:00Z'
-phases_completed:
-  - load_configuration
-  - create_data_layer
-  - create_metric_views
-  - create_dashboards
-  - create_genie_space
-  - gather_artifacts
-  - generate_documentation
-  - validate_documentation
-  - generate_manifest
-assets:
-  tables:
-    count: 8
-    status: PASS
-  metric_views:
-    - name: member_claims_metric_view
-      resolved_name: member_claims_metric_view_v1
-      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
-      status: PASS
-  dashboards:
-    - name: member_claims_kpis_dashboard_v1
-      dashboard_id: 01f1a352b74f161b8007a612db04e89b
-      published: true
-      status: PASS
-    - name: member_claims_utilization_dashboard_v1
-      dashboard_id: 01f1a352cb9e1ec181db6bd7d2817d50
-      published: true
-      status: PASS
-  genie:
-    space_name: member_claims_analytics_genie
-    resolved_title: member_claims_analytics_genie_v1
-    space_id: 01f1a356f08c12b0a314cc0077f7048b
-    notebook_name: genie_space_configuration_member_claims
-    notebook_path: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/genie_space/genie_space_configuration_member_claims
-    status: PASS
-validation:
-  overall_run_status: PARTIAL_SUCCESS
-  data_layer: PASS
-  metric_views: PASS
-  dashboards: PASS
-  genie: PASS
-  validated_kpis: 13
-  skipped_kpis: 10
-  benchmark_pass_rate: 1.0
+current_step: generate_documentation
+updated_at: '2026-09-01T00:00:00Z'
+phases:
+  gather_artifacts:
+    status: completed
+    artifact_state: stateless_reloaded
+  generate_documentation:
+    status: completed
+    artifact: readme.md
+  generate_manifest:
+    status: completed
+    artifact: run_manifest.json
+  validate_documentation:
+    status: completed
+overall_run_status: PARTIAL_SUCCESS
+artifacts:
+  readme: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/readme.md
+  run_manifest: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/run_manifest.json

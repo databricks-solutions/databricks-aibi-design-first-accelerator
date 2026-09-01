@@ -111,7 +111,7 @@ class ToolExecutor:
             return "\n".join(lines)
         except Exception as e:
             err_str = str(e).lower()
-            if any(hint in err_str for hint in ('not found', 'does not exist', '404', 'resource_does_not_exist')):
+            if any(hint in err_str for hint in ('not found', 'does not exist', '404', 'resource_does_not_exist', 'no such file')):
                 return f"DIRECTORY_NOT_FOUND: {path} does not exist yet. It will be created when needed."
             return f"ERROR: {str(e)}"
 

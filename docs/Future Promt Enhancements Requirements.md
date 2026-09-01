@@ -14,4 +14,4 @@ ERD image creation — The pipeline reads an ERD image via vision model, but pro
 
 execute_python tool runs in a subprocess (python -c) — Not on a Databricks cluster. This means no Spark, no dbldatagen, no PySpark. For the app mode, the data layer step that needs PySpark relies on execute_notebook (Jobs API) but execute_python is limited to plain Python.
 
-Version/cleanup management (08_cleanup_versions.md) — Exists as a prompt but isn't wired into the app pipeline stages or the STEP_NAMES registry in pipeline.py.
+Version/cleanup management (07_cleanup_versions.md) — Exists as a prompt but isn't wired into the app pipeline stages or the STEP_NAMES registry in pipeline.py.

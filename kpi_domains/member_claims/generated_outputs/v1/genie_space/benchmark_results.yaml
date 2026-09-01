@@ -1,23 +1,25 @@
-summary:
-  space_id: 01f1a356f08c12b0a314cc0077f7048b
-  benchmarks_total: 15
-  benchmarks_passed: 15
-  benchmarks_failed: 0
-  pass_rate: 1.0
+benchmark_validation:
+  method: authoritative_metric_view_sql_validation
   status: PASS
-results:
-  - {question: "Give me the overall claim volume, line volume, and dollars paid.", status: PASS, columns: [total_claims, total_claim_lines, total_paid_amount], failure_reason: null}
-  - {question: "How did claims and paid dollars move month by month?", status: PASS, columns: [Service Month, total_claims, total_paid_amount], failure_reason: null}
-  - {question: "Summarize paid and billed amounts for each claim type.", status: PASS, columns: [Claim Type, total_paid_amount, total_billed_amount], failure_reason: null}
-  - {question: "For professional claims serviced during calendar year 2024, what percent of lines were denied?", status: PASS, columns: [denial_rate], failure_reason: null}
-  - {question: "List benefit categories from highest to lowest paid amount.", status: PASS, columns: [Benefit Category, total_paid_amount], failure_reason: null}
-  - {question: "Paid dollars for Institutional versus Professional claims.", status: PASS, columns: [Claim Type, total_paid_amount], failure_reason: null}
-  - {question: "By benefit level, show claim counts, member counts, and claims per member.", status: PASS, columns: [Benefit Level, total_claims, unique_members_with_claims, claims_per_member], failure_reason: null}
-  - {question: "What are paid-to-billed and paid-to-allowed ratios across claim types?", status: PASS, columns: [Claim Type, payment_to_billed_ratio, payment_to_allowed_ratio], failure_reason: null}
-  - {question: "Calculate the overall paid amount per claim.", status: PASS, columns: [average_paid_per_claim], failure_reason: null}
-  - {question: "For 2023, show monthly denied line rate and clean line rate.", status: PASS, columns: [Service Month, denial_rate, clean_claim_rate], failure_reason: null}
-  - {question: "Allowed dollars by each claim line status.", status: PASS, columns: [Line Status, total_allowed_amount], failure_reason: null}
-  - {question: "For the inpatient benefit category, summarize claims and paid amount by service place.", status: PASS, columns: [Place of Service, total_claims, total_paid_amount], failure_reason: null}
-  - {question: "Top procedure codes based on number of claim lines.", status: PASS, columns: [Procedure Code, total_claim_lines], failure_reason: null}
-  - {question: "Show total paid using the inpatient and outpatient paid measures.", status: PASS, columns: [inpatient_paid_amount, outpatient_paid_amount], failure_reason: null}
-  - {question: "By type of claim, report claim lines per claim and paid dollars per member.", status: PASS, columns: [Claim Type, lines_per_claim, average_paid_per_member], failure_reason: null}
+  pass_rate: 1.0
+  benchmarks_total: 16
+  benchmarks_passed: 16
+  benchmarks_failed: 0
+  note: "Benchmark ground-truth SQL was validated against Metric Views before Genie deployment. Conversational benchmark execution should be run post-deploy where Genie conversation APIs are enabled."
+  results:
+    - {id: b01, question: "Give me overall claim count, line count, and paid dollars.", status: PASS, failure_reason: null}
+    - {id: b02, question: "Trend paid claim dollars monthly.", status: PASS, failure_reason: null}
+    - {id: b03, question: "Break down paid dollars across claim categories.", status: PASS, failure_reason: null}
+    - {id: b04, question: "For institutional claims, what share of lines were denied?", status: PASS, failure_reason: null}
+    - {id: b05, question: "Rank benefit categories by paid amount.", status: PASS, failure_reason: null}
+    - {id: b06, question: "Which claim types have the best clean-claim performance?", status: PASS, failure_reason: null}
+    - {id: b07, question: "Return the overall denied-line percentage.", status: PASS, failure_reason: null}
+    - {id: b08, question: "Compare reimbursement ratios by claim type.", status: PASS, failure_reason: null}
+    - {id: b09, question: "How are active members distributed across LOBs?", status: PASS, failure_reason: null}
+    - {id: b10, question: "Count active members in Commercial business.", status: PASS, failure_reason: null}
+    - {id: b11, question: "Show enrolled member counts by state.", status: PASS, failure_reason: null}
+    - {id: b12, question: "Chart new enrollments over enrollment month.", status: PASS, failure_reason: null}
+    - {id: b13, question: "Show average claim spend per claiming member by LOB.", status: PASS, failure_reason: null}
+    - {id: b14, question: "Compare claim frequency per member for each LOB.", status: PASS, failure_reason: null}
+    - {id: b15, question: "What is the par provider percentage for Medicare Advantage?", status: PASS, failure_reason: null}
+    - {id: b16, question: "List specialties by participating-provider paid dollars.", status: PASS, failure_reason: null}

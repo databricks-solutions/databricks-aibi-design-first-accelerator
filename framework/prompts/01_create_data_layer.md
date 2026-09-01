@@ -95,7 +95,7 @@ Skip entirely for `data_source.type: live_schema` (brownfield uses existing data
 
 ## State & Checkpoint Contract
 
-Uses **artifact-as-state** checkpointing (see `07_state_contract.md`). Before each phase, check if output artifact exists. If valid → skip. If missing/corrupt → execute.
+Uses **artifact-as-state** checkpointing (see `06_state_contract.md`). Before each phase, check if output artifact exists. If valid → skip. If missing/corrupt → execute.
 
 | Phase | Artifact | Skip When |
 |-------|----------|-----------|
@@ -397,7 +397,17 @@ unresolved_items: []
 
 ### Unresolved Items Decision Gate
 
-Before marking UNRESOLVED, attempt inference from: (1) column naming conventions, (2) shared column names, (3) domain semantics (detail/line → header pattern), (4) KPI spec join paths. Only mark UNRESOLVED if ALL methods fail.
+Before marking UNRESOLVED, note candidate relationships using these quick signals:
+
+1. **Column naming conventions** — matching `*_sk`, `*_id`, `*_key` patterns across tables
+2. **Shared business-key patterns** — e.g., `clm_hdr_claim_nbr` ↔ `clm_dtl_claim_nbr` indicates header→detail
+3. **Domain semantics** — tables named `*_header` and `*_detail` or `*_master` and `*_transaction`
+4. **KPI spec join paths** — KPI definitions referencing measures from multiple tables
+5. **Identical column name + compatible type** in two tables
+
+Record candidates in `erd_parsed.yaml` under `unresolved_items` with their signal and estimated confidence. **The full inference protocol runs in Step 3.4** (Intelligent Relationship Inference), which formally classifies, adds to `semantic_model.yaml`, and ensures they flow into generation_order and FK_REPLACEMENTS.
+
+Only mark UNRESOLVED after Step 3.4 has run and the relationship still cannot be classified as HIGH or MEDIUM confidence.
 
 **HALT** if unresolved item blocks a required fact→dimension join, a PK referenced by an FK, or a KPI-referenced column. **WARN** otherwise.
 
@@ -425,7 +435,7 @@ For measures, identify aggregation: SUM, COUNT, COUNT_DISTINCT, MIN, MAX, AVG, N
 
 ## 3.3 Relationship Graph & Generation Order
 
-Construct dependency graph from PK/FK. Compute generation order (dimensions before facts). For every relationship determine join safety:
+Construct dependency graph from PK/FK **AND inferred relationships** (from the Unresolved Items Decision Gate in Step 2). Both ERD-declared and inferred relationships participate in the generation order. Compute generation order (dimensions before facts, parents before children). For every relationship determine join safety:
 
 ```yaml
 left_grain:
@@ -436,7 +446,70 @@ fanout_risk:
 
 Mark `FANOUT_RISK` when joining could multiply rows.
 
-**GATE 3.1**: `semantic_model.yaml` exists with `generation_order`. HALT if missing.
+## 3.4 Intelligent Relationship Inference (MANDATORY)
+
+The ERD and initial FK parsing may not capture all valid relationships — especially between related fact tables (e.g., claim_header ↔ claim_detail) or when FK annotations are partially visible in the ERD image. This step uses schema analysis to discover relationships the ERD parsing missed, **before** DDL and synthetic data generation.
+
+### Why this runs here (not downstream)
+
+Inferred relationships MUST be in `semantic_model.yaml` BEFORE Step 5 (synthetic data spec) and Step 6 (data generation), because:
+- The generation_order depends on parent→child relationships
+- FK_REPLACEMENTS in Step 6 reads relationships from `semantic_model.yaml`
+- If an inferred relationship is discovered AFTER data generation, the synthetic data won’t have linked FK values, and downstream cardinality probes will fail with zero matches
+
+### Phase 1: Column-Name Pattern Analysis
+
+For every pair of tables in the schema, identify candidate join keys using these signals (ordered by confidence):
+
+| Signal | Confidence | Example |
+|--------|-----------|----------|
+| Matching PK/FK column names across tables | HIGH | `claim_id` in header and detail |
+| Column name contains other table's entity name + `_sk`/`_id`/`_key` | HIGH | `clm_member_sk` in fact referencing `dim_member.member_sk` |
+| Shared business-key column name pattern (prefix match) | HIGH | `clm_hdr_claim_nbr` ↔ `clm_dtl_claim_nbr` |
+| Domain-standard naming (header/detail, parent/child, master/transaction) | MEDIUM | Tables named `*_header` and `*_detail` |
+| KPI spec join paths — KPI definitions referencing measures from multiple tables | MEDIUM | KPI formula mentions columns from two tables |
+| Same column type + name substring overlap | LOW | Requires downstream data validation |
+
+### Phase 2: Classification
+
+| Pattern Confidence | Action |
+|-------------------|--------|
+| HIGH (2+ signals align) | Add to `semantic_model.yaml` as a **first-class relationship** with `confidence: inferred`, `evidence: <signals>`. Include in generation_order and FK_REPLACEMENTS. |
+| MEDIUM (1 signal) | Add with `confidence: inferred_medium`. Include in generation_order and FK_REPLACEMENTS. Flag for downstream validation. |
+| LOW (type match only) | Record in `unresolved_items` with `confidence: low_needs_validation`. Do NOT include in FK_REPLACEMENTS. |
+
+### Output
+
+Inferred relationships are added directly to `semantic_model.yaml` under `relationships:` with the same schema as ERD-declared relationships. They are **indistinguishable from ERD relationships** in downstream steps — the only difference is the `confidence` and `evidence` fields.
+
+```yaml
+relationships:
+  # ERD-declared:
+  - parent: dim_member
+    parent_key: member_sk
+    child: fact_claim_header
+    child_key: clm_member_sk
+    cardinality: "1:N"
+    confidence: erd_declared
+  # Inferred:
+  - parent: fact_claim_header
+    parent_key: clm_hdr_claim_nbr
+    child: fact_claim_detail
+    child_key: clm_dtl_claim_nbr
+    cardinality: "1:N"
+    confidence: inferred
+    evidence: "shared business-key pattern (claim_nbr) + header/detail table naming"
+```
+
+Because inferred relationships are first-class in `semantic_model.yaml`:
+- Step 3.3 generation_order already includes them (parent before child)
+- Step 5 synthetic data spec treats them like any FK
+- Step 6 `FK_REPLACEMENTS` automatically includes them (reads from semantic_model.yaml)
+- Metric View step (02_create_metric_views) validates them via data probes like any other relationship
+
+**GATE 3.2**: Relationship inference completed. Document results (empty list is acceptable if no new relationships found beyond ERD-declared ones).
+
+**GATE 3.1**: `semantic_model.yaml` exists with `generation_order` and all relationships (ERD + inferred). HALT if missing.
 
 ---
 

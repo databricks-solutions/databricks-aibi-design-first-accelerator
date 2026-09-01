@@ -1,17 +1,17 @@
 {
-  "space_id": "01f1a356f08c12b0a314cc0077f7048b",
+  "space_id": "01f1a5b1d16312cc89683e12db7e4d55",
   "title": "member_claims_analytics_genie_v1",
   "warehouse_id": "2d8e531640ffa469",
   "metric_views": [
-    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1"
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1",
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enrollment_metric_view_v1",
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enriched_metric_view_v1"
   ],
-  "sample_question_count": 15,
-  "example_sql_count": 15,
-  "benchmark_count": 15,
+  "sample_question_count": 16,
+  "example_sql_count": 16,
+  "benchmark_count": 16,
+  "instruction_chars": 3352,
   "notebook_path": "/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/genie_space/genie_space_configuration_member_claims",
-  "validation_notebook_path": "/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/genie_space/validate_genie_space_member_claims",
-  "validated": true,
   "configured": true,
-  "benchmark_pass_rate": 1.0,
-  "created_or_updated_via": "genie_space_notebook.py.template + build_serialized_space() + Genie Management API"
+  "validated": true
 }

@@ -182,11 +182,13 @@ RESUME_CONTEXT:
     - semantic_model.yaml
     - data_layer_validation.yaml
     - schema_profile.yaml
+    - metric_view_plan.yaml
     - metric_view_design.yaml
     - metric_view_validation.yaml
   prior_findings:
     - "8 tables created"
     - "3 metric views validated PASS"
+    - "2 KPIs classified as NOT_IMPLEMENTED with reference SQL"
 ```
 
 ### What the LLM MUST do:
@@ -223,7 +225,9 @@ Each phase produces a durable artifact. The artifact IS the state:
 | validate_data | data_layer_validation.yaml | file exists |
 | profile_schema | schema_profile.yaml | file exists |
 | map_kpis | kpi_metric_mapping.yaml | file exists |
+| plan_metric_views | metric_view_plan.yaml | file exists + ≥ 1 metric view planned |
 | design_metric_views | metric_view_design.yaml | file exists |
+| create_intermediate_views | Intermediate views in catalog | `SHOW VIEWS` returns expected intermediate view names (skip if none planned) |
 | generate_metric_views | Metric views in catalog | `SHOW VIEWS` returns expected names |
 | validate_metric_views | metric_view_validation.yaml | file exists |
 | design_dashboard | dashboard_design.yaml | file exists |

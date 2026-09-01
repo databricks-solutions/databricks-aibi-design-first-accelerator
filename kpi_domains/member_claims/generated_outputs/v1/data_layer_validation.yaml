@@ -4,79 +4,70 @@ schema:
   tables_created: 8
   missing: []
   unexpected: []
-  schema_reconciliation: PASS
-row_counts:
-  dim_member_v1: 500
-  dim_address_v1: 300
-  dim_provider_v1: 300
-  dim_member_identifier_v1: 800
-  dim_member_history_v1: 800
-  fact_member_enrollment_v1: 1200
-  fact_claim_header_v1: 2000
-  fact_claim_detail_v1: 5000
+  columns_validated: 434
 primary_keys:
   tested: 8
-  status: PASS
   failures: []
-  pk_dups:
-    dim_member_v1: 0
-    dim_address_v1: 0
-    dim_provider_v1: 0
-    dim_member_identifier_v1: 0
-    dim_member_history_v1: 0
-    fact_member_enrollment_v1: 0
-    fact_claim_header_v1: 0
-    fact_claim_detail_v1: 0
+  results:
+    dim_member_v1: {rows: 400, pk_distinct: 400, pk_dups: 0}
+    dim_address_v1: {rows: 300, pk_distinct: 300, pk_dups: 0}
+    dim_member_identifier_v1: {rows: 500, pk_distinct: 500, pk_dups: 0}
+    dim_member_history_v1: {rows: 500, pk_distinct: 500, pk_dups: 0}
+    fact_member_enrollment_v1: {rows: 800, pk_distinct: 800, pk_dups: 0}
+    dim_provider_v1: {rows: 300, pk_distinct: 300, pk_dups: 0}
+    fact_claim_header_v1: {rows: 300, pk_distinct: 300, pk_dups: 0}
+    fact_claim_detail_v1: {rows: 900, pk_distinct: 900, pk_dups: 0}
 foreign_keys:
-  tested: 6
-  status: PASS
-  orphan_counts:
-    dim_provider.provider_address_sk: 0
-    dim_member_identifier.member_sk: 0
-    dim_member_history.member_sk: 0
-    fact_member_enrollment.member_sk: 0
-    fact_claim_header.clm_member_sk: 0
-    fact_claim_header.clm_service_facility_address_sk: 0
-  diversity:
-    dim_provider.provider_address_sk: 300
-    dim_member_identifier.member_sk: 500
-    dim_member_history.member_sk: 500
-    fact_member_enrollment.member_sk: 500
-    fact_claim_header.clm_member_sk: 500
-    fact_claim_header.clm_service_facility_address_sk: 300
+  tested: 7
   failures: []
+  orphan_counts:
+    fact_claim_header_v1.clm_member_sk: 0
+    dim_member_identifier_v1.member_sk: 0
+    dim_member_history_v1.member_sk: 0
+    fact_member_enrollment_v1.member_sk: 0
+    dim_provider_v1.provider_address_sk: 0
+    fact_claim_header_v1.clm_service_facility_address_sk: 0
+    fact_claim_detail_v1.clm_dtl_claim_id: 0
+  diversity:
+    fact_claim_header_v1.clm_member_sk: 300
+    dim_member_identifier_v1.member_sk: 400
+    dim_member_history_v1.member_sk: 400
+    fact_member_enrollment_v1.member_sk: 400
+    dim_provider_v1.provider_address_sk: 300
+    fact_claim_header_v1.clm_service_facility_address_sk: 300
+    fact_claim_detail_v1.clm_dtl_claim_id: 300
 join_stability:
-  tested: 6
-  status: PASS
+  tested: 7
   fanout_failures: []
-  joins:
+  results:
+    fact_claim_header_to_dim_member: {before_rows: 300, after_rows: 300}
+    dim_member_identifier_to_dim_member: {before_rows: 500, after_rows: 500}
+    dim_member_history_to_dim_member: {before_rows: 500, after_rows: 500}
+    fact_member_enrollment_to_dim_member: {before_rows: 800, after_rows: 800}
     dim_provider_to_dim_address: {before_rows: 300, after_rows: 300}
-    dim_member_identifier_to_dim_member: {before_rows: 800, after_rows: 800}
-    dim_member_history_to_dim_member: {before_rows: 800, after_rows: 800}
-    fact_member_enrollment_to_dim_member: {before_rows: 1200, after_rows: 1200}
-    fact_claim_header_to_dim_member: {before_rows: 2000, after_rows: 2000}
-    fact_claim_header_to_dim_address: {before_rows: 2000, after_rows: 2000}
+    fact_claim_header_to_dim_address: {before_rows: 300, after_rows: 300}
+    fact_claim_detail_to_fact_claim_header: {before_rows: 900, after_rows: 900}
 semantic_constraints:
   tested: 3
-  status: PASS
   failures: []
 domain_values:
-  columns_checked: 43
-  status: PASS
+  columns_checked: 5
   generic_value_failures: []
   sampled_columns:
-    fact_claim_detail.clm_dtl_line_status: {distinct_vals: 5, generic_rows: 0}
-    fact_claim_detail.clm_dtl_claim_type: {distinct_vals: 5, generic_rows: 0}
-    fact_claim_detail.clm_dtl_procedure_code: {distinct_vals: 8, generic_rows: 0}
-    fact_claim_header.clm_claim_type: {distinct_vals: 5, generic_rows: 0}
-    dim_member.mbr_line_of_business: {distinct_vals: 5, generic_rows: 0}
-    fact_member_enrollment.mbr_enr_status: {distinct_vals: 5, generic_rows: 0}
+    dim_member_v1.mbr_sex: {distinct_vals: 3, generic_rows: 0}
+    fact_claim_header_v1.clm_claim_type: {distinct_vals: 5, generic_rows: 0}
+    fact_claim_detail_v1.clm_dtl_claim_type: {distinct_vals: 5, generic_rows: 0}
+    fact_claim_detail_v1.clm_dtl_line_status: {distinct_vals: 5, generic_rows: 0}
+    fact_member_enrollment_v1.mbr_enr_status: {distinct_vals: 5, generic_rows: 0}
 data_quality:
   null_violations: []
   generic_fallback_columns: []
-artifacts:
-  erd_parsed_yaml: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/erd_parsed.yaml
-  semantic_model_yaml: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/semantic_model.yaml
-  synthetic_data_spec_yaml: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/synthetic_data_spec.yaml
-  ddl_notebook: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/notebooks/ddl_member_claims.ipynb
-  synthetic_data_notebook: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/notebooks/synthetic_data_member_claims.ipynb
+row_counts:
+  dim_member_v1: 400
+  dim_address_v1: 300
+  dim_member_identifier_v1: 500
+  dim_member_history_v1: 500
+  fact_member_enrollment_v1: 800
+  dim_provider_v1: 300
+  fact_claim_header_v1: 300
+  fact_claim_detail_v1: 900

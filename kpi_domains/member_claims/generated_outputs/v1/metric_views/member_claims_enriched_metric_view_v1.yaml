@@ -1,0 +1,87 @@
+version: 1.1
+comment: Enriched claim-line metric view sourced from materialized detail-header view for member-normalized and participating provider KPIs.
+source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_enriched_v1
+
+fields:
+  - name: Service Date
+    expr: clm_dtl_specific_dos_date
+    comment: Date of service for the claim line.
+  - name: service_month
+    expr: DATE_TRUNC('month', clm_dtl_specific_dos_date)
+    comment: Month of service, common dashboard time dimension.
+  - name: Claim Type
+    expr: clm_dtl_claim_type
+    comment: Claim type from detail row.
+  - name: Line of Business
+    expr: clm_line_of_business
+    comment: Claim line of business from claim header.
+  - name: Plan Code
+    expr: clm_plan_code
+    comment: Plan code from claim header.
+  - name: Rendering Provider Specialty
+    expr: clm_dtl_rendering_provider_spec
+    comment: Rendering provider specialty from detail row.
+  - name: Participating Rendering Provider
+    expr: clm_is_par_rendering_provider
+    comment: Rendering provider participating flag from claim header.
+
+measures:
+  - name: Total Paid Amount
+    expr: SUM(clm_dtl_paid_amt)
+    comment: Sum of paid amount across enriched claim lines.
+    format:
+      type: currency
+      currency_code: USD
+      decimal_places:
+        type: exact
+        places: 2
+  - name: Unique Claiming Members
+    expr: COUNT(DISTINCT clm_member_sk)
+    comment: Count of distinct members with claims.
+    format:
+      type: number
+      decimal_places:
+        type: exact
+        places: 0
+  - name: Average Paid per Member
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Unique Claiming Members`), 0)
+    comment: Total paid divided by unique claiming members.
+    format:
+      type: currency
+      currency_code: USD
+      decimal_places:
+        type: exact
+        places: 2
+  - name: Total Claims
+    expr: COUNT(DISTINCT clm_dtl_claim_id)
+    comment: Count of distinct claims.
+    format:
+      type: number
+      decimal_places:
+        type: exact
+        places: 0
+  - name: Claims per Member
+    expr: MEASURE(`Total Claims`) / NULLIF(MEASURE(`Unique Claiming Members`), 0)
+    comment: Distinct claims divided by unique claiming members.
+    format:
+      type: number
+      decimal_places:
+        type: exact
+        places: 2
+  - name: Participating Provider Paid Amount
+    expr: SUM(CASE WHEN clm_is_par_rendering_provider = true THEN clm_dtl_paid_amt ELSE 0 END)
+    comment: Paid amount for participating rendering providers.
+    format:
+      type: currency
+      currency_code: USD
+      decimal_places:
+        type: exact
+        places: 2
+  - name: Participating Provider Rate
+    expr: MEASURE(`Participating Provider Paid Amount`) / NULLIF(MEASURE(`Total Paid Amount`), 0)
+    comment: Participating provider paid amount divided by total paid amount.
+    format:
+      type: percentage
+      decimal_places:
+        type: exact
+        places: 2

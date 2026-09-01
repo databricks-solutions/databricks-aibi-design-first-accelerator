@@ -227,7 +227,7 @@ else:
         """,
         "CREATE INDEX IF NOT EXISTS idx_events_run_seq ON events(run_id, event_id)",
         "CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status) WHERE status IN ('running', 'pending')",
-        # ─── State Persistence Enhancement (07_state_contract.md) ───
+        # ─── State Persistence Enhancement (06_state_contract.md) ───
         # Enhance runs table for real-time progress tracking
         "ALTER TABLE runs ADD COLUMN IF NOT EXISTS progress_pct INT DEFAULT 0",
         "ALTER TABLE runs ADD COLUMN IF NOT EXISTS current_step TEXT",

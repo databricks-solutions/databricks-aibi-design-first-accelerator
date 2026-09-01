@@ -1,0 +1,17 @@
+{
+  "dashboard_id": "01f1a5afeb821a4c9c96c68ed7d307bf",
+  "display_name": "member_claims_utilization_dashboard_v1",
+  "metric_views": [
+    "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`",
+    "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1`"
+  ],
+  "pages": ["Filters", "Utilization Patterns", "Provider Insights", "Operational Metrics"],
+  "pages_count": 4,
+  "canvas_pages_count": 3,
+  "dataset_count": 3,
+  "widget_count": 22,
+  "filter_count": 7,
+  "datasets_validated": true,
+  "warehouse_id": "2d8e531640ffa469",
+  "published": true
+}

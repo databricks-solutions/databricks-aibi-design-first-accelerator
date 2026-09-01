@@ -1,8 +1,9 @@
 domain: member_claims
 versions:
 - version: 1
-  status: running
+  status: completed
   created_by: app
-  run_id: 20f7dc42-064a-49a3-bd2c-15b3551c558c
-  started_at: '2026-08-28T19:24:07.811885+00:00'
+  run_id: 29fc6257-9fc8-4eb5-93df-74ce37dc6337
+  started_at: '2026-09-01T02:03:05.992475+00:00'
   assets_created: {}
+  completed_at: '2026-09-01T03:15:26.715714+00:00'

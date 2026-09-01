@@ -60,7 +60,7 @@ class RunStore:
 
     def create_run(self, run_id: str, domain: str, run_mode: str,
                    version: Optional[int] = None, version_suffix: Optional[str] = None,
-                   total_steps: int = 6, config_snapshot: Optional[dict] = None,
+                   total_steps: int = 6, config_json: Optional[dict] = None,
                    steps: Optional[list] = None) -> None:
         """Insert a new pipeline run record and initialize step records.
 
@@ -71,25 +71,25 @@ class RunStore:
             version: Version number (if versioned).
             version_suffix: e.g., '_v1'.
             total_steps: Number of steps.
-            config_snapshot: Config dict to serialize for rerun.
+            config_json: Config dict to serialize for rerun.
             steps: List of step names to execute (defaults to STEP_ORDER).
         """
         now = datetime.utcnow().isoformat()
-        config_json = json.dumps(config_snapshot) if config_snapshot else "null"
+        config_json_str = json.dumps(config_json) if config_json else "null"
         # Escape single quotes in JSON
-        config_json = config_json.replace("'", "''")
+        config_json_str = config_json_str.replace("'", "''")
 
         sql = f"""
         INSERT INTO {self._runs_table}
         (run_id, domain, run_mode, version, version_suffix, status, total_steps,
-         steps_completed, current_step, started_at, created_at, updated_at, config_snapshot)
+         current_step, started_at, created_at, updated_at, config_json)
         VALUES (
             '{run_id}', '{domain}', '{run_mode}',
             {version if version is not None else 'NULL'},
             {f"'{version_suffix}'" if version_suffix else 'NULL'},
-            'running', {total_steps}, 0, NULL,
+            'running', {total_steps}, NULL,
             TIMESTAMP '{now}', TIMESTAMP '{now}', TIMESTAMP '{now}',
-            '{config_json}'
+            '{config_json_str}'
         )
         """
         try:
@@ -101,14 +101,12 @@ class RunStore:
         # Initialize step records as 'pending'
         run_steps = steps or STEP_ORDER
         for idx, step_name in enumerate(run_steps):
-            next_s = run_steps[idx + 1] if idx < len(run_steps) - 1 else None
             step_sql = f"""
             INSERT INTO {self._steps_table}
-            (run_id, step_name, step_index, status, next_step, created_at, updated_at)
+            (run_id, step_name, step_index, status, updated_at)
             VALUES (
                 '{run_id}', '{step_name}', {idx}, 'pending',
-                {f"'{next_s}'" if next_s else 'NULL'},
-                TIMESTAMP '{now}', TIMESTAMP '{now}'
+                TIMESTAMP '{now}'
             )
             """
             try:
@@ -118,32 +116,24 @@ class RunStore:
 
     def update_run_status(self, run_id: str, status: str,
                           current_step: Optional[str] = None,
-                          steps_completed: Optional[int] = None,
-                          error: Optional[str] = None,
-                          error_detail: Optional[str] = None,
-                          duration_s: Optional[float] = None) -> None:
-        """Update run-level status fields."""
+                          error: Optional[str] = None) -> None:
+        """Update run-level status fields.
+
+        Actual runs table columns: run_id, domain, run_mode, status, version,
+        version_suffix, total_steps, retry_count, config_json, error, created_at,
+        started_at, completed_at, progress_pct, current_step, run_manifest, updated_at.
+        """
         now = datetime.utcnow().isoformat()
         sets = [f"status = '{status}'", f"updated_at = TIMESTAMP '{now}'"]
 
         if current_step is not None:
             sets.append(f"current_step = '{current_step}'")
-        if steps_completed is not None:
-            sets.append(f"steps_completed = {steps_completed}")
         if error is not None:
             if error == '':
                 sets.append("error = NULL")
             else:
                 safe_error = error.replace("'", "''")[:2000]
                 sets.append(f"error = '{safe_error}'")
-        if error_detail is not None:
-            if error_detail == '':
-                sets.append("error_detail = NULL")
-            else:
-                safe_detail = error_detail.replace("'", "''")[:4000]
-                sets.append(f"error_detail = '{safe_detail}'")
-        if duration_s is not None:
-            sets.append(f"duration_s = {duration_s:.2f}")
         if status in ('completed', 'failed', 'cancelled'):
             sets.append(f"completed_at = TIMESTAMP '{now}'")
 
@@ -156,6 +146,25 @@ class RunStore:
     # ------------------------------------------------------------------
     # Step-level operations
     # ------------------------------------------------------------------
+
+    def insert_step(self, run_id: str, step_name: str, step_index: int,
+                    next_step: Optional[str] = None) -> None:
+        """Insert a single step record (used when a rerun discovers steps
+        that were never reached in the original run)."""
+        now = datetime.utcnow().isoformat()
+        sql = f"""
+        INSERT INTO {self._steps_table}
+        (run_id, step_name, step_index, status, updated_at)
+        VALUES (
+            '{run_id}', '{step_name}', {step_index}, 'pending',
+            TIMESTAMP '{now}'
+        )
+        """
+        try:
+            self._sql.execute_ddl(sql)
+            logger.info(f"RunStore: inserted missing step {step_name} for run {run_id}")
+        except Exception as e:
+            logger.error(f"RunStore: failed to insert step {step_name}: {e}")
 
     def update_step(self, run_id: str, step_name: str, status: str,
                     duration_s: Optional[float] = None,
@@ -264,7 +273,9 @@ class RunStore:
     def get_resume_steps(self, run_id: str) -> list:
         """Get the list of steps to run for a resume (from failed step onward).
 
-        Returns all step names from the first failed step through the end.
+        Returns all step names from the first non-completed step through the end,
+        INCLUDING any steps from STEP_ORDER that were never inserted into the
+        table (because the original run failed before reaching them).
         """
         try:
             result = self._sql.execute_and_wait(
@@ -281,9 +292,36 @@ class RunStore:
                     break
 
             if resume_from is None:
-                return []  # All steps completed
+                # All tracked steps completed — but there may be steps from
+                # STEP_ORDER that were never inserted (run failed before
+                # reaching them). Append any missing trailing steps.
+                tracked_names = {s['step_name'] for s in steps}
+                last_tracked = steps[-1]['step_name'] if steps else None
+                trailing = []
+                past_last = False
+                for canonical in STEP_ORDER:
+                    if canonical == last_tracked:
+                        past_last = True
+                        continue
+                    if past_last and canonical not in tracked_names:
+                        trailing.append(canonical)
+                return trailing  # Empty if no missing steps
 
-            return [s['step_name'] for s in steps if s.get('step_index', 0) >= resume_from]
+            resume_steps = [s['step_name'] for s in steps if s.get('step_index', 0) >= resume_from]
+
+            # Also append any steps from STEP_ORDER that come after the last
+            # tracked step but were never inserted into the table.
+            tracked_names = {s['step_name'] for s in steps}
+            last_tracked = steps[-1]['step_name'] if steps else None
+            past_last = False
+            for canonical in STEP_ORDER:
+                if canonical == last_tracked:
+                    past_last = True
+                    continue
+                if past_last and canonical not in tracked_names:
+                    resume_steps.append(canonical)
+
+            return resume_steps
         except Exception as e:
             logger.error(f"RunStore: failed to get resume steps for {run_id}: {e}")
             return []
@@ -311,9 +349,6 @@ class RunStore:
                 completed_at = NULL,
                 duration_s = NULL,
                 error = NULL,
-                error_detail = NULL,
-                suggestion = NULL,
-                retry_count = COALESCE(retry_count, 0) + 1,
                 updated_at = TIMESTAMP '{now}'
             WHERE run_id = '{run_id}' AND step_name = '{step_name}'
             """

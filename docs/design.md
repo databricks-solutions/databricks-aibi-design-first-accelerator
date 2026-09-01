@@ -293,7 +293,6 @@ Orchestrated by [`prompts/00_master_prompt.md`](../framework/prompts/00_master_p
 | 3 | [`03_create_dashboards.md`](../framework/prompts/03_create_dashboards.md) | Live Lakeview dashboards + manifests |
 | 4 | [`04_create_genie_space.md`](../framework/prompts/04_create_genie_space.md) | Genie config notebook + fully configured space |
 | 5 | [`05_generate_documentation.md`](../framework/prompts/05_generate_documentation.md) | Run summary in `output/readme.md` |
-| 6 | [`06_create_secured_dashboards.md`](../framework/prompts/06_create_secured_dashboards.md) | RLS dashboards (optional, v2 stub) |
 
 ### Templates
 

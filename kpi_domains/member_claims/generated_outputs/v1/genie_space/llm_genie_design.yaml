@@ -1,79 +1,112 @@
 genie_design:
-  instructions: |-
-    ## Purpose
-    - This Genie Space supports healthcare member claims analytics for claim submissions, approvals, denials, provider utilization, and cost trends using only the metric view `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`.
-    - Always answer from the metric view and do not introduce other datasets.
+  instructions: |
+    ## Domain
+    This Genie Space provides validated healthcare member claims analytics over three Databricks Metric Views. Use it to analyze claim volume, claim-line activity, paid/billed/allowed dollars, denial and clean-claim performance, member enrollment, member geography, and participating-provider performance. The authoritative metric views are `member_claims_metric_view_v1` for claim-line operational/financial KPIs, `member_claims_enrollment_metric_view_v1` for enrollment and active-member KPIs, and `member_claims_enriched_metric_view_v1` for member-normalized claims and provider-network KPIs.
 
-    ## Dimensions
-    - Available dimensions are: Claim Id, Claim Line Number, Member Number, Service Date, Service Month, Claim Receive Date, Check Date, Claim Type, Line Status, Adjudication Status, Clean Claim Indicator, Benefit Category, Benefit Level, Place of Service, Procedure Code, Revenue Code.
-    - Use exact dimension names in backticks in SQL, for example `Claim Type`, `Service Month`, and `Benefit Category`.
+    ## Metric View Selection
+    - Query `aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1` for `Total Claims`, `Total Claim Lines`, `Total Paid Amount`, `Average Paid per Claim`, `Denial Rate`, `Clean Claim Rate`, payment ratios, `Lines per Claim`, and inpatient/outpatient paid amounts.
+    - Query `aw_serverless_stable_catalog.aibi_member_claims.member_claims_enrollment_metric_view_v1` for `New Member Enrollment`, `Active Members`, and `Enrollment Records` by LOB, state, plan, product, group, and sex.
+    - Query `aw_serverless_stable_catalog.aibi_member_claims.member_claims_enriched_metric_view_v1` for `Average Paid per Member`, `Claims per Member`, `Unique Claiming Members`, and `Participating Provider Rate` by LOB, plan code, claim type, and provider participation.
+    - Do not mix measures from different metric views in a single SQL statement.
 
-    ## Measures
-    - Available measures are: Total Claims, Total Claim Lines, Total Paid Amount, Total Billed Amount, Total Allowed Amount, Unique Members With Claims, Denied Lines, Clean Claim Lines, Inpatient Paid Amount, Outpatient Paid Amount, Average Paid per Claim, Denial Rate, Clean Claim Rate, Payment-to-Billed Ratio, Payment-to-Allowed Ratio, Average Paid per Member, Claims per Member, Lines per Claim.
-    - Always reference measures with MEASURE(`measure`) syntax, for example MEASURE(`Total Claims`) or MEASURE(`Denial Rate`).
+    ## Measures and Aggregation Rules
+    - Always query measures with `MEASURE(`measure_name`)`; do not recreate formulas from raw tables.
+    - Additive measures include `Total Claim Lines`, `Total Paid Amount`, `Total Billed Amount`, `Total Allowed Amount`, `Inpatient Paid Amount`, `Outpatient Paid Amount`, and `Participating Provider Paid Amount`.
+    - Distinct/semi-additive measures include `Total Claims`, `New Member Enrollment`, `Active Members`, `Unique Claiming Members`, and `Enrollment Records`; do not sum active members across months.
+    - Ratio/non-additive measures include `Average Paid per Claim`, `Denial Rate`, `Clean Claim Rate`, `Payment-to-Billed Ratio`, `Payment-to-Allowed Ratio`, `Lines per Claim`, `Average Paid per Member`, `Claims per Member`, and `Participating Provider Rate`; never sum these ratios.
 
-    ## Aggregation Rules
-    - Never SUM ratios or average measures. Ratio and non-additive measures must be recomputed by the metric view using MEASURE syntax.
-    - Non-additive measures include Average Paid per Claim, Denial Rate, Clean Claim Rate, Payment-to-Billed Ratio, Payment-to-Allowed Ratio, Average Paid per Member, Claims per Member, and Lines per Claim.
-    - Total Claims is a distinct claim count. Total Claim Lines is a claim line count. Denial Rate is denied lines divided by total lines. Clean Claim Rate is clean claim lines divided by total lines.
+    ## Dimensions and Time
+    - Claims can be sliced by `service_month`, `Service Date`, `Claim Type`, `Line Status`, `Adjudication Status`, `Clean Claim Indicator`, `Benefit Category`, `Place of Service`, and `Rendering Provider Specialty`.
+    - Enrollment can be sliced by `service_month`, `Enrollment Effective Date`, `Enrollment Status`, `Line of Business`, `Plan ID`, `Product ID`, `Group Name`, `Member State`, `Member ZIP`, and `Member Sex`.
+    - Enriched claims can be sliced by `service_month`, `Claim Type`, `Line of Business`, `Plan Code`, `Rendering Provider Specialty`, and `Participating Rendering Provider`.
+    - Use `service_month` for monthly trends and order by it chronologically. LOB means `Line of Business`; clean claim means `Clean Claim Rate`; par provider means `Participating Provider Rate`.
 
-    ## Time Guidance
-    - Use `Service Date` for daily filters and date ranges.
-    - Use `Service Month` for month-level trends and GROUP BY ALL when grouping by month.
-    - The available service date range is 2020-01-01 through 2024-12-31.
-    - For paid timing questions, `Check Date` may be used as a filter or grouping dimension when explicitly requested.
-
-    ## SQL Style
-    - Use the exact FQN `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`.
-    - For dimensional queries, include dimensions in SELECT and use GROUP BY ALL.
-    - Use ORDER BY for trends, rankings, and comparisons where helpful.
-  metric_view_description: "Healthcare member claims metric view for analyzing claim counts, claim lines, paid, billed, allowed, denial, clean claim, member utilization, inpatient, outpatient, and payment ratio KPIs across claim, member, service date, claim type, line status, adjudication, benefit, place of service, procedure, and revenue dimensions."
+    ## Unsupported Topics
+    Do not answer PMPM, claims per 1,000 members, utilization rate, high-cost member count, rolling 3-month PMPM, or MoM active member growth from this Genie Space because those KPIs were skipped or not implemented as Metric View measures.
+  metric_view_descriptions:
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enriched_metric_view_v1": "Enriched claim-line Metric View that combines claim detail with claim-header member and provider-network attributes. It supports average paid per member, claims per member, unique claiming members, participating-provider paid amount, and participating-provider rate by service month, claim type, line of business, plan code, provider specialty, and participating provider flag."
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enrollment_metric_view_v1": "Enrollment-grain Metric View for member enrollment analytics. It supports new member enrollment, active members, and enrollment records by enrollment effective month, enrollment status, line of business, plan/product/group identifiers, member state, ZIP, and sex."
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1": "Primary claim-line Metric View for claims financial, operational, utilization, denial, and clean-claim analytics. It supports claim counts, claim-line counts, paid/billed/allowed dollars, average paid per claim, denial and clean claim rates, payment ratios, lines per claim, and inpatient/outpatient paid amounts by service month and claim dimensions."
   sample_questions:
-    - {question: "What are the total claims, total claim lines, and total paid amount?", pattern: HEADLINE, measures_tested: ["Total Claims", "Total Claim Lines", "Total Paid Amount"], dimensions_tested: []}
-    - {question: "Show the monthly trend in total claims and total paid amount by service month.", pattern: TIME_TREND, measures_tested: ["Total Claims", "Total Paid Amount"], dimensions_tested: ["Service Month"]}
-    - {question: "Break down total paid amount and total billed amount by claim type.", pattern: DIMENSION_BREAKDOWN, measures_tested: ["Total Paid Amount", "Total Billed Amount"], dimensions_tested: ["Claim Type"]}
-    - {question: "What is the denial rate for Professional claims in 2024?", pattern: FILTERED, measures_tested: ["Denial Rate"], dimensions_tested: ["Claim Type", "Service Date"]}
-    - {question: "Rank benefit categories by total paid amount.", pattern: RANKING, measures_tested: ["Total Paid Amount"], dimensions_tested: ["Benefit Category"]}
-    - {question: "Compare total paid amount between Institutional and Professional claims.", pattern: COMPARISON, measures_tested: ["Total Paid Amount"], dimensions_tested: ["Claim Type"]}
-    - {question: "Show total claims, unique members with claims, and claims per member by benefit level.", pattern: MULTI_MEASURE, measures_tested: ["Total Claims", "Unique Members With Claims", "Claims per Member"], dimensions_tested: ["Benefit Level"]}
-    - {question: "What are the payment-to-billed ratio and payment-to-allowed ratio by claim type?", pattern: RATIO, measures_tested: ["Payment-to-Billed Ratio", "Payment-to-Allowed Ratio"], dimensions_tested: ["Claim Type"]}
-    - {question: "What is the average paid per claim overall?", pattern: HEADLINE, measures_tested: ["Average Paid per Claim"], dimensions_tested: []}
-    - {question: "Trend denial rate and clean claim rate by service month for 2023.", pattern: TIME_TREND, measures_tested: ["Denial Rate", "Clean Claim Rate"], dimensions_tested: ["Service Month", "Service Date"]}
-    - {question: "Break out total allowed amount by line status.", pattern: DIMENSION_BREAKDOWN, measures_tested: ["Total Allowed Amount"], dimensions_tested: ["Line Status"]}
-    - {question: "For inpatient benefit category claims, what are total claims and total paid amount by place of service?", pattern: FILTERED, measures_tested: ["Total Claims", "Total Paid Amount"], dimensions_tested: ["Benefit Category", "Place of Service"]}
-    - {question: "Which procedure codes have the highest total claim lines?", pattern: RANKING, measures_tested: ["Total Claim Lines"], dimensions_tested: ["Procedure Code"]}
-    - {question: "Compare inpatient paid amount and outpatient paid amount overall.", pattern: MULTI_MEASURE, measures_tested: ["Inpatient Paid Amount", "Outpatient Paid Amount"], dimensions_tested: []}
-    - {question: "Show lines per claim and average paid per member by claim type.", pattern: RATIO, measures_tested: ["Lines per Claim", "Average Paid per Member"], dimensions_tested: ["Claim Type"]}
+    - {question: "What are total claims, total claim lines, and total paid amount?", pattern: MULTI_MEASURE, measures_tested: ["Total Claims", "Total Claim Lines", "Total Paid Amount"], dimensions_tested: []}
+    - {question: "How has total paid amount trended by service month?", pattern: TIME_TREND, measures_tested: ["Total Paid Amount"], dimensions_tested: [service_month]}
+    - {question: "Show total paid amount by claim type.", pattern: DIMENSION_BREAKDOWN, measures_tested: ["Total Paid Amount"], dimensions_tested: ["Claim Type"]}
+    - {question: "What is the denial rate for Institutional claims?", pattern: FILTERED, measures_tested: ["Denial Rate"], dimensions_tested: ["Claim Type"]}
+    - {question: "Which benefit categories have the highest total paid amount?", pattern: RANKING, measures_tested: ["Total Paid Amount"], dimensions_tested: ["Benefit Category"]}
+    - {question: "Compare clean claim rate across claim types.", pattern: COMPARISON, measures_tested: ["Clean Claim Rate"], dimensions_tested: ["Claim Type"]}
+    - {question: "What percentage of claim lines are denied?", pattern: RATIO, measures_tested: ["Denial Rate"], dimensions_tested: []}
+    - {question: "Show payment-to-billed and payment-to-allowed ratios by claim type.", pattern: MULTI_MEASURE, measures_tested: ["Payment-to-Billed Ratio", "Payment-to-Allowed Ratio"], dimensions_tested: ["Claim Type"]}
+    - {question: "How many active members are there by line of business?", pattern: DIMENSION_BREAKDOWN, measures_tested: ["Active Members"], dimensions_tested: ["Line of Business"]}
+    - {question: "What is active member count for Commercial enrollment?", pattern: FILTERED, measures_tested: ["Active Members"], dimensions_tested: ["Line of Business"]}
+    - {question: "Show active members by member state.", pattern: DIMENSION_BREAKDOWN, measures_tested: ["Active Members"], dimensions_tested: ["Member State"]}
+    - {question: "How has new member enrollment changed by service month?", pattern: TIME_TREND, measures_tested: ["New Member Enrollment"], dimensions_tested: [service_month]}
+    - {question: "What is average paid per member by line of business?", pattern: DIMENSION_BREAKDOWN, measures_tested: ["Average Paid per Member"], dimensions_tested: ["Line of Business"]}
+    - {question: "Compare claims per member across lines of business.", pattern: COMPARISON, measures_tested: ["Claims per Member"], dimensions_tested: ["Line of Business"]}
+    - {question: "What is participating provider rate for Medicare Advantage claims?", pattern: FILTERED, measures_tested: ["Participating Provider Rate"], dimensions_tested: ["Line of Business"]}
+    - {question: "Which rendering provider specialties have the highest participating provider paid amount?", pattern: RANKING, measures_tested: ["Participating Provider Paid Amount"], dimensions_tested: ["Rendering Provider Specialty"]}
   example_sqls:
-    - {question: "What are the total claims, total claim lines, and total paid amount?", sql: "SELECT MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Claim Lines`) AS total_claim_lines, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"}
-    - {question: "Show the monthly trend in total claims and total paid amount by service month.", sql: "SELECT `Service Month`, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Service Month`"}
-    - {question: "Break down total paid amount and total billed amount by claim type.", sql: "SELECT `Claim Type`, MEASURE(`Total Paid Amount`) AS total_paid_amount, MEASURE(`Total Billed Amount`) AS total_billed_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC"}
-    - {question: "What is the denial rate for Professional claims in 2024?", sql: "SELECT MEASURE(`Denial Rate`) AS denial_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Claim Type` = 'Professional' AND `Service Date` >= DATE '2024-01-01' AND `Service Date` <= DATE '2024-12-31'"}
-    - {question: "Rank benefit categories by total paid amount.", sql: "SELECT `Benefit Category`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC"}
-    - {question: "Compare total paid amount between Institutional and Professional claims.", sql: "SELECT `Claim Type`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Claim Type` IN ('Institutional', 'Professional') GROUP BY ALL ORDER BY `Claim Type`"}
-    - {question: "Show total claims, unique members with claims, and claims per member by benefit level.", sql: "SELECT `Benefit Level`, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Unique Members With Claims`) AS unique_members_with_claims, MEASURE(`Claims per Member`) AS claims_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_claims DESC"}
-    - {question: "What are the payment-to-billed ratio and payment-to-allowed ratio by claim type?", sql: "SELECT `Claim Type`, MEASURE(`Payment-to-Billed Ratio`) AS payment_to_billed_ratio, MEASURE(`Payment-to-Allowed Ratio`) AS payment_to_allowed_ratio FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Claim Type`"}
-    - {question: "What is the average paid per claim overall?", sql: "SELECT MEASURE(`Average Paid per Claim`) AS average_paid_per_claim FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"}
-    - {question: "Trend denial rate and clean claim rate by service month for 2023.", sql: "SELECT `Service Month`, MEASURE(`Denial Rate`) AS denial_rate, MEASURE(`Clean Claim Rate`) AS clean_claim_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Service Date` >= DATE '2023-01-01' AND `Service Date` <= DATE '2023-12-31' GROUP BY ALL ORDER BY `Service Month`"}
-    - {question: "Break out total allowed amount by line status.", sql: "SELECT `Line Status`, MEASURE(`Total Allowed Amount`) AS total_allowed_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_allowed_amount DESC"}
-    - {question: "For inpatient benefit category claims, what are total claims and total paid amount by place of service?", sql: "SELECT `Place of Service`, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Benefit Category` = 'Inpatient' GROUP BY ALL ORDER BY total_paid_amount DESC"}
-    - {question: "Which procedure codes have the highest total claim lines?", sql: "SELECT `Procedure Code`, MEASURE(`Total Claim Lines`) AS total_claim_lines FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_claim_lines DESC LIMIT 10"}
-    - {question: "Compare inpatient paid amount and outpatient paid amount overall.", sql: "SELECT MEASURE(`Inpatient Paid Amount`) AS inpatient_paid_amount, MEASURE(`Outpatient Paid Amount`) AS outpatient_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"}
-    - {question: "Show lines per claim and average paid per member by claim type.", sql: "SELECT `Claim Type`, MEASURE(`Lines per Claim`) AS lines_per_claim, MEASURE(`Average Paid per Member`) AS average_paid_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Claim Type`"}
+    - question: "What are total claims, total claim lines, and total paid amount?"
+      sql: "SELECT MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Claim Lines`) AS total_claim_lines, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
+    - question: "How has total paid amount trended by service month?"
+      sql: "SELECT service_month, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY service_month"
+    - question: "Show total paid amount by claim type."
+      sql: "SELECT `Claim Type`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC"
+    - question: "What is the denial rate for Institutional claims?"
+      sql: "SELECT MEASURE(`Denial Rate`) AS denial_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Claim Type` = 'Institutional'"
+    - question: "Which benefit categories have the highest total paid amount?"
+      sql: "SELECT `Benefit Category`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC LIMIT 5"
+    - question: "Compare clean claim rate across claim types."
+      sql: "SELECT `Claim Type`, MEASURE(`Clean Claim Rate`) AS clean_claim_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY clean_claim_rate DESC"
+    - question: "What percentage of claim lines are denied?"
+      sql: "SELECT MEASURE(`Denial Rate`) AS denial_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
+    - question: "Show payment-to-billed and payment-to-allowed ratios by claim type."
+      sql: "SELECT `Claim Type`, MEASURE(`Payment-to-Billed Ratio`) AS payment_to_billed_ratio, MEASURE(`Payment-to-Allowed Ratio`) AS payment_to_allowed_ratio FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Claim Type`"
+    - question: "How many active members are there by line of business?"
+      sql: "SELECT `Line of Business`, MEASURE(`Active Members`) AS active_members FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` GROUP BY ALL ORDER BY active_members DESC"
+    - question: "What is active member count for Commercial enrollment?"
+      sql: "SELECT MEASURE(`Active Members`) AS active_members FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` WHERE `Line of Business` = 'Commercial'"
+    - question: "Show active members by member state."
+      sql: "SELECT `Member State`, MEASURE(`Active Members`) AS active_members FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` GROUP BY ALL ORDER BY active_members DESC"
+    - question: "How has new member enrollment changed by service month?"
+      sql: "SELECT service_month, MEASURE(`New Member Enrollment`) AS new_member_enrollment FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` GROUP BY ALL ORDER BY service_month"
+    - question: "What is average paid per member by line of business?"
+      sql: "SELECT `Line of Business`, MEASURE(`Average Paid per Member`) AS average_paid_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` GROUP BY ALL ORDER BY average_paid_per_member DESC"
+    - question: "Compare claims per member across lines of business."
+      sql: "SELECT `Line of Business`, MEASURE(`Claims per Member`) AS claims_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` GROUP BY ALL ORDER BY claims_per_member DESC"
+    - question: "What is participating provider rate for Medicare Advantage claims?"
+      sql: "SELECT MEASURE(`Participating Provider Rate`) AS participating_provider_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` WHERE `Line of Business` = 'Medicare Advantage'"
+    - question: "Which rendering provider specialties have the highest participating provider paid amount?"
+      sql: "SELECT `Rendering Provider Specialty`, MEASURE(`Participating Provider Paid Amount`) AS participating_provider_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` GROUP BY ALL ORDER BY participating_provider_paid_amount DESC LIMIT 5"
   benchmark_questions:
-    - {question: "Give me the overall claim volume, line volume, and dollars paid.", expected_measures: ["Total Claims", "Total Claim Lines", "Total Paid Amount"], expected_dimensions: [], sql: "SELECT MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Claim Lines`) AS total_claim_lines, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"}
-    - {question: "How did claims and paid dollars move month by month?", expected_measures: ["Total Claims", "Total Paid Amount"], expected_dimensions: ["Service Month"], sql: "SELECT `Service Month`, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Service Month`"}
-    - {question: "Summarize paid and billed amounts for each claim type.", expected_measures: ["Total Paid Amount", "Total Billed Amount"], expected_dimensions: ["Claim Type"], sql: "SELECT `Claim Type`, MEASURE(`Total Paid Amount`) AS total_paid_amount, MEASURE(`Total Billed Amount`) AS total_billed_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC"}
-    - {question: "For professional claims serviced during calendar year 2024, what percent of lines were denied?", expected_measures: ["Denial Rate"], expected_dimensions: ["Claim Type", "Service Date"], sql: "SELECT MEASURE(`Denial Rate`) AS denial_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Claim Type` = 'Professional' AND `Service Date` >= DATE '2024-01-01' AND `Service Date` <= DATE '2024-12-31'"}
-    - {question: "List benefit categories from highest to lowest paid amount.", expected_measures: ["Total Paid Amount"], expected_dimensions: ["Benefit Category"], sql: "SELECT `Benefit Category`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC"}
-    - {question: "Paid dollars for Institutional versus Professional claims.", expected_measures: ["Total Paid Amount"], expected_dimensions: ["Claim Type"], sql: "SELECT `Claim Type`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Claim Type` IN ('Institutional', 'Professional') GROUP BY ALL ORDER BY `Claim Type`"}
-    - {question: "By benefit level, show claim counts, member counts, and claims per member.", expected_measures: ["Total Claims", "Unique Members With Claims", "Claims per Member"], expected_dimensions: ["Benefit Level"], sql: "SELECT `Benefit Level`, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Unique Members With Claims`) AS unique_members_with_claims, MEASURE(`Claims per Member`) AS claims_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_claims DESC"}
-    - {question: "What are paid-to-billed and paid-to-allowed ratios across claim types?", expected_measures: ["Payment-to-Billed Ratio", "Payment-to-Allowed Ratio"], expected_dimensions: ["Claim Type"], sql: "SELECT `Claim Type`, MEASURE(`Payment-to-Billed Ratio`) AS payment_to_billed_ratio, MEASURE(`Payment-to-Allowed Ratio`) AS payment_to_allowed_ratio FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Claim Type`"}
-    - {question: "Calculate the overall paid amount per claim.", expected_measures: ["Average Paid per Claim"], expected_dimensions: [], sql: "SELECT MEASURE(`Average Paid per Claim`) AS average_paid_per_claim FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"}
-    - {question: "For 2023, show monthly denied line rate and clean line rate.", expected_measures: ["Denial Rate", "Clean Claim Rate"], expected_dimensions: ["Service Month", "Service Date"], sql: "SELECT `Service Month`, MEASURE(`Denial Rate`) AS denial_rate, MEASURE(`Clean Claim Rate`) AS clean_claim_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Service Date` >= DATE '2023-01-01' AND `Service Date` <= DATE '2023-12-31' GROUP BY ALL ORDER BY `Service Month`"}
-    - {question: "Allowed dollars by each claim line status.", expected_measures: ["Total Allowed Amount"], expected_dimensions: ["Line Status"], sql: "SELECT `Line Status`, MEASURE(`Total Allowed Amount`) AS total_allowed_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_allowed_amount DESC"}
-    - {question: "For the inpatient benefit category, summarize claims and paid amount by service place.", expected_measures: ["Total Claims", "Total Paid Amount"], expected_dimensions: ["Benefit Category", "Place of Service"], sql: "SELECT `Place of Service`, MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Benefit Category` = 'Inpatient' GROUP BY ALL ORDER BY total_paid_amount DESC"}
-    - {question: "Top procedure codes based on number of claim lines.", expected_measures: ["Total Claim Lines"], expected_dimensions: ["Procedure Code"], sql: "SELECT `Procedure Code`, MEASURE(`Total Claim Lines`) AS total_claim_lines FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_claim_lines DESC LIMIT 10"}
-    - {question: "Show total paid using the inpatient and outpatient paid measures.", expected_measures: ["Inpatient Paid Amount", "Outpatient Paid Amount"], expected_dimensions: [], sql: "SELECT MEASURE(`Inpatient Paid Amount`) AS inpatient_paid_amount, MEASURE(`Outpatient Paid Amount`) AS outpatient_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"}
-    - {question: "By type of claim, report claim lines per claim and paid dollars per member.", expected_measures: ["Lines per Claim", "Average Paid per Member"], expected_dimensions: ["Claim Type"], sql: "SELECT `Claim Type`, MEASURE(`Lines per Claim`) AS lines_per_claim, MEASURE(`Average Paid per Member`) AS average_paid_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Claim Type`"
-      }
+    - question: "Give me overall claim count, line count, and paid dollars."
+      sql: "SELECT MEASURE(`Total Claims`) AS total_claims, MEASURE(`Total Claim Lines`) AS total_claim_lines, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
+    - question: "Trend paid claim dollars monthly."
+      sql: "SELECT service_month, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY service_month"
+    - question: "Break down paid dollars across claim categories."
+      sql: "SELECT `Claim Type`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC"
+    - question: "For institutional claims, what share of lines were denied?"
+      sql: "SELECT MEASURE(`Denial Rate`) AS denial_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` WHERE `Claim Type` = 'Institutional'"
+    - question: "Rank benefit categories by paid amount."
+      sql: "SELECT `Benefit Category`, MEASURE(`Total Paid Amount`) AS total_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY total_paid_amount DESC LIMIT 5"
+    - question: "Which claim types have the best clean-claim performance?"
+      sql: "SELECT `Claim Type`, MEASURE(`Clean Claim Rate`) AS clean_claim_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY clean_claim_rate DESC"
+    - question: "Return the overall denied-line percentage."
+      sql: "SELECT MEASURE(`Denial Rate`) AS denial_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
+    - question: "Compare reimbursement ratios by claim type."
+      sql: "SELECT `Claim Type`, MEASURE(`Payment-to-Billed Ratio`) AS payment_to_billed_ratio, MEASURE(`Payment-to-Allowed Ratio`) AS payment_to_allowed_ratio FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1` GROUP BY ALL ORDER BY `Claim Type`"
+    - question: "How are active members distributed across LOBs?"
+      sql: "SELECT `Line of Business`, MEASURE(`Active Members`) AS active_members FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` GROUP BY ALL ORDER BY active_members DESC"
+    - question: "Count active members in Commercial business."
+      sql: "SELECT MEASURE(`Active Members`) AS active_members FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` WHERE `Line of Business` = 'Commercial'"
+    - question: "Show enrolled member counts by state."
+      sql: "SELECT `Member State`, MEASURE(`Active Members`) AS active_members FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` GROUP BY ALL ORDER BY active_members DESC"
+    - question: "Chart new enrollments over enrollment month."
+      sql: "SELECT service_month, MEASURE(`New Member Enrollment`) AS new_member_enrollment FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1` GROUP BY ALL ORDER BY service_month"
+    - question: "Show average claim spend per claiming member by LOB."
+      sql: "SELECT `Line of Business`, MEASURE(`Average Paid per Member`) AS average_paid_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` GROUP BY ALL ORDER BY average_paid_per_member DESC"
+    - question: "Compare claim frequency per member for each LOB."
+      sql: "SELECT `Line of Business`, MEASURE(`Claims per Member`) AS claims_per_member FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` GROUP BY ALL ORDER BY claims_per_member DESC"
+    - question: "What is the par provider percentage for Medicare Advantage?"
+      sql: "SELECT MEASURE(`Participating Provider Rate`) AS participating_provider_rate FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` WHERE `Line of Business` = 'Medicare Advantage'"
+    - question: "List specialties by participating-provider paid dollars."
+      sql: "SELECT `Rendering Provider Specialty`, MEASURE(`Participating Provider Paid Amount`) AS participating_provider_paid_amount FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1` GROUP BY ALL ORDER BY participating_provider_paid_amount DESC LIMIT 5"
