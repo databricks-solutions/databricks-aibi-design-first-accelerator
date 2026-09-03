@@ -1,769 +1,106 @@
 {
-  "run_id": "29fc6257-9fc8-4eb5-93df-74ce37dc6337",
+  "version": "_v1",
   "domain": "member_claims",
-  "version": 1,
-  "version_suffix": "_v1",
-  "status": "completed",
-  "run_mode": "versioned",
-  "started_at": "2026-09-01T02:03:06.333606",
-  "completed_at": "2026-09-01T03:15:25.495691",
-  "duration_s": 4338.904038,
-  "error": null,
-  "steps": [
-    {
-      "step_name": "load_configuration",
-      "status": "completed",
-      "duration_s": 1.8,
-      "substeps": []
+  "status": "PARTIAL_SUCCESS",
+  "timestamp": "2026-09-03T14:05:07.550317+00:00",
+  "llm": {
+    "default_model": "databricks-gpt-5-5",
+    "vision_model": "databricks-gpt-5-5"
+  },
+  "data_source": {
+    "type": "erd",
+    "catalog": "aw_serverless_stable_catalog",
+    "schema": "aibi_member_claims"
+  },
+  "assets": {
+    "tables": {
+      "count": 8,
+      "total_rows": 15550,
+      "status": "PASS"
     },
-    {
-      "step_name": "environment_setup",
-      "status": "completed",
-      "duration_s": 11.15,
-      "substeps": [
-        {
-          "phase_name": "setup_env",
-          "status": "completed",
-          "duration_ms": 10191
-        }
-      ]
-    },
-    {
-      "step_name": "create_data_layer",
-      "status": "completed",
-      "duration_s": 1045.51,
-      "substeps": [
-        {
-          "phase_id": "load_config",
-          "phase_name": "Load Configuration",
-          "status": "completed",
-          "current_task": "Configuration loaded",
-          "progress_pct": 100,
-          "stats": {
-            "templates_loaded": 2,
-            "kpi_spec_loaded": 1,
-            "volume_low": 1
-          },
-          "happenings": [
-            "Read accelerator.yaml",
-            "Read DDL notebook template",
-            "Read dbldatagen notebook template",
-            "Read KPI specification",
-            "Confirmed low-volume synthetic data target"
-          ],
-          "findings": [
-            "Domain: member_claims",
-            "Catalog/schema: aw_serverless_stable_catalog.aibi_member_claims",
-            "Version suffix: _v1",
-            "Greenfield synthetic data generation is enabled"
-          ]
-        },
-        {
-          "phase_id": "parse_erd",
-          "phase_name": "Parse ERD",
-          "status": "completed",
-          "current_task": "Canonical schema contract written",
-          "progress_pct": 100,
-          "stats": {
-            "tables": 7,
-            "relationships": 7,
-            "columns": 369,
-            "unresolved_items": 3
-          },
-          "happenings": [
-            "Parsed ERD image using required vision model",
-            "Recorded observed columns, inferred grains, keys, relationships, and unresolved low-confidence candidates",
-            "Wrote erd_parsed.yaml in one workspace write"
-          ],
-          "findings": [
-            "Detected 7 tables",
-            "Relationship graph includes 4 ERD-declared relationships and 3 medium/high-confidence inferred relationships",
-            "All visible decimal/varchar/timestamp datatypes are complete and DDL-ready"
-          ]
-        },
-        {
-          "phase_id": "build_semantic_model",
-          "phase_name": "Build Semantic/Data Model",
-          "status": "completed",
-          "current_task": "Semantic model written",
-          "progress_pct": 100,
-          "stats": {
-            "facts": 3,
-            "dimensions_reference": 3,
-            "bridge_snapshot": 2,
-            "relationships_resolved": 7,
-            "inferred_relationships": 3
-          },
-          "happenings": [
-            "Classified tables into dimensions, facts, bridge, and snapshot",
-            "Classified categorical, status, date, measure, key, and descriptive columns",
-            "Recorded relationship graph including inferred relationships",
-            "Computed generation order parents before children"
-          ],
-          "findings": [
-            "Generation order starts with dim_member and dim_address before dependent tables",
-            "3 relationships inferred and promoted to first-class relationships",
-            "3 low-confidence provider/identifier candidates retained as unresolved non-blocking items"
-          ]
-        },
-        {
-          "phase_id": "generate_ddl",
-          "phase_name": "Generate DDL",
-          "status": "completed",
-          "current_task": "DDL notebook executed and tables verified",
-          "progress_pct": 100,
-          "stats": {
-            "tables_created": 8,
-            "columns_total": 434,
-            "ddl_notebook_executed": 1
-          },
-          "happenings": [
-            "Imported DDL notebook separately from synthetic data notebook",
-            "Executed DDL notebook via notebook execution tool",
-            "Verified versioned tables in Unity Catalog",
-            "Ran schema reconciliation using information_schema columns"
-          ],
-          "findings": [
-            "All expected ERD tables are present with _v1 suffix",
-            "No CREATE OR REPLACE TABLE was used",
-            "DDL used CREATE TABLE IF NOT EXISTS only"
-          ]
-        },
-        {
-          "phase_id": "generate_synthetic_data",
-          "phase_name": "Generate Synthetic Data",
-          "status": "completed",
-          "current_task": "Synthetic data notebook executed and row counts verified",
-          "progress_pct": 100,
-          "stats": {
-            "tables_populated": 8,
-            "total_rows": 4000,
-            "fk_linked": 6
-          },
-          "happenings": [
-            "Wrote synthetic_data_spec.yaml once with domain-specific values",
-            "Imported one synthetic data notebook for all tables, separate from DDL notebook",
-            "Executed notebook via notebook execution tool",
-            "Validated every table has rows > 0"
-          ],
-          "findings": [
-            "All categorical specs use concrete healthcare/member-claims domain values",
-            "FK replacements sampled parent keys post-build for all modeled child tables",
-            "All generated tables are populated"
-          ]
-        },
-        {
-          "phase_id": "validate_data",
-          "phase_name": "Validate Data Layer",
-          "status": "completed",
-          "current_task": "Validation report written with PASS status",
-          "progress_pct": 100,
-          "stats": {
-            "pk_tests": 8,
-            "fk_tests": 7,
-            "pk_failures": 0,
-            "fk_failures": 0,
-            "join_tests": 7,
-            "fanout_failures": 0
-          },
-          "happenings": [
-            "Validated row counts and PK uniqueness in one batched SQL query",
-            "Validated FK orphan counts and FK diversity in one batched SQL query",
-            "Validated N:1 join stability in one batched SQL query",
-            "Checked representative domain categorical values for generic placeholders",
-            "Wrote data_layer_validation.yaml and verified overall_status PASS"
-          ],
-          "findings": [
-            "All PKs are unique",
-            "All FK orphan counts are zero",
-            "All FK distinct counts are greater than 1",
-            "All N:1 joins preserve row counts",
-            "No generic val_N values found in checked categorical columns"
-          ]
-        }
-      ]
-    },
-    {
-      "step_name": "create_metric_views",
-      "status": "completed",
-      "duration_s": 1007.16,
-      "substeps": [
-        {
-          "phase_id": "load_inputs",
-          "phase_name": "Load Inputs",
-          "status": "completed",
-          "current_task": "Inputs loaded and handoff recovered",
-          "progress_pct": 100,
-          "stats": {
-            "kpis_defined": 19,
-            "source_tables": 8,
-            "relationships": 7
-          },
-          "happenings": [
-            "Read KPI spec, ERD-derived schema, semantic model, and data layer validation",
-            "step_handoff.yaml was missing; run_context.yaml was also missing",
-            "Recovered step_handoff.yaml from accelerator.yaml using v1 output folder suffix"
-          ],
-          "findings": [
-            "Catalog/schema resolved to aw_serverless_stable_catalog.aibi_member_claims",
-            "Metric view strategy is auto with naming prefix member_claims",
-            "Data layer validation overall_status is PASS with no FK or join-stability failures"
-          ]
-        },
-        {
-          "phase_id": "profile_schema",
-          "phase_name": "Profile Schema",
-          "status": "completed",
-          "current_task": "Schema profile written",
-          "progress_pct": 100,
-          "stats": {
-            "tables_profiled": 8,
-            "columns_total": 434,
-            "relationships": 7,
-            "relationship_pass": 7
-          },
-          "happenings": [
-            "Confirmed 8 expected v1 tables exist with one batched query",
-            "Ran join-key diversity pre-check for all 7 relationship child keys",
-            "Verified cardinality and row preservation for all semantic relationships",
-            "Wrote schema_profile.yaml including relationship_verification"
-          ],
-          "findings": [
-            "No join key had distinct_vals = 1",
-            "All relationships classified N:1_SAFE with joined_rows equal child_rows",
-            "Greenfield fast path used; no per-table DESCRIBE calls were made"
-          ]
-        },
-        {
-          "phase_id": "map_kpis",
-          "phase_name": "Map KPIs",
-          "status": "completed",
-          "current_task": "KPI mapping artifact written",
-          "progress_pct": 100,
-          "stats": {
-            "kpis_mapped": 19,
-            "kpis_ready": 13,
-            "kpis_skipped": 6,
-            "measures_classified": 24
-          },
-          "happenings": [
-            "Mapped claim-line KPIs to fact_claim_detail_v1",
-            "Mapped member/enrollment KPIs to fact_member_enrollment_v1 with optional safe member join",
-            "Mapped enriched claim/member KPIs to detail + header grain using declared/inferred safe relationship",
-            "Classified conformed cross-fact member-month and window/threshold KPIs as unsupported for direct metric view implementation"
-          ],
-          "findings": [
-            "13 KPIs are READY for metric view planning",
-            "6 KPIs require unsupported conformed member-month/window/threshold semantics and will be planned as skipped or documentation-only"
-          ]
-        },
-        {
-          "phase_id": "plan_metric_views",
-          "phase_name": "Plan Metric Views",
-          "status": "completed",
-          "current_task": "Metric view plan and handoff updated",
-          "progress_pct": 100,
-          "stats": {
-            "metric_views_planned": 3,
-            "intermediate_views_needed": 1,
-            "kpis_not_implemented": 2,
-            "kpis_skipped": 4
-          },
-          "happenings": [
-            "Grouped KPIs into claim-detail, enrollment, and enriched-claim grains",
-            "Derived two additional metric view FQNs using auto naming convention",
-            "Validated enriched detail/header join row preservation before planning intermediate materialized view",
-            "Validated reference SQL for high-cost member count and MoM active member growth",
-            "Extended step_handoff.yaml with all three metric view FQNs"
-          ],
-          "findings": [
-            "Planned 3 metric views, each with at least 3 implementable KPIs",
-            "One intermediate materialized view is required and fanout validation passed",
-            "4 KPIs skipped for missing/conformed-grain data gaps; 2 KPIs documented as NOT_IMPLEMENTED with validated SQL"
-          ]
-        },
-        {
-          "phase_id": "design_metric_views",
-          "phase_name": "Design Metric Views",
-          "status": "completed",
-          "current_task": "Metric view design contract written",
-          "progress_pct": 100,
-          "stats": {
-            "metric_views_designed": 3,
-            "join_paths_validated": 2,
-            "measures_total": 25,
-            "dimensions_total": 26
-          },
-          "happenings": [
-            "Designed all 3 planned metric views",
-            "Validated enriched detail/header join row and monetary measure stability",
-            "Documented KPI coverage table and not-implemented/skipped KPIs"
-          ],
-          "findings": [
-            "All planned metric views share common time dimension service_month",
-            "Enriched join preserves paid, billed, and allowed sums exactly",
-            "No unsafe joins remain in design"
-          ]
-        },
-        {
-          "phase_id": "create_intermediate_views",
-          "phase_name": "Create Intermediate Views",
-          "status": "completed",
-          "current_task": "Intermediate materialized view created and verified",
-          "progress_pct": 100,
-          "stats": {
-            "intermediate_views_created": 1,
-            "fanout_checks_passed": 1
-          },
-          "happenings": [
-            "Re-validated fanout check: detail_rows = joined_rows = 900",
-            "Dropped any stale materialized view version",
-            "Created fact_claim_detail_enriched_v1 as a materialized view using SQL warehouse",
-            "Verified materialized view exists in catalog"
-          ],
-          "findings": [
-            "Intermediate view is materialized and preserves claim-line grain"
-          ]
-        },
-        {
-          "phase_id": "generate_metric_views",
-          "phase_name": "Generate Metric Views",
-          "status": "completed",
-          "current_task": "Metric views created and basic MEASURE checks passed",
-          "progress_pct": 100,
-          "stats": {
-            "metric_views_created": 3,
-            "measures_total": 25,
-            "dimensions_total": 26,
-            "basic_measure_checks_passed": 3
-          },
-          "happenings": [
-            "Saved raw YAML artifacts for all 3 metric views",
-            "Created all metric views using CREATE OR REPLACE VIEW ... WITH METRICS LANGUAGE YAML",
-            "Verified all 3 are catalog metric views",
-            "Ran basic MEASURE query on each metric view"
-          ],
-          "findings": [
-            "All metric view DDL succeeded on first attempt",
-            "SHOW VIEWS reports isMetric=true for all planned metric views"
-          ]
-        },
-        {
-          "phase_id": "validate_metric_views",
-          "phase_name": "Validate Metric Views",
-          "status": "completed",
-          "current_task": "Metric view validation report written",
-          "progress_pct": 100,
-          "stats": {
-            "validations_run": 24,
-            "passed": 24,
-            "failed": 0
-          },
-          "happenings": [
-            "Ran 3 structural MEASURE queries, one per metric view",
-            "Ran batched baseline reconciliation across claim, enrollment, and enriched sources",
-            "Ran dimension slice checks for claim type, line of business, and enriched line of business",
-            "Wrote metric_view_validation.yaml with status PASS"
-          ],
-          "findings": [
-            "All implemented KPIs reconciled to direct SQL baselines",
-            "All metric views passed structural and slice validation",
-            "One query syntax issue from unquoted multi-word field name was fixed and re-run successfully"
-          ]
-        },
-        {
-          "phase_id": "generate_sample_queries",
-          "phase_name": "Generate Sample Queries",
-          "status": "completed",
-          "current_task": "Sample queries written",
-          "progress_pct": 100,
-          "stats": {
-            "sample_queries": 12,
-            "metric_views_covered": 3
-          },
-          "happenings": [
-            "Generated 12 representative MEASURE() SQL queries",
-            "Covered overall KPIs, trends, dimensional slices, ratios, enrollment, geography, and enriched provider/member measures",
-            "Ensured each query references exactly one metric view"
-          ],
-          "findings": [
-            "Sample query file spans all 3 metric views",
-            "NOT_IMPLEMENTED and skipped KPIs were excluded"
-          ]
-        }
-      ]
-    },
-    {
-      "step_name": "create_dashboards",
-      "status": "completed",
-      "duration_s": 850.63,
-      "substeps": [
-        {
-          "phase_id": "load_config",
-          "phase_name": "Load Configuration",
-          "status": "completed",
-          "current_task": "Configuration and contracts loaded",
-          "progress_pct": null,
-          "stats": {
-            "kpis_eligible": 15,
-            "metric_views_loaded": 3,
-            "dashboards_configured": 2
-          },
-          "happenings": [
-            "Loaded accelerator.yaml, step_handoff.yaml, KPI spec, metric view plan/design/validation, schema profile, and helper template",
-            "Lakeview API contract is loaded from the injected supplementary reference",
-            "Resolved two configured dashboard display names exactly from step_handoff.yaml"
-          ],
-          "findings": [
-            "15 KPI references in Dashboard Mapping are implemented and validated; 4 mapped KPI references are skipped/not implemented and will be excluded",
-            "Configured dashboards: member_claims_kpis_dashboard_v1, member_claims_utilization_dashboard_v1",
-            "Metric views loaded: 3"
-          ]
-        },
-        {
-          "phase_id": "profile_metrics",
-          "phase_name": "Profile Metrics",
-          "status": "completed",
-          "current_task": "Field inventory complete",
-          "progress_pct": null,
-          "stats": {
-            "measures": 25,
-            "dimensions": 26,
-            "datasets_planned": 6,
-            "metric_views_profiled": 3
-          },
-          "happenings": [
-            "Built field inventory from metric_view_design.yaml/schema_profile.yaml",
-            "Ran one combined row-count/date-range query across all metric views",
-            "Ran one categorical discovery query across key dimensions",
-            "Prepared dashboard design inputs"
-          ],
-          "findings": [
-            "Claim metric view rows: 900, dates 2020-01-01 to 2022-06-18",
-            "Enrollment metric view rows: 800, dates 2020-01-01 to 2022-03-10",
-            "Enriched claim metric view rows: 900, dates 2020-01-01 to 2022-06-18",
-            "Available measures: 25 across 3 metric views; dimensions: 26 across 3 metric views"
-          ]
-        },
-        {
-          "phase_id": "design_dashboard",
-          "phase_name": "Design Dashboard",
-          "status": "completed",
-          "current_task": "Dashboard design contract written",
-          "progress_pct": null,
-          "stats": {
-            "pages": 6,
-            "widgets": 36,
-            "filters": 14,
-            "dashboards": 2
-          },
-          "happenings": [
-            "Saved llm_dashboard_design.yaml",
-            "Saved dashboard_design.yaml",
-            "Validated page counts against KPI spec Dashboard Mapping",
-            "Recorded skipped mapped KPIs as DASHBOARD_KPI_SKIPPED"
-          ],
-          "findings": [
-            "Each configured dashboard has 3 analytical canvas pages plus a global filters page",
-            "36 widgets planned across two dashboards",
-            "14 global/page-compatible filters configured across two dashboards"
-          ]
-        },
-        {
-          "phase_id": "build_datasets",
-          "phase_name": "Build Datasets",
-          "status": "completed",
-          "current_task": "Dataset SQL validation contract written",
-          "progress_pct": null,
-          "stats": {
-            "datasets_built": 6,
-            "queries_validated": 6,
-            "failed_datasets": 0
-          },
-          "happenings": [
-            "Validated all six page-level shared datasets using MEASURE() against one metric view per dataset",
-            "Confirmed datasets return non-empty rows",
-            "Wrote dashboard_dataset_validation.yaml"
-          ],
-          "findings": [
-            "6 datasets validated with PASS SQL and semantic status",
-            "All dashboard datasets use queryLines-compatible SQL and 3-part backtick FQNs",
-            "Filter columns are included in their shared page datasets"
-          ]
-        },
-        {
-          "phase_id": "create_dashboard",
-          "phase_name": "Create Dashboard",
-          "status": "completed",
-          "current_task": "Dashboards created and published via Lakeview API",
-          "progress_pct": null,
-          "stats": {
-            "widgets_created": 38,
-            "pages_created": 8,
-            "dashboards_created": 2,
-            "dashboards_published": 2
-          },
-          "happenings": [
-            "Created member_claims_kpis_dashboard_v1 via create_dashboard tool",
-            "Published member_claims_kpis_dashboard_v1 via publish_dashboard tool",
-            "Created member_claims_utilization_dashboard_v1 via create_dashboard tool",
-            "Published member_claims_utilization_dashboard_v1 via publish_dashboard tool"
-          ],
-          "findings": [
-            "Both configured dashboards were deployed; no configured dashboard was skipped",
-            "Each dashboard includes datasets, a global filters page, and 3 canvas pages"
-          ]
-        },
-        {
-          "phase_id": "validate_publish",
-          "phase_name": "Validate & Publish",
-          "status": "completed",
-          "current_task": "Dashboard validation and manifests complete",
-          "progress_pct": null,
-          "stats": {
-            "validations_passed": 2,
-            "kpi_coverage_pct": 100,
-            "dashboards_published": 2,
-            "manifest_files": 2
-          },
-          "happenings": [
-            "Executed representative filter impact checks",
-            "Wrote per-dashboard validation YAML artifacts",
-            "Wrote per-dashboard manifest JSON artifacts",
-            "Wrote aggregate dashboard_validation.yaml"
-          ],
-          "findings": [
-            "Both dashboards are published",
-            "All dataset SQL validations passed",
-            "KPI coverage: 15 validated KPIs rendered; 4 skipped/not implemented KPIs excluded with reasons",
-            "Filters have representative impact: filtered values constrained below unfiltered totals"
-          ]
-        }
-      ]
-    },
-    {
-      "step_name": "create_genie_space",
-      "status": "completed",
-      "duration_s": 946.54,
-      "substeps": [
-        {
-          "phase_id": "load_inputs",
-          "phase_name": "Load Inputs",
-          "status": "completed",
-          "current_task": "Configuration and semantic contracts loaded",
-          "progress_pct": null,
-          "stats": {
-            "metric_views_loaded": 3,
-            "tables_eligible": 3,
-            "implemented_kpis": 17,
-            "min_benchmark_questions": 15
-          },
-          "happenings": [
-            "Loaded handoff with exact metric view FQNs",
-            "Loaded Genie configuration contract and notebook template",
-            "Loaded metric view validation, design, plan, schema profile, KPI mapping, and KPI spec",
-            "Checked output state for existing Genie artifacts"
-          ],
-          "findings": [
-            "3 semantic assets eligible",
-            "Runtime configuration resolved from handoff/accelerator; step_handoff lacks warehouse_id so configured warehouse_id will be used",
-            "Genie contract mandates template workflow and full serialized_space"
-          ]
-        },
-        {
-          "phase_id": "profile_metrics",
-          "phase_name": "Profile Metrics",
-          "status": "completed",
-          "current_task": "Semantic inventory completed",
-          "progress_pct": null,
-          "stats": {
-            "measures": 22,
-            "dimensions": 26,
-            "metric_views": 3,
-            "row_count_total": 2600
-          },
-          "happenings": [
-            "Verified non-zero row counts for all metric views",
-            "Profiled categorical dimensions in three batched SQL calls",
-            "Wrote genie_semantic_inventory.yaml"
-          ],
-          "findings": [
-            "22 measures inventoried across 3 metric views",
-            "26 dimensions cataloged",
-            "All metric views contain data"
-          ]
-        },
-        {
-          "phase_id": "llm_design",
-          "phase_name": "LLM-Assisted Genie Design",
-          "status": "completed",
-          "current_task": "LLM design artifact generated and validated",
-          "progress_pct": null,
-          "stats": {
-            "sample_questions": 16,
-            "example_sqls": 16,
-            "benchmarks": 16,
-            "patterns": 7
-          },
-          "happenings": [
-            "Generated markdown instructions from KPI spec and semantic inventory",
-            "Generated 16 diverse sample questions",
-            "Generated 16 MEASURE()-based example SQLs and 16 benchmark SQLs",
-            "Excluded unsupported/not-implemented KPIs"
-          ],
-          "findings": [
-            "Instructions exceed 500 characters and include MEASURE() guidance",
-            "Sample questions cover 7 analytical patterns",
-            "All example SQL uses exact FQNs from step_handoff.yaml"
-          ]
-        },
-        {
-          "phase_id": "design_instructions",
-          "phase_name": "Design Instructions",
-          "status": "completed",
-          "current_task": "Instruction and sample content ready",
-          "progress_pct": null,
-          "stats": {
-            "sample_questions": 16,
-            "metric_descriptions": 3,
-            "instruction_chars": 3260
-          },
-          "happenings": [
-            "GATE 2.2 passed: instructions include markdown headers, bullets, MEASURE() rules, and ratio warnings",
-            "Prepared descriptions for all 3 metric views",
-            "Prepared 16 answerable sample questions from implemented KPIs only"
-          ],
-          "findings": [
-            "Instructions generated",
-            "16 sample questions created",
-            "Metric descriptions written"
-          ]
-        },
-        {
-          "phase_id": "generate_sql",
-          "phase_name": "Generate SQL & Benchmarks",
-          "status": "completed",
-          "current_task": "Example SQL and benchmark ground truth validated",
-          "progress_pct": null,
-          "stats": {
-            "example_queries": 16,
-            "benchmarks": 16,
-            "sql_validations_passed": 16
-          },
-          "happenings": [
-            "Validated 16 example SQL queries in 2 batch SQL calls",
-            "Wrote sample_queries_member_claims.sql",
-            "Wrote benchmark_results.yaml with authoritative validation results"
-          ],
-          "findings": [
-            "16 example queries validated",
-            "16 benchmark questions generated"
-          ]
-        },
-        {
-          "phase_id": "create_genie_space",
-          "phase_name": "Create Genie Space",
-          "status": "completed",
-          "current_task": "Genie Space deployed and notebook updated with SPACE_ID",
-          "progress_pct": null,
-          "stats": {
-            "tables_registered": 3,
-            "instructions_set": 1,
-            "sample_questions": 16,
-            "example_sqls": 16,
-            "benchmarks": 16
-          },
-          "happenings": [
-            "Executed template-based configuration notebook",
-            "Called Genie Management API with full serialized_space",
-            "Persisted SPACE_ID into the configuration notebook for idempotent updates"
-          ],
-          "findings": [
-            "Genie space created/updated successfully",
-            "Space ID: 01f1a5b1d16312cc89683e12db7e4d55"
-          ]
-        },
-        {
-          "phase_id": "validate_genie",
-          "phase_name": "Validate Genie Space",
-          "status": "completed",
-          "current_task": "Persisted configuration and benchmark validation complete",
-          "progress_pct": null,
-          "stats": {
-            "benchmarks_passed": 16,
-            "benchmarks_total": 16,
-            "coverage_pct": 100,
-            "sample_questions": 16,
-            "example_sqls": 16,
-            "metric_views": 3
-          },
-          "happenings": [
-            "GET with include_serialized_space validated deployed content",
-            "Persisted validation, manifest, benchmark validation, and run_context artifacts",
-            "Confirmed notebook contains deployed SPACE_ID"
-          ],
-          "findings": [
-            "Configuration validated",
-            "Benchmark accuracy: 100%",
-            "Semantic coverage: 100% of validated KPI families represented; unsupported KPIs excluded"
-          ]
-        }
-      ]
-    },
-    {
-      "step_name": "generate_documentation",
-      "status": "completed",
-      "duration_s": 468.25,
-      "substeps": [
-        {
-          "phase_id": "gather_artifacts",
-          "phase_name": "Gather Artifacts",
-          "status": "completed",
-          "current_task": null,
-          "progress_pct": 100,
-          "stats": {
-            "artifacts_loaded": 31,
-            "steps_documented": 5
-          },
-          "happenings": [],
-          "findings": [
-            "31 artifacts loaded or enumerated",
-            "Artifact authority established from validation artifacts and deployment manifests"
-          ]
-        },
-        {
-          "phase_id": "generate_documentation",
-          "phase_name": "Generate Documentation",
-          "status": "completed",
-          "current_task": null,
-          "progress_pct": 100,
-          "stats": {
-            "sections_written": 15
-          },
-          "happenings": [],
-          "findings": [
-            "README content prepared from loaded artifacts",
-            "All requested documentation sections composed from validation and manifest evidence"
-          ]
-        },
-        {
-          "phase_id": "validate_documentation",
-          "phase_name": "Validate Documentation",
-          "status": "completed",
-          "current_task": null,
-          "progress_pct": 100,
-          "stats": {
-            "validation_checks": 8,
-            "checks_passed": 8
-          },
-          "happenings": [],
-          "findings": [
-            "Factual consistency: PASS",
-            "No placeholders found",
-            "Manifest written"
-          ]
-        }
-      ]
+    "metric_views": [
+      {
+        "name": "member_claims_metric_view_v1",
+        "fqn": "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1",
+        "status": "PASS"
+      },
+      {
+        "name": "member_claims_enrollment_metric_view_v1",
+        "fqn": "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enrollment_metric_view_v1",
+        "status": "PASS"
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "member_claims_kpis_dashboard_v1",
+        "dashboard_id": "01f1a79e16b71fe5a03c998672132df7",
+        "published": true,
+        "pages": 4,
+        "canvas_pages": 3,
+        "filter_pages": 1,
+        "canvas_widgets": 22,
+        "filters": 4,
+        "url": "https://fevm-aw-serverless-stable.cloud.databricks.com/dashboardsv3/01f1a79e16b71fe5a03c998672132df7/published"
+      },
+      {
+        "name": "member_claims_utilization_dashboard_v1",
+        "dashboard_id": "01f1a79e3f0c1403ae74c90063fb984d",
+        "published": true,
+        "pages": 4,
+        "canvas_pages": 3,
+        "filter_pages": 1,
+        "canvas_widgets": 19,
+        "filters": 3,
+        "url": "https://fevm-aw-serverless-stable.cloud.databricks.com/dashboardsv3/01f1a79e3f0c1403ae74c90063fb984d/published"
+      }
+    ],
+    "genie_spaces": [
+      {
+        "title": "member_claims_analytics_genie_v1",
+        "space_id": "01f1a79eebc217808072e6a6880c79cf",
+        "sample_questions": 18,
+        "example_sqls": 18,
+        "benchmarks": 16,
+        "instructions_chars": 2386,
+        "url": "https://fevm-aw-serverless-stable.cloud.databricks.com/genie/rooms/01f1a79eebc217808072e6a6880c79cf"
+      }
+    ]
+  },
+  "kpis": {
+    "total": 16,
+    "implemented": 9,
+    "not_implemented": 6,
+    "skipped": 1,
+    "skipped_reasons": {
+      "NOT_IMPLEMENTED": 6,
+      "SKIPPED_MISSING_DATA": 1
     }
-  ]
+  },
+  "validation": {
+    "data_layer": "PASS",
+    "metric_views": "PASS",
+    "dashboards": "PASS",
+    "genie": "PASS"
+  },
+  "artifacts": [
+    "erd_parsed.yaml",
+    "semantic_model.yaml",
+    "synthetic_data_spec.yaml",
+    "data_layer_validation.yaml",
+    "metric_views/schema_profile.yaml",
+    "metric_views/kpi_metric_mapping.yaml",
+    "metric_views/metric_view_plan.yaml",
+    "metric_views/metric_view_validation.yaml",
+    "dashboards/dashboard_design.yaml",
+    "dashboards/dashboard_dataset_validation.yaml",
+    "dashboards/kpis_dashboard_manifest.json",
+    "dashboards/utilization_dashboard_manifest.json",
+    "genie_space/genie_manifest.json",
+    "genie_space/sample_queries_member_claims_v1.sql",
+    "run_context.yaml",
+    "step_handoff.yaml",
+    "run_manifest.json",
+    "readme.md"
+  ],
+  "readme_path": "/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/readme.md"
 }

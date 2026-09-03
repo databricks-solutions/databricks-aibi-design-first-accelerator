@@ -1,0 +1,98 @@
+dashboards:
+  - dashboard:
+      id: kpis
+      display_name: member_claims_kpis_dashboard_v2
+      metric_views:
+        - `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`
+        - `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v2`
+    expected_canvas_pages: 3
+    filters:
+      - {dimension: service_month, filter_type: filter-date-range-picker, dataset: ds_kpis_financial}
+      - {dimension: line_of_business, filter_type: filter-multi-select, dataset: ds_kpis_financial}
+      - {dimension: claim_type, filter_type: filter-multi-select, dataset: ds_kpis_financial}
+    pages:
+      - id: financial_overview
+        title: Financial Overview
+        purpose: Headline claims volume, paid cost, average paid, and cost-driver concentration.
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_month, line_of_business, claim_type]
+        dataset: ds_kpis_financial
+        widgets:
+          - {id: kpi_total_claims, title: Total Claims, kpi: C-1, measure: total_claims, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 0, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_total_paid, title: Total Paid Amount, kpi: C-3, measure: total_paid_amount, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 2, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_avg_paid_claim, title: Average Paid per Claim, kpi: C-4, measure: average_paid_per_claim, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 4, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_paid_trend, title: Monthly Paid Trend, kpi: C-3, measure: total_paid_amount, dimensions: [service_month], visualization: line, aggregation: SUM, position: {x: 0, y: 3}, size: {width: 3, height: 5}}
+          - {id: kpi_paid_benefit, title: Paid by Benefit Category, kpi: top-N cost drivers, measure: total_paid_amount, dimensions: [benefit_category], visualization: bar, aggregation: SUM, position: {x: 3, y: 3}, size: {width: 3, height: 5}}
+      - id: claims_analysis
+        title: Claims Analysis
+        purpose: Claim payment efficiency, denial performance, clean-claim performance, and monthly trends.
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_month, line_of_business, claim_type]
+        dataset: ds_kpis_claims_analysis
+        widgets:
+          - {id: kpi_claims_avg_paid, title: Average Paid per Claim, kpi: C-4, measure: average_paid_per_claim, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 0, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_denial_rate, title: Denial Rate, kpi: ADD-1, measure: denial_rate, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 2, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_clean_rate, title: Clean Claim Rate, kpi: ADD-2, measure: clean_claim_rate, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 4, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_monthly_claims, title: Monthly Claims Trend, kpi: C-1, measure: total_claims, dimensions: [service_month], visualization: line, aggregation: SUM, position: {x: 0, y: 3}, size: {width: 3, height: 5}}
+          - {id: kpi_clean_by_type, title: Clean Claim Rate by Claim Type, kpi: ADD-2, measure: clean_claim_rate, dimensions: [claim_type], visualization: bar, aggregation: AVG, position: {x: 3, y: 3}, size: {width: 3, height: 5}}
+      - id: member_demographics
+        title: Member Demographics
+        purpose: Enrollment membership by line of business, geography, and demographic attributes.
+        page_type: PAGE_TYPE_CANVAS
+        filters: [service_month, line_of_business, enrollment_status]
+        dataset: ds_kpis_enrollment
+        widgets:
+          - {id: kpi_active_members, title: Active Members, kpi: M-2, measure: active_members, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 0, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_new_members, title: New Member Enrollment, kpi: M-1, measure: new_member_enrollment, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 2, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_members_lob, title: Active Members by Line of Business, kpi: M-2, measure: active_members, dimensions: [line_of_business], visualization: bar, aggregation: SUM, position: {x: 4, y: 0}, size: {width: 2, height: 3}}
+          - {id: kpi_members_state, title: Active Members by State, kpi: M-3, measure: active_members, dimensions: [state], visualization: bar, aggregation: SUM, position: {x: 0, y: 3}, size: {width: 3, height: 5}}
+          - {id: kpi_members_month, title: Monthly Active Members, kpi: M-2, measure: active_members, dimensions: [service_month], visualization: line, aggregation: SUM, position: {x: 3, y: 3}, size: {width: 3, height: 5}}
+  - dashboard:
+      id: utilization
+      display_name: member_claims_utilization_dashboard_v2
+      metric_views:
+        - `aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`
+    expected_canvas_pages: 3
+    filters:
+      - {dimension: service_month, filter_type: filter-date-range-picker, dataset: ds_util_patterns}
+      - {dimension: claim_type, filter_type: filter-multi-select, dataset: ds_util_patterns}
+      - {dimension: benefit_category, filter_type: filter-multi-select, dataset: ds_util_patterns}
+      - {dimension: line_status, filter_type: filter-multi-select, dataset: ds_util_patterns}
+      - {dimension: participating_provider, filter_type: filter-single-select, dataset: ds_util_patterns}
+    pages:
+      - id: utilization_patterns
+        title: Utilization Patterns
+        purpose: Claims and line utilization with inpatient/outpatient paid amounts and service distribution.
+        page_type: PAGE_TYPE_CANVAS
+        dataset: ds_util_patterns
+        filters: [service_month, claim_type, benefit_category, line_status, participating_provider]
+        widgets:
+          - {id: util_total_claims, title: Total Claims, kpi: C-1, measure: total_claims, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 0, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_total_lines, title: Total Claim Lines, kpi: C-2, measure: total_claim_lines, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 2, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_inpatient_paid, title: Inpatient Paid Amount, kpi: ADD-8, measure: inpatient_paid_amount, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 4, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_lines_trend, title: Monthly Claim Lines Trend, kpi: C-2, measure: total_claim_lines, dimensions: [service_month], visualization: line, aggregation: SUM, position: {x: 0, y: 3}, size: {width: 3, height: 5}}
+          - {id: util_claims_pos, title: Claims by Place of Service, kpi: C-1, measure: total_claims, dimensions: [place_of_service], visualization: bar, aggregation: SUM, position: {x: 3, y: 3}, size: {width: 3, height: 5}}
+      - id: provider_insights
+        title: Provider Insights
+        purpose: Provider participation and specialty/type rankings.
+        page_type: PAGE_TYPE_CANVAS
+        dataset: ds_util_provider
+        filters: [service_month, claim_type, benefit_category, line_status, participating_provider]
+        widgets:
+          - {id: util_par_rate, title: Participating Provider Rate, kpi: ADD-10, measure: participating_provider_rate, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 0, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_par_paid, title: Participating Provider Paid Amount, kpi: ADD-10, measure: participating_provider_paid_amount, dimensions: [], visualization: counter, aggregation: SUM, position: {x: 2, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_paid_specialty, title: Paid by Rendering Provider Specialty, kpi: Specialty rankings, measure: total_paid_amount, dimensions: [rendering_provider_specialty], visualization: bar, aggregation: SUM, position: {x: 4, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_claims_provider_type, title: Claims by Rendering Provider Type, kpi: Specialty rankings, measure: total_claims, dimensions: [rendering_provider_type], visualization: bar, aggregation: SUM, position: {x: 0, y: 3}, size: {width: 3, height: 5}}
+          - {id: util_par_by_specialty, title: Participating Provider Rate by Specialty, kpi: ADD-10, measure: participating_provider_rate, dimensions: [rendering_provider_specialty], visualization: bar, aggregation: AVG, position: {x: 3, y: 3}, size: {width: 3, height: 5}}
+      - id: operational_metrics
+        title: Operational Metrics
+        purpose: Denial trends, payment efficiency ratios, clean-claim quality, and operational detail.
+        page_type: PAGE_TYPE_CANVAS
+        dataset: ds_util_operational
+        filters: [service_month, claim_type, benefit_category, line_status, participating_provider]
+        widgets:
+          - {id: util_denial_rate, title: Denial Rate, kpi: ADD-1, measure: denial_rate, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 0, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_paid_billed, title: Payment-to-Billed Ratio, kpi: ADD-3, measure: payment_to_billed_ratio, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 2, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_paid_allowed, title: Payment-to-Allowed Ratio, kpi: ADD-4, measure: payment_to_allowed_ratio, dimensions: [], visualization: counter, aggregation: AVG, position: {x: 4, y: 0}, size: {width: 2, height: 3}}
+          - {id: util_denial_trend, title: Monthly Denial Rate Trend, kpi: ADD-1, measure: denial_rate, dimensions: [service_month], visualization: line, aggregation: AVG, position: {x: 0, y: 3}, size: {width: 3, height: 5}}
+          - {id: util_paid_billed_type, title: Payment-to-Billed by Claim Type, kpi: ADD-3, measure: payment_to_billed_ratio, dimensions: [claim_type], visualization: bar, aggregation: AVG, position: {x: 3, y: 3}, size: {width: 3, height: 5}}

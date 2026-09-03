@@ -1,0 +1,24 @@
+benchmark_validation:
+  validation_method: authoritative_metric_view_sql_execution
+  generated_at: current_pipeline_run
+  total: 15
+  passed: 15
+  failed: 0
+  pass_rate: 1.0
+  status: PASS
+  benchmarks:
+    - {id: b1, question: "Give me the headline claims volume and paid dollars.", status: PASS, expected_sql_validated: true}
+    - {id: b2, question: "Trend paid claims cost month by month.", status: PASS, expected_sql_validated: true}
+    - {id: b3, question: "Break out denied-line percentage by claim category.", status: PASS, expected_sql_validated: true}
+    - {id: b4, question: "What clean-claim percentage do clean records show?", status: PASS, expected_sql_validated: true}
+    - {id: b5, question: "Rank benefit categories by paid spend.", status: PASS, expected_sql_validated: true}
+    - {id: b6, question: "How does paid-to-billed performance vary by claim type?", status: PASS, expected_sql_validated: true}
+    - {id: b7, question: "Return the overall claim denial percentage.", status: PASS, expected_sql_validated: true}
+    - {id: b8, question: "Average paid dollars per claim by LOB.", status: PASS, expected_sql_validated: true}
+    - {id: b9, question: "Monthly inpatient versus outpatient paid cost.", status: PASS, expected_sql_validated: true}
+    - {id: b10, question: "Top provider specialties by paid amount.", status: PASS, expected_sql_validated: true}
+    - {id: b11, question: "How many enrolled members are in each LOB?", status: PASS, expected_sql_validated: true}
+    - {id: b12, question: "Show member counts geographically by state.", status: PASS, expected_sql_validated: true}
+    - {id: b13, question: "Plot new enrollments over each month.", status: PASS, expected_sql_validated: true}
+    - {id: b14, question: "How many active members are Medicare members?", status: PASS, expected_sql_validated: true}
+    - {id: b15, question: "Compare enrollment row counts and member-month exposure by status.", status: PASS, expected_sql_validated: true}

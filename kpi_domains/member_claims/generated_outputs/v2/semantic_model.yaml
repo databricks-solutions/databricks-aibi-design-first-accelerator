@@ -1,0 +1,147 @@
+domain: member_claims
+catalog: aw_serverless_stable_catalog
+schema: aibi_member_claims
+version_suffix: _v2
+generation_order:
+  - dim_member
+  - dim_address
+  - dim_provider
+  - dim_member_identifier
+  - dim_member_history
+  - fact_member_enrollment
+  - fact_claim_header
+  - fact_claim_detail
+tables:
+  - name: dim_member
+    semantic_role: DIMENSION
+    business_entity: member
+    grain: one row represents a current or dimensional member record
+    primary_key: [member_sk]
+    row_target: 500
+    columns:
+      member_sk: {classification: PRIMARY_KEY, aggregation: NON_ADDITIVE}
+      mbr_member_id: {classification: BUSINESS_IDENTIFIER, aggregation: COUNT_DISTINCT}
+      mbr_sex: {classification: CATEGORICAL_ATTRIBUTE, aggregation: NON_ADDITIVE}
+      mbr_race: {classification: CATEGORICAL_ATTRIBUTE, aggregation: NON_ADDITIVE}
+      mbr_ethnicity: {classification: CATEGORICAL_ATTRIBUTE, aggregation: NON_ADDITIVE}
+      mbr_marital_status: {classification: CATEGORICAL_ATTRIBUTE, aggregation: NON_ADDITIVE}
+      mbr_line_of_business: {classification: CATEGORICAL_ATTRIBUTE, aggregation: NON_ADDITIVE}
+      mbr_state: {classification: CATEGORICAL_ATTRIBUTE, aggregation: NON_ADDITIVE}
+  - name: dim_address
+    semantic_role: DIMENSION
+    business_entity: address
+    grain: one row represents an address for a typed entity
+    primary_key: [address_key]
+    row_target: 500
+  - name: dim_provider
+    semantic_role: DIMENSION
+    business_entity: provider
+    grain: one row represents a provider dimension record, potentially versioned by validity dates
+    primary_key: [provider_sk]
+    row_target: 300
+  - name: dim_member_identifier
+    semantic_role: BRIDGE
+    business_entity: member identifier
+    grain: one row represents one identifier value for a member
+    primary_key: [mbr_identifier_sk]
+    row_target: 800
+  - name: dim_member_history
+    semantic_role: SNAPSHOT
+    business_entity: member history
+    grain: one row represents a historical version of a member
+    primary_key: [mbr_history_sk]
+    row_target: 1000
+  - name: fact_member_enrollment
+    semantic_role: FACT
+    business_entity: member enrollment
+    grain: one row represents a member enrollment event or enrollment period
+    primary_key: [enrollment_sk]
+    row_target: 2000
+  - name: fact_claim_header
+    semantic_role: FACT
+    business_entity: claim header
+    grain: one row represents a claim header
+    primary_key: [clm_header_sk]
+    row_target: 3000
+  - name: fact_claim_detail
+    semantic_role: FACT
+    business_entity: claim detail line
+    grain: one row represents a claim line/detail record
+    primary_key: [clm_dtl_claim_id, clm_dtl_line_nbr]
+    row_target: 9000
+relationships:
+  - parent: dim_member
+    parent_key: member_sk
+    child: dim_address
+    child_key: entity_dimension_key
+    cardinality: "1:N"
+    confidence: erd_declared
+    evidence: observed dashed relationship line from dim_member to dim_address
+    join_safety: {left_grain: member, right_grain: address per entity, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+  - parent: dim_member
+    parent_key: member_sk
+    child: fact_claim_header
+    child_key: clm_member_sk
+    cardinality: "1:N"
+    confidence: erd_declared
+    evidence: observed dashed relationship line from dim_member to fact_claim_header
+    join_safety: {left_grain: member, right_grain: claim header, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+  - parent: dim_member
+    parent_key: member_sk
+    child: dim_member_identifier
+    child_key: member_sk
+    cardinality: "1:N"
+    confidence: erd_declared
+    evidence: observed dashed relationship line
+    join_safety: {left_grain: member, right_grain: identifier, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+  - parent: dim_member
+    parent_key: member_sk
+    child: dim_member_history
+    child_key: member_sk
+    cardinality: "1:N"
+    confidence: erd_declared
+    evidence: observed dashed relationship line
+    join_safety: {left_grain: member, right_grain: history version, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+  - parent: dim_member
+    parent_key: member_sk
+    child: fact_member_enrollment
+    child_key: member_sk
+    cardinality: "1:N"
+    confidence: erd_declared
+    evidence: observed dashed relationship line
+    join_safety: {left_grain: member, right_grain: enrollment event or period, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+  - parent: fact_claim_header
+    parent_key: clm_id
+    child: fact_claim_detail
+    child_key: clm_dtl_claim_id
+    cardinality: "1:N"
+    confidence: inferred_medium
+    evidence: shared claim id naming plus header/detail table naming; included for relational generation and KPI claim-line analysis
+    join_safety: {left_grain: claim header, right_grain: claim detail line, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+  - parent: dim_address
+    parent_key: address_key
+    child: dim_provider
+    child_key: provider_address_sk
+    cardinality: "1:N"
+    confidence: inferred_medium
+    evidence: provider_address_sk references address_key by name and datatype
+    join_safety: {left_grain: address, right_grain: provider, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+  - parent: dim_address
+    parent_key: address_key
+    child: fact_claim_header
+    child_key: clm_service_facility_address_sk
+    cardinality: "1:N"
+    confidence: inferred_medium
+    evidence: service facility address surrogate key naming and datatype
+    join_safety: {left_grain: address, right_grain: claim header, cardinality: "1:N", fanout_risk: FANOUT_RISK}
+relationship_inference:
+  completed: true
+  promoted_relationships:
+    - fact_claim_header.clm_id -> fact_claim_detail.clm_dtl_claim_id
+    - dim_address.address_key -> dim_provider.provider_address_sk
+    - dim_address.address_key -> fact_claim_header.clm_service_facility_address_sk
+  unresolved_items:
+    - dim_provider has no visible direct relationship to claims or member tables; not required for downstream KPI joins.
+semantic_constraints:
+  - {expression: "valid_from_date <= valid_to_date", type: TEMPORAL, confidence: HIGH}
+  - {expression: "child FK values must exist in parent PK domains", type: STRUCTURAL, confidence: HIGH}

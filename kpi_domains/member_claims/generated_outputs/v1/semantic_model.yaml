@@ -1,159 +1,1442 @@
 domain: member_claims
-version_suffix: _v1
-source:
-  catalog: aw_serverless_stable_catalog
-  schema: aibi_member_claims
-generation_order:
-  - dim_member
-  - dim_address
-  - dim_member_identifier
-  - dim_member_history
-  - fact_member_enrollment
-  - dim_provider
-  - fact_claim_header
-  - fact_claim_detail
 tables:
-  - name: dim_member
+  dim_provider:
     semantic_role: DIMENSION
-    business_entity: member
-    grain: one row represents a current member profile
-    primary_key: [member_sk]
+    grain: provider
+    pk_columns:
+    - provider_sk
+    column_count: 17
     columns:
-      primary_key: [member_sk]
-      business_identifiers: [mbr_source_member_id, mbr_member_id, mbr_deers_beneficiary_id, mbr_deers_family_id]
-      categorical_attributes: [mbr_race, mbr_sex, mbr_ethnicity, mbr_marital_status, mbr_line_of_business, mbr_line_of_business_name, mbr_relationship_type, mbr_salary_tier, mbr_state, mbr_pcp_lock_in_type, source_system_code, source_system_name]
-      status: [mbr_deceased_flag, mbr_pcp_auto_assigned, mbr_secured_flag, mbr_pharmacy_discount_flag, mbr_text_opt_in, mbr_pcp_lock_in_indicator, is_active]
-      dates: [mbr_current_pcp_eff_date, mbr_dob, mbr_deceased_date, mbr_idcard_issue_date, mbr_extract_date, end_date, created_at, updated_at]
-      descriptive_attributes: [mbr_first_name, mbr_middle_name, mbr_last_name, mbr_full_name, mbr_email, mbr_phone_nbr, mbr_mobile_nbr, mbr_work_nbr, mbr_provider_group_name]
-      measures: []
-  - name: dim_address
+    - name: provider_sk
+      datatype: bigint
+      classification: PRIMARY_KEY
+    - name: assigned_provider_sk
+      datatype: bigint
+      classification: BUSINESS_IDENTIFIER
+    - name: source_provider_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: provider_npi
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: provider_tax_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: provider_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: provider_address_sk
+      datatype: bigint
+      classification: FOREIGN_KEY
+    - name: pcp_flag
+      datatype: boolean
+      classification: BOOLEAN
+    - name: affiliation_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: valid_from_date
+      datatype: timestamp
+      classification: DATE
+    - name: valid_to_date
+      datatype: timestamp
+      classification: DATE
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: source_system
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: created_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: updated_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: last_update_dt
+      datatype: timestamp
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: record_hash
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+  dim_address:
     semantic_role: DIMENSION
-    business_entity: address
-    grain: one row represents an address for a typed business entity
-    primary_key: [address_key]
+    grain: address
+    pk_columns:
+    - address_key
+    column_count: 19
     columns:
-      primary_key: [address_key]
-      foreign_keys: []
-      categorical_attributes: [entity_type_key, address_type_code, city, state, zip_code, country_code, county, source_system_code, source_system_name]
-      status: [is_active]
-      dates: [valid_from_date, valid_to_date, created_at, updated_at]
-      descriptive_attributes: [street_address_1, street_address_2, record_hash]
-      measures: []
-  - name: dim_member_identifier
-    semantic_role: BRIDGE
-    business_entity: member identifier
-    grain: one row represents one identifier value for a member
-    primary_key: [mbr_identifier_sk]
-    columns:
-      primary_key: [mbr_identifier_sk]
-      foreign_keys: [member_sk]
-      categorical_attributes: [id_type, source_system_code, source_system_name]
-      business_identifiers: [id_value]
-      status: [is_active]
-      dates: [valid_from_date, valid_to_date, created_at, updated_at]
-      descriptive_attributes: [record_hash]
-      measures: []
-  - name: dim_member_history
-    semantic_role: SNAPSHOT
-    business_entity: member history
-    grain: one row represents a historical version of a member profile
-    primary_key: [mbr_history_sk]
-    columns:
-      primary_key: [mbr_history_sk]
-      foreign_keys: [member_sk]
-      business_identifiers: [mbr_source_member_id, mbr_member_id]
-      categorical_attributes: [mbr_race, mbr_sex, mbr_ethnicity, mbr_marital_status, mbr_line_of_business, mbr_relationship_type, mbr_salary_tier, mbr_state, source_system_code, source_system_name]
-      status: [mbr_deceased_flag, mbr_text_opt_in, is_active]
-      dates: [mbr_current_pcp_eff_date, mbr_dob, mbr_deceased_date, valid_from_date, valid_to_date, created_at, updated_at]
-      descriptive_attributes: [mbr_first_name, mbr_last_name, mbr_full_name, record_hash]
-      measures: []
-  - name: fact_member_enrollment
+    - name: address_key
+      datatype: bigint
+      classification: PRIMARY_KEY
+    - name: entity_type_key
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: entity_dimension_key
+      datatype: bigint
+      classification: FOREIGN_KEY
+    - name: address_type_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: street_address_1
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: street_address_2
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: city
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: state
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: zip_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: country_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: county
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: valid_from_date
+      datatype: timestamp
+      classification: DATE
+    - name: valid_to_date
+      datatype: timestamp
+      classification: DATE
+    - name: source_system_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: source_system_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: record_hash
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: created_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: updated_at
+      datatype: timestamp
+      classification: TIMESTAMP
+  fact_claim_detail:
     semantic_role: FACT
-    business_entity: member enrollment
-    grain: one row represents a member enrollment span or enrollment event
-    primary_key: [enrollment_sk]
+    grain: claim_line
+    pk_columns:
+    - clm_dtl_member_nbr_sk
+    column_count: 71
     columns:
-      primary_key: [enrollment_sk]
-      foreign_keys: [member_sk]
-      business_identifiers: [src_member_business_id, mbr_enr_source_member_id, mbr_enr_insured_id, mbr_enr_contract_id]
-      categorical_attributes: [source_system, mbr_enr_insured_code, mbr_enr_insured_event_code, mbr_enr_status, mbr_enr_plan_id, mbr_enr_line_of_business, mbr_enr_line_of_business_id, mbr_enr_group_name, mbr_enr_subgroup_name, mbr_enr_termination_reason, mbr_enr_product_id, id_type]
-      status: [is_active]
-      dates: [mbr_enr_insured_add_date, mbr_enr_insured_event_date, mbr_enr_insured_event_add_date, mbr_enr_effective_date, mbr_enr_termination_date, mbr_enr_termination_event_date]
-      measures:
-        - {column: src_member_business_id, aggregation: COUNT_DISTINCT, semantic_type: COUNT}
-  - name: dim_provider
+    - name: clm_dtl_claim_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_dtl_line_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_original_source_claim_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_dtl_source_system
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_member_nbr_sk
+      datatype: varchar(30)
+      classification: BUSINESS_IDENTIFIER
+    - name: clmdetail_admit_dt
+      datatype: timestamp
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_specific_dos_date
+      datatype: date
+      classification: DATE
+    - name: clm_dtl_specific_dos_thru_date
+      datatype: date
+      classification: DATE
+    - name: clm_dtl_ap_posting_date
+      datatype: date
+      classification: DATE
+    - name: clm_dtl_claim_receive_date
+      datatype: timestamp
+      classification: DATE
+    - name: clm_dtl_check_date
+      datatype: timestamp
+      classification: DATE
+    - name: clm_dtl_last_update_date
+      datatype: timestamp
+      classification: DATE
+    - name: clm_dtl_benefit_category
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_benefit_level
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_claim_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_allowed_amt
+      datatype: decimal(28,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_billed_amt
+      datatype: decimal(27,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_deduct_amt
+      datatype: decimal(27,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_net_amt
+      datatype: decimal(28,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_paid_amt
+      datatype: decimal(28,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_actual_paid_amt
+      datatype: decimal(38,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_not_covered_amt
+      datatype: decimal(27,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_co_insurance_amt
+      datatype: decimal(27,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_other_adjustments_amt
+      datatype: decimal(30,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_cob_savings
+      datatype: decimal(32,2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_oic_paid_amt
+      datatype: decimal(19,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_oic_allowed_amt
+      datatype: decimal(19,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_interest_amt
+      datatype: decimal(38,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_prompt_pay_discount_amt
+      datatype: decimal(20,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_interest_discount_amt
+      datatype: decimal(38,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_interest_discount_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: clm_dtl_copay_amt
+      datatype: decimal(27,2)
+      classification: MONETARY
+      aggregation: SUM
+    - name: clm_dtl_copay_reason
+      datatype: varchar(35)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_st_cd
+      datatype: varchar(1)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_reason_code_sk
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_dtl_line_status
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_clean_claim_ind
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_place_of_service
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_fee_schedule_code
+      datatype: varchar(3)
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_authorization_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_check_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_check_added_line_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: clm_dtl_check_message
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_submitting_provider
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_rendering_provider
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_rendering_provider_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_rendering_provider_spec
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_participating_provider
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_adjudication_status
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_procedure_code
+      datatype: varchar(15)
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_procedure_modifier
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_modifier_2
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_modifier_3
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_modifier_4
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_procedure_adj
+      datatype: varchar(30)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_procedure_qty
+      datatype: decimal(15,2)
+      classification: QUANTITY
+      aggregation: SUM
+    - name: clm_dtl_revenue_code
+      datatype: varchar(30)
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_dtl_diagnosis_ind_1
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_diagnosis_ind_2
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_diagnosis_ind_3
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_diagnosis_ind_4
+      datatype: varchar(2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_paid_days
+      datatype: decimal(36,2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_anesthesia_time_units
+      datatype: decimal(12,2)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_cob_rule
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_wrap_network
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_returned_ntwrk_repric
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_dtl_user_id
+      datatype: varchar(8)
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_dtl_extract_date
+      datatype: timestamp
+      classification: DATE
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: updated_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: created_at
+      datatype: timestamp
+      classification: TIMESTAMP
+  fact_claim_header:
+    semantic_role: FACT
+    grain: claim
+    pk_columns:
+    - clm_header_sk
+    column_count: 165
+    columns:
+    - name: clm_header_sk
+      datatype: bigint
+      classification: PRIMARY_KEY
+    - name: clm_id
+      datatype: int
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_claim_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_original_source_claim_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_original_batch_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_patient_control_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_document_adj_control_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_claim_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_bill_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_authorization_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_ext_authorization_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_admit_date
+      datatype: date
+      classification: DATE
+    - name: clm_claim_thru_date
+      datatype: date
+      classification: DATE
+    - name: clm_discharge_date
+      datatype: date
+      classification: DATE
+    - name: clm_admission_hour
+      datatype: int
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_discharge_hour
+      datatype: int
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_admission_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_admission_source
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_member_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_member_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_member_sk
+      datatype: bigint
+      classification: FOREIGN_KEY
+    - name: clm_member_group_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_member_subgroup_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_plan_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_line_of_business
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_birth_weight
+      datatype: decimal(9,0)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_covered_days
+      datatype: int
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_accident_st
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_attending_physician
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_attending_physician_spec
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_operating_provider_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_operating_provider_npi
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_submitting_provider
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_submitting_provider_spec
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_submitting_provider_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_billing_provider
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_referring_provider
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_referring_provider_spec
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_referring_provider_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_is_par_submitting_provider
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_is_par_referring_provider
+      datatype: boolean
+      classification: BOOLEAN
+    - name: clm_is_par_rendering_provider
+      datatype: boolean
+      classification: BOOLEAN
+    - name: clm_assigned_pcp
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_assigned_provider_site
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_insurance_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_member_contract_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_pcp_visit_flag
+      datatype: int
+      classification: BOOLEAN
+    - name: clm_pcp_in_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_pcp_wthld_pct
+      datatype: decimal(9,0)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_service_fac_npi
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_service_fac_loc_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_service_facility_address_sk
+      datatype: bigint
+      classification: FOREIGN_KEY
+    - name: clm_providers_account_no
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_onset_of_illness_date
+      datatype: string
+      classification: DATE
+    - name: clm_admitting_diagnosis_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_admitting_diagnosis_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_1
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_1_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_2
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_2_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_3
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_3_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_4
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_4_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_5
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_5_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_6
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_6_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_7
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_7_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_8
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_8_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_9
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_9_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_10
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_10_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_11
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_11_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_12
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_12_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_13
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_13_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_14
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_14_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_15
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_15_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_16
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_16_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_17
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_17_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_18
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_18_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_19
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_19_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_20
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_20_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_21
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_21_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_22
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_22_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_23
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_23_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_24
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_24_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_25
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_25_icd_method
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_1_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_2_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_3_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_4_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_5_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_6_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_7_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_8_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_9_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_10_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_11_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_12_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_13_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_14_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_15_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_16_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_17_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_18_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_19_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_20_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_21_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_22_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_23_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_24_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_diagnosis_25_poa
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_1
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_icd_method_1
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_2
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_icd_method_2
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_3
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_icd_method_3
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_4
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_icd_method_4
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_5
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_icd_method_5
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_6
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_surgical_icd_method_6
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_drg_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_service_type_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_cob_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: clm_claim_timely_filing
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_accept_assignment_indicator
+      datatype: string
+      classification: BOOLEAN
+    - name: clm_add_date
+      datatype: date
+      classification: DATE
+    - name: clm_add_user
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_update_date
+      datatype: date
+      classification: DATE
+    - name: clm_update_user
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: clm_extract_date
+      datatype: timestamp
+      classification: DATE
+    - name: clm_last_updated_date
+      datatype: date
+      classification: DATE
+    - name: clm_original_insert_date
+      datatype: date
+      classification: DATE
+    - name: clm_user_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: clm_orig_source
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: end_date
+      datatype: timestamp
+      classification: DATE
+    - name: record_hash
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: last_updated_date
+      datatype: date
+      classification: DATE
+    - name: created_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: updated_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: source_system_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: source_system_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+  dim_member:
     semantic_role: DIMENSION
-    business_entity: provider
-    grain: one row represents a provider record or versioned provider assignment
-    primary_key: [provider_sk]
+    grain: member
+    pk_columns:
+    - member_sk
+    column_count: 58
     columns:
-      primary_key: [provider_sk]
-      foreign_keys: [provider_address_sk]
-      business_identifiers: [assigned_provider_sk, source_provider_id, provider_npi, provider_tax_id, affiliation_id]
-      categorical_attributes: [source_system]
-      status: [pcp_flag, is_active]
-      dates: [valid_from_date, valid_to_date, created_at, updated_at, last_update_dt]
-      descriptive_attributes: [provider_name, record_hash]
-      measures: []
-  - name: fact_claim_header
+    - name: member_sk
+      datatype: bigint
+      classification: PRIMARY_KEY
+    - name: mbr_source_member_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_member_id
+      datatype: int
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_deers_beneficiary_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_deers_family_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_sponsor_ssn
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_current_pcp_eff_date
+      datatype: date
+      classification: DATE
+    - name: mbr_current_pcp_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_dob
+      datatype: date
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_race
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_sex
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_ethnicity
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_first_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_middle_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_last_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_full_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_marital_status
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_deceased_date
+      datatype: date
+      classification: DATE
+    - name: mbr_email
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_phone_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_mobile_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_work_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_sub_group_cd
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_idcard_issue_date
+      datatype: date
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_line_of_business
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_text_opt_in
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_current_riders
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_authorized_rep
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_alt_sub_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_relationship_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_salary_tier
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_pcp_auto_assigned
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_secured_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_pharmacy_discount_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_employee_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_line_of_business_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_responsible_party_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_responsible_party_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_deceased_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_pcp_lock_in_indicator
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_alt_person_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_state
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_zip_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_pcp_lock_in_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_provider_group_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_name_suffix
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_sub_flag
+      datatype: int
+      classification: BOOLEAN
+    - name: mbr_sub_ssn
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_extract_date
+      datatype: date
+      classification: DATE
+    - name: mbr_medicaid_case_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_relationship_ind
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: source_system_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: source_system_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: record_hash
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: created_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: updated_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: end_date
+      datatype: timestamp
+      classification: DATE
+  dim_member_identifier:
+    semantic_role: DIMENSION
+    grain: member_identifier
+    pk_columns:
+    - mbr_identifier_sk
+    column_count: 12
+    columns:
+    - name: mbr_identifier_sk
+      datatype: bigint
+      classification: PRIMARY_KEY
+    - name: member_sk
+      datatype: bigint
+      classification: FOREIGN_KEY
+    - name: id_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: id_value
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: source_system_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: source_system_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: valid_to_date
+      datatype: timestamp
+      classification: DATE
+    - name: valid_from_date
+      datatype: timestamp
+      classification: DATE
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: created_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: updated_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: record_hash
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+  dim_member_history:
+    semantic_role: DIMENSION
+    grain: member_history_period
+    pk_columns:
+    - mbr_history_sk
+    column_count: 60
+    columns:
+    - name: mbr_history_sk
+      datatype: bigint
+      classification: PRIMARY_KEY
+    - name: member_sk
+      datatype: bigint
+      classification: FOREIGN_KEY
+    - name: mbr_source_member_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_member_id
+      datatype: int
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_deers_beneficiary_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_deers_family_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_sponsor_ssn
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_current_pcp_eff_date
+      datatype: date
+      classification: DATE
+    - name: mbr_current_pcp_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_dob
+      datatype: date
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_race
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_sex
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_ethnicity
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_first_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_middle_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_last_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_full_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_marital_status
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_deceased_date
+      datatype: date
+      classification: DATE
+    - name: mbr_email
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_phone_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_mobile_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_work_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_sub_group_cd
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_idcard_issue_date
+      datatype: date
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_line_of_business
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_text_opt_in
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_current_riders
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_authorized_rep
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_alt_sub_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_relationship_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_salary_tier
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_pcp_auto_assigned
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_secured_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_pharmacy_discount_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_employee_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_line_of_business_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_responsible_party_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_responsible_party_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_deceased_flag
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_pcp_lock_in_indicator
+      datatype: string
+      classification: BOOLEAN
+    - name: mbr_alt_person_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_state
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_zip_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_pcp_lock_in_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_provider_group_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_name_suffix
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_sub_flag
+      datatype: int
+      classification: BOOLEAN
+    - name: mbr_sub_ssn
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_extract_date
+      datatype: date
+      classification: DATE
+    - name: mbr_medicaid_case_nbr
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_relationship_ind
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: source_system_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: source_system_name
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: record_hash
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: created_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: updated_at
+      datatype: timestamp
+      classification: TIMESTAMP
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: valid_to_date
+      datatype: timestamp
+      classification: DATE
+    - name: valid_from_date
+      datatype: timestamp
+      classification: DATE
+  fact_member_enrollment:
     semantic_role: FACT
-    business_entity: claim header
-    grain: one row represents a claim header
-    primary_key: [clm_header_sk]
+    grain: member_enrollment_period
+    pk_columns:
+    - member_sk
+    column_count: 32
     columns:
-      primary_key: [clm_header_sk]
-      foreign_keys: [clm_member_sk, clm_service_facility_address_sk]
-      business_identifiers: [clm_id, clm_claim_id, clm_original_source_claim_id, clm_authorization_nbr, clm_member_nbr]
-      categorical_attributes: [clm_claim_type, clm_bill_type, clm_admission_type, clm_admission_source, clm_plan_code, clm_line_of_business, clm_accident_st, clm_attending_physician_spec, clm_submitting_provider_spec, clm_submitting_provider_type, clm_referring_provider_spec, clm_referring_provider_type, clm_pcp_in_type, clm_admitting_diagnosis_method, clm_drg_code, clm_service_type_code, clm_cob_type, clm_claim_timely_filing, clm_accept_assignment_indicator, source_system_code, source_system_name]
-      status: [clm_is_par_submitting_provider, clm_is_par_referring_provider, clm_is_par_rendering_provider, clm_pcp_visit_flag, is_active]
-      dates: [clm_admit_date, clm_claim_thru_date, clm_discharge_date, clm_add_date, clm_update_date, clm_extract_date, clm_last_updated_date, clm_original_insert_date, end_date, last_updated_date, created_at, updated_at]
-      measures:
-        - {column: clm_birth_weight, aggregation: AVG, semantic_type: QUANTITY}
-        - {column: clm_covered_days, aggregation: SUM, semantic_type: QUANTITY}
-        - {column: clm_pcp_wthld_pct, aggregation: AVG, semantic_type: RATIO}
-  - name: fact_claim_detail
-    semantic_role: FACT
-    business_entity: claim detail
-    grain: one row represents a claim service line/detail line
-    primary_key: [clm_dtl_claim_id, clm_dtl_line_nbr]
-    columns:
-      primary_key: [clm_dtl_claim_id, clm_dtl_line_nbr]
-      foreign_keys: [clm_dtl_claim_id]
-      business_identifiers: [clm_dtl_original_source_claim_id, clm_dtl_member_nbr_sk, clm_dtl_authorization_nbr, clm_dtl_check_nbr]
-      categorical_attributes: [clm_dtl_source_system, clm_dtl_benefit_category, clm_dtl_benefit_level, clm_dtl_claim_type, clm_dtl_interest_discount_flag, clm_dtl_copay_reason, clm_dtl_s_cd, clm_dtl_line_status, clm_dtl_clean_claim_ind, clm_dtl_place_of_service, clm_dtl_fee_schedule_code, clm_dtl_check_added_line_flag, clm_dtl_rendering_provider_type, clm_dtl_rendering_provider_spec, clm_dtl_adjudication_status, clm_dtl_procedure_code, clm_dtl_procedure_modifier, clm_dtl_revenue_code, clm_dtl_diagnosis_ind_1, clm_dtl_cob_rule, clm_dtl_wrap_network, clm_dtl_returned_ntwrk_repric]
-      dates: [clmdetail_admit_dt, clm_dtl_specific_dos_date, clm_dtl_specific_dos_thru_date, clm_dtl_ap_posting_date, clm_dtl_claim_receive_date, clm_dtl_check_date, clm_dtl_last_update_date, clm_dtl_extract_date, updated_at, created_at]
-      measures:
-        - {column: clm_dtl_allowed_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_billed_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_deduct_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_net_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_paid_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_actual_paid_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_not_covered_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_co_insurance_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_copay_amt, aggregation: SUM, semantic_type: MONETARY}
-        - {column: clm_dtl_procedure_qty, aggregation: SUM, semantic_type: QUANTITY}
-        - {column: clm_dtl_paid_days, aggregation: SUM, semantic_type: QUANTITY}
+    - name: source_system
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: src_member_business_id
+      datatype: int
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_source_member_id
+      datatype: varchar(30)
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_insured_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_contract_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_insured_code
+      datatype: varchar(2)
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_enr_insured_add_date
+      datatype: timestamp
+      classification: DATE
+    - name: mbr_enr_insured_event_date
+      datatype: timestamp
+      classification: DATE
+    - name: mbr_enr_insured_event_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_insured_event_code
+      datatype: varchar(2)
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_enr_status
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_enr_insured_event_add_date
+      datatype: timestamp
+      classification: DATE
+    - name: mbr_enr_plan_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_line_of_business
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_enr_line_of_business_id
+      datatype: varchar(8)
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_group_name
+      datatype: varchar(50)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_enr_subgroup_name
+      datatype: varchar(50)
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_enr_effective_date
+      datatype: date
+      classification: DATE
+    - name: mbr_enr_termination_date
+      datatype: date
+      classification: DATE
+    - name: mbr_enr_termination_event_date
+      datatype: date
+      classification: DATE
+    - name: mbr_enr_termination_reason
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_enr_product_id
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: mbr_enr_group_ck
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_enr_group_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: mbr_enr_subgroup_ck
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: mbr_enr_subgroup_code
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: is_active
+      datatype: boolean
+      classification: BOOLEAN
+    - name: id_value
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
+    - name: id_type
+      datatype: string
+      classification: CATEGORICAL_ATTRIBUTE
+    - name: member_sk
+      datatype: bigint
+      classification: FOREIGN_KEY
+    - name: enrollment_sk
+      datatype: string
+      classification: BUSINESS_IDENTIFIER
+    - name: payload_hash
+      datatype: string
+      classification: DESCRIPTIVE_ATTRIBUTE
 relationships:
-  - {parent: dim_member, parent_key: member_sk, child: fact_claim_header, child_key: clm_member_sk, cardinality: "1:N", confidence: erd_declared, left_grain: member, right_grain: claim header, fanout_risk: false}
-  - {parent: dim_member, parent_key: member_sk, child: dim_member_identifier, child_key: member_sk, cardinality: "1:N", confidence: erd_declared, left_grain: member, right_grain: member identifier, fanout_risk: false}
-  - {parent: dim_member, parent_key: member_sk, child: dim_member_history, child_key: member_sk, cardinality: "1:N", confidence: erd_declared, left_grain: member, right_grain: historical member version, fanout_risk: false}
-  - {parent: dim_member, parent_key: member_sk, child: fact_member_enrollment, child_key: member_sk, cardinality: "1:N", confidence: erd_declared, left_grain: member, right_grain: enrollment span, fanout_risk: false}
-  - {parent: fact_claim_header, parent_key: clm_claim_id, child: fact_claim_detail, child_key: clm_dtl_claim_id, cardinality: "1:N", confidence: inferred, evidence: "shared claim business id pattern plus header/detail naming", left_grain: claim header, right_grain: claim line, fanout_risk: false}
-  - {parent: dim_address, parent_key: address_key, child: dim_provider, child_key: provider_address_sk, cardinality: "1:N", confidence: inferred_medium, evidence: "provider_address_sk naming matches dim_address.address_key", left_grain: address, right_grain: provider, fanout_risk: false}
-  - {parent: dim_address, parent_key: address_key, child: fact_claim_header, child_key: clm_service_facility_address_sk, cardinality: "1:N", confidence: inferred_medium, evidence: "service facility address surrogate key naming", left_grain: address, right_grain: claim header, fanout_risk: false}
-relationship_inference:
-  completed: true
-  inferred_relationships_added: 3
-  low_confidence_not_added:
-    - fact_claim_header_provider_columns_to_dim_provider
-    - fact_claim_detail_provider_columns_to_dim_provider
-    - fact_member_enrollment_to_dim_member_identifier
-unresolved_items:
-  - {item: fact_claim_header_provider_columns_to_dim_provider, confidence: LOW, blocks_required_kpi: false}
-  - {item: fact_claim_detail_provider_columns_to_dim_provider, confidence: LOW, blocks_required_kpi: false}
-  - {item: fact_member_enrollment_to_dim_member_identifier, confidence: LOW, blocks_required_kpi: false}
-semantic_constraints:
-  - {expression: "child.FK IN parent.PK", type: STRUCTURAL, confidence: HIGH}
-  - {expression: "valid_from_date <= valid_to_date", type: TEMPORAL, confidence: MEDIUM}
-  - {expression: "service/start dates <= thru/end dates", type: TEMPORAL, confidence: MEDIUM}
+- parent: dim_address
+  parent_key: address_key
+  child: dim_provider
+  child_key: provider_address_sk
+  cardinality: 1:N
+  confidence: erd_declared
+- parent: dim_member
+  parent_key: member_sk
+  child: dim_address
+  child_key: entity_dimension_key
+  cardinality: 1:N
+  confidence: erd_declared
+- parent: dim_member
+  parent_key: member_sk
+  child: fact_claim_header
+  child_key: clm_member_sk
+  cardinality: 1:N
+  confidence: erd_declared
+- parent: dim_address
+  parent_key: address_key
+  child: fact_claim_header
+  child_key: clm_service_facility_address_sk
+  cardinality: 1:N
+  confidence: erd_declared
+- parent: dim_member
+  parent_key: member_sk
+  child: dim_member_identifier
+  child_key: member_sk
+  cardinality: 1:N
+  confidence: erd_declared
+- parent: dim_member
+  parent_key: member_sk
+  child: dim_member_history
+  child_key: member_sk
+  cardinality: 1:N
+  confidence: erd_declared
+- parent: dim_member
+  parent_key: member_sk
+  child: fact_member_enrollment
+  child_key: member_sk
+  cardinality: 1:N
+  confidence: erd_declared
+- parent: fact_claim_header
+  parent_key: clm_claim_id
+  child: fact_claim_detail
+  child_key: clm_dtl_claim_id
+  cardinality: 1:N
+  confidence: inferred
+  evidence: shared business-key pattern (claim_id) + header/detail table naming convention
+- parent: dim_member
+  parent_key: member_sk
+  child: fact_claim_detail
+  child_key: clm_dtl_member_nbr_sk
+  cardinality: 1:N
+  confidence: inferred
+  evidence: column name pattern (member_nbr_sk → member_sk) + fact→dim relationship
+generation_order:
+- dim_member
+- fact_member_enrollment
+- dim_address
+- dim_member_history
+- dim_member_identifier
+- fact_claim_header
+- dim_provider
+- fact_claim_detail

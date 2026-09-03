@@ -1,0 +1,154 @@
+datasets:
+  - name: ds_kpis_claims_all
+    dashboard: member_claims_kpis_dashboard_v2
+    page: shared_claims_pages
+    widget: shared_page_dataset
+    sql_status: PASS
+    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`"
+    expected_shape: shared grain by service_month, service_date, line_of_business, claim_type, benefit_category, procedure_code, line_status, adjudication_status, clean_claim_indicator with claims measures
+    actual_rows: 1999
+    actual_columns:
+      - service_month
+      - service_date
+      - line_of_business
+      - claim_type
+      - benefit_category
+      - procedure_code
+      - line_status
+      - adjudication_status
+      - clean_claim_indicator
+      - total_claims
+      - total_paid_amount
+      - average_paid_per_claim
+      - denied_lines
+      - denial_rate
+      - clean_claim_rate
+    measures:
+      - Total Claims
+      - Total Paid Amount
+      - Average Paid per Claim
+      - Denied Lines
+      - Denial Rate
+      - Clean Claim Rate
+    dimensions:
+      - service_month
+      - service_date
+      - line_of_business
+      - claim_type
+      - benefit_category
+      - procedure_code
+      - line_status
+      - adjudication_status
+      - clean_claim_indicator
+    filters:
+      - service_month
+      - line_of_business
+      - claim_type
+    semantic_status: PASS
+    failure_reason: null
+  - name: ds_kpis_enrollment
+    dashboard: member_claims_kpis_dashboard_v2
+    page: member_demographics
+    widget: shared_page_dataset
+    sql_status: PASS
+    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v2`"
+    expected_shape: shared enrollment grain by service_month, effective_date, line_of_business, state, zip_code, sex, enrollment_status with enrollment measures
+    actual_rows: 1500
+    actual_columns:
+      - service_month
+      - effective_date
+      - line_of_business
+      - state
+      - zip_code
+      - sex
+      - enrollment_status
+      - active_members
+      - new_member_enrollment
+    measures:
+      - Active Members
+      - New Member Enrollment
+    dimensions:
+      - service_month
+      - effective_date
+      - line_of_business
+      - state
+      - zip_code
+      - sex
+      - enrollment_status
+    filters:
+      - service_month
+      - line_of_business
+      - enrollment_status
+    semantic_status: PASS
+    failure_reason: null
+  - name: ds_util_all
+    dashboard: member_claims_utilization_dashboard_v2
+    page: shared_utilization_pages
+    widget: shared_page_dataset
+    sql_status: PASS
+    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`"
+    expected_shape: shared utilization grain by time, claim, benefit, status, provider, place, and operational dimensions with utilization measures
+    actual_rows: 2000
+    actual_columns:
+      - service_month
+      - service_date
+      - claim_type
+      - benefit_category
+      - line_status
+      - participating_provider
+      - place_of_service
+      - rendering_provider_specialty
+      - rendering_provider_type
+      - benefit_level
+      - adjudication_status
+      - clean_claim_indicator
+      - total_claims
+      - total_claim_lines
+      - inpatient_paid_amount
+      - outpatient_paid_amount
+      - participating_provider_rate
+      - participating_provider_paid_amount
+      - total_paid_amount
+      - denial_rate
+      - payment_to_billed_ratio
+      - payment_to_allowed_ratio
+      - clean_claim_rate
+    measures:
+      - Total Claims
+      - Total Claim Lines
+      - Inpatient Paid Amount
+      - Outpatient Paid Amount
+      - Participating Provider Rate
+      - Participating Provider Paid Amount
+      - Total Paid Amount
+      - Denial Rate
+      - Payment-to-Billed Ratio
+      - Payment-to-Allowed Ratio
+      - Clean Claim Rate
+    dimensions:
+      - service_month
+      - service_date
+      - claim_type
+      - benefit_category
+      - line_status
+      - participating_provider
+      - place_of_service
+      - rendering_provider_specialty
+      - rendering_provider_type
+      - benefit_level
+      - adjudication_status
+      - clean_claim_indicator
+    filters:
+      - service_month
+      - claim_type
+      - benefit_category
+      - line_status
+      - participating_provider
+    semantic_status: PASS
+    failure_reason: null
+summary:
+  datasets_validated: 3
+  queries_validated: 3
+  all_sql_status: PASS
+  all_semantic_status: PASS
+  validation_method: batched_execute_sql

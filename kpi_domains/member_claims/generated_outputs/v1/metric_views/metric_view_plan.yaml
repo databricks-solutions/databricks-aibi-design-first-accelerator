@@ -1,79 +1,35 @@
-metric_view_plan:
-  total_kpis: 19
-  implementable_in_metric_views: 13
-  not_implemented: 2
-  skipped: 4
-  metric_views:
-    - name: member_claims_metric_view_v1
-      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
-      source: fact_claim_detail_v1
-      primary: true
-      intermediate_view: null
-      grain: one row represents a claim service line/detail line
-      kpis: [C-1, C-2, C-3, C-4, D-1, D-2, D-3, D-4, D-7, D-8, D-9]
-    - name: member_claims_enrollment_metric_view_v1
-      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1`"
-      source: fact_member_enrollment_v1
-      primary: false
-      intermediate_view: null
-      grain: one row represents a member enrollment span or enrollment event
-      kpis: [M-1, M-2, M-3]
-    - name: member_claims_enriched_metric_view_v1
-      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1`"
-      source: fact_claim_detail_enriched_v1
-      primary: false
-      intermediate_view:
-        name: fact_claim_detail_enriched_v1
-        join_sql: |
-          SELECT d.*, h.clm_member_sk, h.clm_line_of_business, h.clm_plan_code, h.clm_is_par_rendering_provider, h.clm_is_par_submitting_provider, h.clm_service_facility_address_sk
-          FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_claim_detail_v1` d
-          JOIN `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_claim_header_v1` h ON d.clm_dtl_claim_id = h.clm_claim_id
-        join_type: "N:1 (fact_claim_detail_v1 to fact_claim_header_v1)"
-        fanout_validated: true
-        source_rows: 900
-        joined_rows: 900
-      grain: one row represents a claim service line/detail line enriched with claim header member and business attributes
-      kpis: [D-5, D-6, D-10]
-  not_implemented:
-    - kpi: MC-4
-      name: High-Cost Member Count
-      reason: Requires member-level pre-aggregation and HAVING threshold before distinct counting; not safe as a single metric-view measure over line grain.
-      status: NOT_IMPLEMENTED
-      documentation_only: true
-      sql: |
-        SELECT COUNT(*) AS high_cost_member_count
-        FROM (
-          SELECT h.clm_member_sk, SUM(d.clm_dtl_paid_amt) AS member_paid
-          FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_claim_detail_v1` d
-          JOIN `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_claim_header_v1` h
-            ON d.clm_dtl_claim_id = h.clm_claim_id
-          GROUP BY h.clm_member_sk
-          HAVING SUM(d.clm_dtl_paid_amt) > 10000
-        ) x
-      validated: true
-      validation_row_count: 0
-      manual_implementation_notes: |
-        To implement: Add as a named SQL dataset in the dashboard. Cannot be a metric view measure because it requires aggregate-threshold filtering using HAVING.
-    - kpi: W-2
-      name: MoM Active Member Growth
-      reason: Requires LAG over monthly active-member aggregate; offset window semantics are better implemented as dashboard SQL/reference SQL for this source.
-      status: NOT_IMPLEMENTED
-      documentation_only: true
-      sql: |
-        WITH monthly AS (
-          SELECT DATE_TRUNC('month', mbr_enr_effective_date) AS service_month, COUNT(DISTINCT member_sk) AS active_members
-          FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_member_enrollment_v1`
-          GROUP BY DATE_TRUNC('month', mbr_enr_effective_date)
-        )
-        SELECT service_month, active_members,
-               (active_members - LAG(active_members) OVER (ORDER BY service_month)) / NULLIF(LAG(active_members) OVER (ORDER BY service_month), 0) AS mom_active_member_growth
-        FROM monthly
-      validated: true
-      validation_row_count: 27
-      manual_implementation_notes: |
-        To implement: Add as a named SQL dataset in the dashboard. Cannot be a basic metric view measure because it needs LAG/offset calculation over month aggregates.
-  skipped_kpis:
-    - {kpi: MC-1, name: PMPM, status: SKIPPED_MISSING_DATA, reason: No member-month exposure table or month-expanded enrollment denominator exists.}
-    - {kpi: MC-2, name: Claims per 1000 Members, status: SKIPPED_MISSING_DATA, reason: No member-month exposure table exists; denominator cannot be safely derived from event/span rows.}
-    - {kpi: MC-3, name: Utilization Rate, status: SKIPPED_UNSAFE_GRAIN, reason: Requires combining claims and enrollment facts at conformed member/month grain; no such aggregate source exists.}
-    - {kpi: W-1, name: Rolling 3-Month PMPM, status: SKIPPED_MISSING_DATA, reason: Depends on unsupported PMPM member-month denominator.}
+metric_views:
+- name: member_claims_metric_view_v1
+  source: fact_claim_detail_v1
+  grain: claim_line
+  primary: true
+  kpis:
+  - C-1
+  - C-2
+  - C-3
+  - C-4
+  - denial_rate
+  - clean_claim_rate
+  - payment_to_billed
+- name: member_claims_enrollment_metric_view_v1
+  source: fact_member_enrollment_v1
+  grain: enrollment
+  primary: false
+  kpis:
+  - M-2
+  - M-3
+not_implemented:
+- kpi: MC-1
+  reason: Cross-grain PMPM
+  reference_sql: SELECT SUM(clm_dtl_paid_amt) / NULLIF(COUNT(DISTINCT CONCAT(member_sk,
+    '-', DATE_TRUNC('month', enrl_start_date))), 0) FROM aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_v1
+- kpi: MC-4
+  reason: HAVING clause needed
+- kpi: W-1
+  reason: Window measure on ratio
+- kpi: W-2
+  reason: LAG() required
+- kpi: MC-2
+  reason: Cross-grain computation
+- kpi: MC-3
+  reason: Cross-grain computation

@@ -1,0 +1,367 @@
+{
+  "run_id": "f249171d-ae5c-46c0-b701-cb6d4bf7a0f3",
+  "domain": "member_claims",
+  "version": 2,
+  "version_suffix": "_v2",
+  "status": "failed",
+  "run_mode": "versioned",
+  "started_at": "2026-09-03T16:28:14.007212",
+  "completed_at": "2026-09-03T16:49:28.059018",
+  "duration_s": 1273.827612,
+  "error": "Critical failure in 'execute_notebook': NOTEBOOK ERROR (run_id=65435789491183): ModuleNotFoundError: No module named 'dbldatagen'",
+  "steps": [
+    {
+      "step_name": "load_configuration",
+      "status": "completed",
+      "duration_s": 2.0,
+      "substeps": []
+    },
+    {
+      "step_name": "environment_setup",
+      "status": "skipped",
+      "duration_s": null,
+      "substeps": []
+    },
+    {
+      "step_name": "create_data_layer",
+      "status": "skipped",
+      "duration_s": null,
+      "substeps": []
+    },
+    {
+      "step_name": "create_metric_views",
+      "status": "skipped",
+      "duration_s": null,
+      "substeps": []
+    },
+    {
+      "step_name": "create_dashboards",
+      "status": "completed",
+      "duration_s": 200.01,
+      "substeps": [
+        {
+          "phase_id": "load_config",
+          "phase_name": "Load Configuration",
+          "status": "completed",
+          "current_task": null,
+          "progress_pct": 100,
+          "stats": {
+            "kpis_eligible": 17,
+            "metric_views_loaded": 2,
+            "dashboards_configured": 2,
+            "existing_manifests_api_readback": 2
+          },
+          "happenings": [],
+          "findings": [
+            "17 KPIs eligible for dashboard; NOT_IMPLEMENTED cross-grain/window KPIs excluded",
+            "2 dashboard targets resolved: member_claims_kpis_dashboard_v2, member_claims_utilization_dashboard_v2",
+            "Lakeview API contract available from injected supplementary reference",
+            "Existing dashboard artifacts discovered for state resume"
+          ]
+        },
+        {
+          "phase_id": "profile_metrics",
+          "phase_name": "Profile Metrics",
+          "status": "completed",
+          "current_task": null,
+          "progress_pct": 100,
+          "stats": {
+            "measures": 24,
+            "dimensions": 30,
+            "metric_views_profiled": 2,
+            "datasets_planned": 3
+          },
+          "happenings": [],
+          "findings": [
+            "Metric views are non-empty: claim metric view has 2000 rows; enrollment metric view has 1500 rows",
+            "Date ranges cover 2020-01-01 through 2023-12-30",
+            "Field inventory complete from contracts and DESCRIBE: 20 claim measures, 16 claim dimensions, 4 enrollment measures, 14 enrollment dimensions",
+            "Existing llm_dashboard_design.yaml is present and contains multi-page designs for both dashboards"
+          ]
+        },
+        {
+          "phase_id": "design_dashboard",
+          "phase_name": "Design Dashboard",
+          "status": "completed",
+          "current_task": null,
+          "progress_pct": 100,
+          "stats": {
+            "dashboards": 2,
+            "canvas_pages": 6,
+            "pages": 8,
+            "widgets_planned": 30,
+            "filters": 8
+          },
+          "happenings": [],
+          "findings": [
+            "dashboard_design.yaml already exists and is structurally valid for 2 configured dashboards",
+            "Page count gate passed: each dashboard has 3 KPI-spec canvas pages plus filter page",
+            "Filters configured: 3 for KPI dashboard and 5 for utilization dashboard"
+          ]
+        },
+        {
+          "phase_id": "build_datasets",
+          "phase_name": "Build Datasets",
+          "status": "completed",
+          "current_task": null,
+          "progress_pct": 100,
+          "stats": {
+            "datasets_built": 3,
+            "queries_validated": 3,
+            "failed_datasets": 0
+          },
+          "happenings": [],
+          "findings": [
+            "dashboard_dataset_validation.yaml already exists and is structurally valid",
+            "All recorded datasets have sql_status PASS and semantic_status PASS",
+            "Shared dataset pattern is documented in validation/design artifacts"
+          ]
+        },
+        {
+          "phase_id": "create_dashboard",
+          "phase_name": "Create Dashboard",
+          "status": "completed",
+          "current_task": null,
+          "progress_pct": 100,
+          "stats": {
+            "dashboards_created_or_verified": 2,
+            "widgets_created": 30,
+            "pages_created": 8
+          },
+          "happenings": [],
+          "findings": [
+            "Skipped Lakeview create/update per checkpoint contract: both dashboard manifests already contain dashboard_id and validation_source=api_readback",
+            "KPI dashboard dashboard_id: 01f1a7afcc711ed7b16b3a197eea33bc",
+            "Utilization dashboard dashboard_id: 01f1a7afe03812bbb10edb91630b432d"
+          ]
+        },
+        {
+          "phase_id": "validate_publish",
+          "phase_name": "Validate & Publish",
+          "status": "completed",
+          "current_task": null,
+          "progress_pct": 100,
+          "stats": {
+            "validations_passed": 2,
+            "dashboards_published": 2,
+            "kpi_coverage_pct": 100
+          },
+          "happenings": [],
+          "findings": [
+            "Skipped publish call per checkpoint contract: both manifests have published=true and validation_source=api_readback",
+            "dashboard_validation.yaml exists with source=api_readback and status=PASS",
+            "KPI coverage and structural validation already captured in API-readback artifacts"
+          ]
+        }
+      ]
+    },
+    {
+      "step_name": "create_genie_space",
+      "status": "completed",
+      "duration_s": 777.64,
+      "substeps": [
+        {
+          "phase_id": "load_inputs",
+          "phase_name": "Load Inputs",
+          "status": "completed",
+          "current_task": "Configuration and semantic contracts loaded",
+          "progress_pct": null,
+          "stats": {
+            "metric_views_loaded": 2,
+            "tables_eligible": 2,
+            "implemented_kpis": 17,
+            "not_implemented_kpis": 6
+          },
+          "happenings": [
+            "Loaded accelerator.yaml",
+            "Fresh ERD parse completed per execution context",
+            "Loaded step_handoff.yaml",
+            "Loaded Genie serialization contract and template",
+            "Loaded metric view design, validation, plan, KPI spec, schema profile, and KPI mapping",
+            "Inspected output/genie_space checkpoint directory"
+          ],
+          "findings": [
+            "2 semantic assets eligible",
+            "Genie title resolved exactly as member_claims_analytics_genie_v2",
+            "Warehouse ID resolved as 2d8e531640ffa469",
+            "Metric views validated with PASS status"
+          ]
+        },
+        {
+          "phase_id": "profile_metrics",
+          "phase_name": "Profile Metrics",
+          "status": "completed",
+          "current_task": "Semantic inventory checkpoint accepted",
+          "progress_pct": null,
+          "stats": {
+            "metric_views": 2,
+            "measures": 18,
+            "dimensions": 30,
+            "validated_kpis": 17,
+            "unsupported_kpis": 6
+          },
+          "happenings": [
+            "Read existing genie_semantic_inventory.yaml",
+            "Confirmed it contains both metric views, measures, dimensions, row counts, validated KPIs, and unsupported KPIs"
+          ],
+          "findings": [
+            "2 metric views inventoried",
+            "18 measures inventoried",
+            "30 dimensions cataloged",
+            "17 validated KPI entries present; unsupported cross-grain/window KPIs excluded"
+          ]
+        },
+        {
+          "phase_id": "llm_design",
+          "phase_name": "LLM Genie Design",
+          "status": "completed",
+          "current_task": "Existing LLM Genie design accepted",
+          "progress_pct": null,
+          "stats": {
+            "sample_questions": 15,
+            "example_sqls": 15,
+            "benchmarks": 15,
+            "sql_validations_passed": 15
+          },
+          "happenings": [
+            "Validated checkpoint artifact content",
+            "Batch-executed all 15 example SQLs in two warehouse calls",
+            "Confirmed all SQL examples use MEASURE() and correct step_handoff.sql_fqn values"
+          ],
+          "findings": [
+            "Instructions exceed 500 characters and use markdown headers",
+            "15 sample questions cover at least 7 analytical patterns",
+            "15 example SQLs passed execution validation",
+            "15 benchmark questions available"
+          ]
+        },
+        {
+          "phase_id": "design_instructions",
+          "phase_name": "Design Instructions",
+          "status": "completed",
+          "current_task": "Instruction and question design accepted",
+          "progress_pct": null,
+          "stats": {
+            "sample_questions": 15,
+            "metric_descriptions": 2,
+            "instruction_chars": 3450
+          },
+          "happenings": [
+            "Accepted LLM-generated markdown instructions",
+            "Accepted two metric-view descriptions",
+            "Confirmed samples, SQLs, and benchmarks exclude NOT_IMPLEMENTED KPIs",
+            "SHOW CREATE TABLE attempted for completeness but SQL warehouse rejected this clause for metric views; continued using authoritative metric_view_design and semantic inventory contracts"
+          ],
+          "findings": [
+            "Instructions contain domain, metric view catalog, measures, dimensions, MEASURE() rules, ratio warnings, time guidance, and terminology",
+            "15 diverse sample questions available",
+            "2 metric-view descriptions available"
+          ]
+        },
+        {
+          "phase_id": "generate_sql",
+          "phase_name": "Generate SQL & Benchmarks",
+          "status": "completed",
+          "current_task": "Example SQL and benchmark ground truth ready",
+          "progress_pct": null,
+          "stats": {
+            "example_queries": 15,
+            "benchmarks": 15,
+            "sql_validations_passed": 15,
+            "benchmark_pass_rate": 1.0
+          },
+          "happenings": [
+            "Read existing sample_queries_member_claims.sql",
+            "Read benchmark_results.yaml",
+            "Confirmed all 15 benchmark expected SQL queries align with previously validated example SQL patterns"
+          ],
+          "findings": [
+            "15 example queries validated successfully",
+            "15 benchmark questions generated with authoritative metric-view SQL ground truth",
+            "Benchmark validation artifact reports PASS with 100% SQL success"
+          ]
+        },
+        {
+          "phase_id": "create_genie_space",
+          "phase_name": "Create Genie Space",
+          "status": "completed",
+          "current_task": "Genie space deployed and API-readback validated",
+          "progress_pct": null,
+          "stats": {
+            "tables_registered": 2,
+            "instructions_set": 1,
+            "sample_questions": 15,
+            "example_sqls": 15,
+            "benchmarks": 15
+          },
+          "happenings": [
+            "Executed configuration notebook via Jobs API",
+            "Template validation executed all example SQL before deployment",
+            "Pre-deploy self-check and build_serialized_space() ran inside notebook",
+            "Genie Management API created/updated full serialized_space payload",
+            "Post-deploy gate_checks API readback returned PASS"
+          ],
+          "findings": [
+            "Genie space created/updated successfully",
+            "Space ID: 01f1a7b614381a068aceb910e44a7b06",
+            "API readback confirmed 2 metric views, 3378 instruction chars, 15 samples, 15 example SQLs, and 15 benchmarks"
+          ]
+        },
+        {
+          "phase_id": "validate_genie",
+          "phase_name": "Validate Genie Space",
+          "status": "completed",
+          "current_task": "Genie validation artifacts persisted",
+          "progress_pct": null,
+          "stats": {
+            "benchmarks_passed": 15,
+            "benchmarks_total": 15,
+            "coverage_pct": 100,
+            "sample_questions": 15,
+            "example_sqls": 15,
+            "instruction_chars": 3378
+          },
+          "happenings": [
+            "Wrote versioned validation YAML",
+            "Wrote versioned manifest with validation_source=api_readback",
+            "Wrote generic genie_space_manifest.json for output-contract compatibility",
+            "Wrote genie_benchmark_validation.yaml",
+            "Updated run_context.yaml with Genie phase completion and deployed space_id",
+            "Re-imported notebook with persisted SPACE_ID and executed update path successfully"
+          ],
+          "findings": [
+            "Configuration validated from API readback",
+            "Benchmark accuracy: 100%",
+            "Semantic coverage accepted for 18 measures, 30 dimensions, and 17 implemented KPIs",
+            "Notebook contains deployed SPACE_ID for idempotent future updates"
+          ]
+        }
+      ]
+    },
+    {
+      "step_name": "generate_documentation",
+      "status": "failed",
+      "duration_s": null,
+      "substeps": [
+        {
+          "phase_id": "gather_artifacts",
+          "phase_name": "Gather Artifacts",
+          "status": "update",
+          "current_task": "Ensuring ground-truth validation exists",
+          "progress_pct": 20,
+          "stats": {
+            "ground_truth_exists": false
+          },
+          "happenings": [
+            "ground_truth_validation.yaml not found in output folder listing",
+            "Preparing cross-validation sweep notebook",
+            "Will use gate_checks.py API readback validation"
+          ],
+          "findings": [
+            "Ground-truth validation is mandatory and must be generated before README"
+          ]
+        }
+      ]
+    }
+  ]
+}

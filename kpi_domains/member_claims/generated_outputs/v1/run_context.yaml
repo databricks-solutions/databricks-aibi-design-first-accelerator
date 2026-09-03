@@ -1,25 +1,50 @@
-catalog: aw_serverless_stable_catalog
-schema: aibi_member_claims
-version_suffix: _v1
-warehouse_id: 2d8e531640ffa469
+run_id: ecc9afea-f097-4ab5-8aad-b7bd51b2e57d
+domain:
+  name: member_claims
+  display_name: Member Claims
+version:
+  number: 1
+  version_suffix: _v1
+  short_name_suffix: ''
+  asset_suffix: _v1
 output_folder: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1
-domain: member_claims
-status: completed
-current_step: generate_documentation
-updated_at: '2026-09-01T00:00:00Z'
-phases:
-  gather_artifacts:
-    status: completed
-    artifact_state: stateless_reloaded
-  generate_documentation:
-    status: completed
-    artifact: readme.md
-  generate_manifest:
-    status: completed
-    artifact: run_manifest.json
-  validate_documentation:
-    status: completed
-overall_run_status: PARTIAL_SUCCESS
-artifacts:
-  readme: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/readme.md
-  run_manifest: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v1/run_manifest.json
+data_source:
+  type: erd
+source:
+  catalog: aw_serverless_stable_catalog
+  schema: aibi_member_claims
+target:
+  catalog: aw_serverless_stable_catalog
+  schema: aibi_member_claims
+assets:
+  metric_views: []
+  metric_view_strategy: auto
+  metric_view_naming_prefix: member_claims
+  dashboards:
+  - id: kpis
+    name: member_claims_kpis_dashboard_v1
+  - id: utilization
+    name: member_claims_utilization_dashboard_v1
+  genie:
+    space_name: member_claims_analytics_genie_v1
+    notebook_name: genie_space_configuration_member_claims_v1
+    sample_queries_file: sample_queries_member_claims_v1.sql
+runtime:
+  sql_warehouse_id: 2d8e531640ffa469
+  workspace_host: https://fevm-aw-serverless-stable.cloud.databricks.com
+  user_name: arun.wagle@databricks.com
+  deploy_root: /Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator
+llm:
+  default_model: databricks-gpt-5-5
+  vision_model: databricks-gpt-5-5
+  temperature: 1
+  max_tokens: 32000
+pipeline:
+  clean_start: false
+  steps:
+    create_data_layer: true
+    create_metric_views: true
+    create_dashboards: true
+    create_genie_space: true
+    generate_documentation: true
+started_at: '2026-09-03T13:09:11.253309+00:00'

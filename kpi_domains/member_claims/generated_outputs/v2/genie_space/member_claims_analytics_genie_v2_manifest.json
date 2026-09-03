@@ -1,0 +1,25 @@
+{
+  "space_id": "01f1a7b614381a068aceb910e44a7b06",
+  "title": "member_claims_analytics_genie_v2",
+  "description": "Production Genie Space for validated Member Claims analytics over claims service-line and enrollment Metric Views, including claims volume, paid amounts, denial/clean claim rates, payment ratios, provider participation, active members, enrollment, member months, LOB, geography, and demographic slicing.",
+  "warehouse_id": "2d8e531640ffa469",
+  "validation_source": "api_readback",
+  "tables": [
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2",
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enrollment_metric_view_v2"
+  ],
+  "metric_views": [
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v2",
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enrollment_metric_view_v2"
+  ],
+  "sample_questions_count": 15,
+  "sample_question_count": 15,
+  "example_sqls_count": 15,
+  "example_sql_count": 15,
+  "benchmarks_count": 15,
+  "benchmark_count": 15,
+  "instruction_chars": 3378,
+  "notebook_path": "/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v2/genie_space/genie_space_configuration_member_claims",
+  "configured": true,
+  "validated": true
+}

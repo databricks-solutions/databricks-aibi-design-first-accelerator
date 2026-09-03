@@ -1,0 +1,133 @@
+version: 1.1
+comment: "Member Claims primary claim-line metric view sourced from pre-validated enriched claim detail lines."
+source: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_enriched_v2
+fields:
+  - name: service_month
+    expr: DATE_TRUNC('MONTH', clm_dtl_specific_dos_date)
+    comment: "Common month dimension based on claim detail service date."
+  - name: service_date
+    expr: clm_dtl_specific_dos_date
+    comment: "Claim detail service date."
+  - name: claim_type
+    expr: clm_dtl_claim_type
+    comment: "Claim type from detail line."
+  - name: benefit_category
+    expr: clm_dtl_benefit_category
+    comment: "Benefit category."
+  - name: benefit_level
+    expr: clm_dtl_benefit_level
+    comment: "Benefit level."
+  - name: line_status
+    expr: clm_dtl_line_status
+    comment: "Claim detail line status."
+  - name: adjudication_status
+    expr: clm_dtl_adjudication_status
+    comment: "Adjudication status."
+  - name: clean_claim_indicator
+    expr: clm_dtl_clean_claim_ind
+    comment: "Clean claim indicator."
+  - name: place_of_service
+    expr: clm_dtl_place_of_service
+    comment: "Place of service code."
+  - name: procedure_code
+    expr: clm_dtl_procedure_code
+    comment: "Procedure code."
+  - name: revenue_code
+    expr: clm_dtl_revenue_code
+    comment: "Revenue code."
+  - name: rendering_provider_type
+    expr: clm_dtl_rendering_provider_type
+    comment: "Rendering provider type."
+  - name: rendering_provider_specialty
+    expr: clm_dtl_rendering_provider_spec
+    comment: "Rendering provider specialty."
+  - name: participating_provider
+    expr: clm_dtl_participating_provider
+    comment: "Participating provider indicator/value."
+  - name: line_of_business
+    expr: clm_line_of_business
+    comment: "Line of business from claim header."
+  - name: plan_code
+    expr: clm_plan_code
+    comment: "Plan code from claim header."
+measures:
+  - name: Total Claims
+    expr: COUNT(DISTINCT clm_dtl_claim_id)
+    comment: "Distinct claim count."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: Total Claim Lines
+    expr: COUNT(*)
+    comment: "Claim detail line count."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: Total Paid Amount
+    expr: SUM(clm_dtl_paid_amt)
+    comment: "Total paid amount across claim lines."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Average Paid per Claim
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Claims`), 0)
+    comment: "Total paid divided by distinct claim count."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Denied Lines
+    expr: SUM(CASE WHEN LOWER(clm_dtl_line_status) LIKE '%den%' OR LOWER(clm_dtl_adjudication_status) LIKE '%den%' THEN 1 ELSE 0 END)
+    comment: "Lines with denial-like status."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: Denial Rate
+    expr: MEASURE(`Denied Lines`) / NULLIF(MEASURE(`Total Claim Lines`), 0)
+    comment: "Denied lines divided by total claim lines."
+    format: {type: percentage, decimal_places: {type: exact, places: 2}}
+  - name: Clean Claim Lines
+    expr: SUM(CASE WHEN LOWER(clm_dtl_clean_claim_ind) IN ('y','yes','true','1','clean') THEN 1 ELSE 0 END)
+    comment: "Clean claim lines."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: Clean Claim Rate
+    expr: MEASURE(`Clean Claim Lines`) / NULLIF(MEASURE(`Total Claim Lines`), 0)
+    comment: "Clean claim lines divided by total claim lines."
+    format: {type: percentage, decimal_places: {type: exact, places: 2}}
+  - name: Total Billed Amount
+    expr: SUM(clm_dtl_billed_amt)
+    comment: "Total billed amount."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Payment-to-Billed Ratio
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Billed Amount`), 0)
+    comment: "Total paid divided by total billed."
+    format: {type: percentage, decimal_places: {type: exact, places: 2}}
+  - name: Total Allowed Amount
+    expr: SUM(clm_dtl_allowed_amt)
+    comment: "Total allowed amount."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Payment-to-Allowed Ratio
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Allowed Amount`), 0)
+    comment: "Total paid divided by total allowed."
+    format: {type: percentage, decimal_places: {type: exact, places: 2}}
+  - name: Unique Claiming Members
+    expr: COUNT(DISTINCT clm_member_sk)
+    comment: "Distinct members appearing on claims."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: Average Paid per Member
+    expr: MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Unique Claiming Members`), 0)
+    comment: "Total paid divided by unique claiming members."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Claims per Member
+    expr: MEASURE(`Total Claims`) / NULLIF(MEASURE(`Unique Claiming Members`), 0)
+    comment: "Distinct claims divided by unique claiming members."
+    format: {type: number, decimal_places: {type: exact, places: 2}}
+  - name: Lines per Claim
+    expr: MEASURE(`Total Claim Lines`) / NULLIF(MEASURE(`Total Claims`), 0)
+    comment: "Claim lines divided by distinct claims."
+    format: {type: number, decimal_places: {type: exact, places: 2}}
+  - name: Inpatient Paid Amount
+    expr: SUM(CASE WHEN LOWER(clm_dtl_claim_type) LIKE '%institutional%' OR LOWER(clm_dtl_claim_type) LIKE '%inpatient%' THEN clm_dtl_paid_amt ELSE 0 END)
+    comment: "Paid amount for institutional or inpatient-like claim types."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Outpatient Paid Amount
+    expr: SUM(CASE WHEN LOWER(clm_dtl_claim_type) LIKE '%professional%' OR LOWER(clm_dtl_claim_type) LIKE '%outpatient%' THEN clm_dtl_paid_amt ELSE 0 END)
+    comment: "Paid amount for professional or outpatient-like claim types."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Participating Provider Paid Amount
+    expr: SUM(CASE WHEN LOWER(clm_dtl_participating_provider) IN ('y','yes','true','1','participating','par') THEN clm_dtl_paid_amt ELSE 0 END)
+    comment: "Paid amount associated with participating provider indicator."
+    format: {type: currency, currency_code: USD, decimal_places: {type: exact, places: 2}}
+  - name: Participating Provider Rate
+    expr: MEASURE(`Participating Provider Paid Amount`) / NULLIF(MEASURE(`Total Paid Amount`), 0)
+    comment: "Participating-provider paid amount divided by total paid."
+    format: {type: percentage, decimal_places: {type: exact, places: 2}}

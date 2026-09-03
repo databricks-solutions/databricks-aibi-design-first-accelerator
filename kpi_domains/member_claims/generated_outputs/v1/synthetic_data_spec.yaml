@@ -1,110 +1,1024 @@
-domain: member_claims
-version_suffix: _v1
-volume: low
-row_counts:
-  dim_member: 500
-  dim_address: 300
-  dim_member_identifier: 800
-  dim_member_history: 900
-  fact_member_enrollment: 1200
-  dim_provider: 300
-  fact_claim_header: 400
-  fact_claim_detail: 2000
-generation_order:
-  - dim_member
-  - dim_address
-  - dim_member_identifier
-  - dim_member_history
-  - fact_member_enrollment
-  - dim_provider
-  - fact_claim_header
-  - fact_claim_detail
 tables:
-  - name: dim_member
-    row_count: 500
-    primary_key: [member_sk]
-    columns:
-      - {column: mbr_sex, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Female", "Male", "Unknown"], weights: [0.51, 0.47, 0.02]}}
-      - {column: mbr_race, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["White", "Black or African American", "Asian", "Native American", "Pacific Islander", "Other", "Unknown"], weights: [0.50, 0.18, 0.12, 0.03, 0.02, 0.10, 0.05]}}
-      - {column: mbr_ethnicity, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Hispanic or Latino", "Not Hispanic or Latino", "Unknown"], weights: [0.20, 0.72, 0.08]}}
-      - {column: mbr_marital_status, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Single", "Married", "Divorced", "Widowed", "Domestic Partner"], weights: [0.34, 0.44, 0.12, 0.07, 0.03]}}
-      - {column: mbr_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare Advantage", "Medicaid", "TRICARE", "Exchange"], weights: [0.44, 0.24, 0.20, 0.07, 0.05]}}
-      - {column: mbr_state, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["CA", "TX", "FL", "NY", "PA", "OH", "GA", "NC"], weights: [0.18, 0.16, 0.14, 0.13, 0.10, 0.09, 0.10, 0.10]}}
-      - {column: mbr_relationship_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Subscriber", "Spouse", "Child", "Domestic Partner", "Other Dependent"], weights: [0.48, 0.22, 0.25, 0.03, 0.02]}}
-      - {column: source_system_code, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["FACETS", "QNXT", "EPIC", "EDI837"], weights: [0.45, 0.30, 0.15, 0.10]}}
-  - name: dim_address
-    row_count: 300
-    primary_key: [address_key]
-    columns:
-      - {column: entity_type_key, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["MEMBER", "PROVIDER", "FACILITY"], weights: [0.55, 0.30, 0.15]}}
-      - {column: address_type_code, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["HOME", "MAILING", "BILLING", "SERVICE", "PRACTICE"], weights: [0.38, 0.24, 0.14, 0.14, 0.10]}}
-      - {column: city, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Los Angeles", "Houston", "Miami", "New York", "Philadelphia", "Columbus", "Atlanta", "Charlotte"], weights: [0.18, 0.16, 0.14, 0.13, 0.10, 0.09, 0.10, 0.10]}}
-      - {column: state, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["CA", "TX", "FL", "NY", "PA", "OH", "GA", "NC"], weights: [0.18, 0.16, 0.14, 0.13, 0.10, 0.09, 0.10, 0.10]}}
-      - {column: country_code, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: CATEGORICAL_VALUES, domain: {values: ["US", "PR", "VI"], weights: [0.96, 0.03, 0.01]}}
-  - name: dim_member_identifier
-    row_count: 800
-    primary_key: [mbr_identifier_sk]
-    foreign_keys: [{column: member_sk, references_table: dim_member, references_column: member_sk}]
-    columns:
-      - {column: id_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Member ID", "Subscriber ID", "Medicaid ID", "Medicare MBI", "Employer ID"], weights: [0.38, 0.26, 0.16, 0.14, 0.06]}}
-      - {column: source_system_code, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["FACETS", "QNXT", "EPIC", "EDI837"], weights: [0.45, 0.30, 0.15, 0.10]}}
-  - name: dim_member_history
-    row_count: 900
-    primary_key: [mbr_history_sk]
-    foreign_keys: [{column: member_sk, references_table: dim_member, references_column: member_sk}]
-    columns:
-      - {column: mbr_sex, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Female", "Male", "Unknown"], weights: [0.51, 0.47, 0.02]}}
-      - {column: mbr_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare Advantage", "Medicaid", "TRICARE", "Exchange"], weights: [0.44, 0.24, 0.20, 0.07, 0.05]}}
-      - {column: mbr_state, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["CA", "TX", "FL", "NY", "PA", "OH", "GA", "NC"], weights: [0.18, 0.16, 0.14, 0.13, 0.10, 0.09, 0.10, 0.10]}}
-  - name: fact_member_enrollment
-    row_count: 1200
-    primary_key: [enrollment_sk]
-    foreign_keys: [{column: member_sk, references_table: dim_member, references_column: member_sk}]
-    columns:
-      - {column: mbr_enr_status, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Active", "Terminated", "Pending", "Suspended", "COBRA"], weights: [0.72, 0.14, 0.07, 0.04, 0.03]}}
-      - {column: mbr_enr_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare Advantage", "Medicaid", "TRICARE", "Exchange"], weights: [0.44, 0.24, 0.20, 0.07, 0.05]}}
-      - {column: mbr_enr_insured_code, datatype: varchar(2), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["EE", "SP", "CH", "DP"], weights: [0.48, 0.22, 0.27, 0.03]}}
-      - {column: mbr_enr_insured_event_code, datatype: varchar(2), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["EN", "RN", "TR", "CH"], weights: [0.42, 0.30, 0.18, 0.10]}}
-      - {column: mbr_enr_termination_reason, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Voluntary Disenrollment", "Non Payment", "Employer Group Termination", "Moved Out of Area", "Plan Change"], weights: [0.30, 0.20, 0.18, 0.17, 0.15]}}
-      - {column: id_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Member ID", "Subscriber ID", "Medicaid ID", "Medicare MBI"], weights: [0.42, 0.28, 0.16, 0.14]}}
-  - name: dim_provider
-    row_count: 300
-    primary_key: [provider_sk]
-    foreign_keys: [{column: provider_address_sk, references_table: dim_address, references_column: address_key}]
-    columns:
-      - {column: source_system, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Provider Master", "NPPES", "Credentialing", "Network Contracting"], weights: [0.42, 0.28, 0.18, 0.12]}}
-  - name: fact_claim_header
-    row_count: 400
-    primary_key: [clm_header_sk]
-    foreign_keys:
-      - {column: clm_member_sk, references_table: dim_member, references_column: member_sk}
-      - {column: clm_service_facility_address_sk, references_table: dim_address, references_column: address_key}
-    columns:
-      - {column: clm_claim_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Professional", "Institutional", "Pharmacy", "Dental", "Vision"], weights: [0.42, 0.28, 0.16, 0.09, 0.05]}}
-      - {column: clm_bill_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Outpatient Hospital", "Inpatient Hospital", "Skilled Nursing", "Home Health", "Clinic"], weights: [0.38, 0.22, 0.10, 0.12, 0.18]}}
-      - {column: clm_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare Advantage", "Medicaid", "TRICARE", "Exchange"], weights: [0.44, 0.24, 0.20, 0.07, 0.05]}}
-      - {column: clm_admission_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Elective", "Emergency", "Urgent", "Newborn", "Trauma"], weights: [0.34, 0.30, 0.18, 0.12, 0.06]}}
-      - {column: clm_cob_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Primary", "Secondary", "Tertiary", "No COB"], weights: [0.45, 0.18, 0.04, 0.33]}}
-      - {column: clm_claim_timely_filing, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Timely", "Late", "Exception Approved"], weights: [0.84, 0.11, 0.05]}}
-  - name: fact_claim_detail
-    row_count: 2000
-    primary_key: [clm_dtl_claim_id, clm_dtl_line_nbr]
-    foreign_keys: [{column: clm_dtl_claim_id, references_table: fact_claim_header, references_column: clm_claim_id}]
-    columns:
-      - {column: clm_dtl_claim_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Professional", "Institutional", "Pharmacy", "Dental", "Vision"], weights: [0.42, 0.28, 0.16, 0.09, 0.05]}}
-      - {column: clm_dtl_benefit_category, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Medical", "Hospital", "Prescription Drug", "Behavioral Health", "Dental", "Vision", "Preventive Care"], weights: [0.35, 0.20, 0.16, 0.09, 0.08, 0.05, 0.07]}}
-      - {column: clm_dtl_benefit_level, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["In Network", "Out of Network", "Tier 1 Preferred", "Tier 2 Standard"], weights: [0.64, 0.14, 0.15, 0.07]}}
-      - {column: clm_dtl_line_status, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Paid", "Denied", "Pending", "Adjusted", "Reversed"], weights: [0.68, 0.16, 0.08, 0.06, 0.02]}}
-      - {column: clm_dtl_clean_claim_ind, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Clean", "Not Clean", "Corrected"], weights: [0.76, 0.18, 0.06]}}
-      - {column: clm_dtl_place_of_service, datatype: varchar(2), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["11", "21", "22", "23", "31", "41"], weights: [0.40, 0.14, 0.24, 0.08, 0.07, 0.07]}}
-      - {column: clm_dtl_fee_schedule_code, datatype: varchar(3), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["CMS", "RBR", "DRG", "ASC", "LAB"], weights: [0.40, 0.25, 0.16, 0.10, 0.09]}}
-      - {column: clm_dtl_adjudication_status, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Auto Adjudicated", "Manual Review", "Medical Review", "Coordination of Benefits", "Appeal Review"], weights: [0.58, 0.18, 0.10, 0.09, 0.05]}}
-      - {column: clm_dtl_procedure_code, datatype: varchar(15), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["99213", "99214", "93000", "80053", "J0585", "D0120", "V2020"], weights: [0.28, 0.20, 0.14, 0.16, 0.07, 0.08, 0.07]}}
-      - {column: clm_dtl_revenue_code, datatype: varchar(30), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["0450 Emergency Room", "0300 Lab", "0360 Operating Room", "0510 Clinic", "0250 Pharmacy", "0420 Physical Therapy"], weights: [0.18, 0.25, 0.10, 0.22, 0.15, 0.10]}}
-semantic_constraints:
-  - {expression: "child.FK IN parent.PK", type: STRUCTURAL, confidence: HIGH}
-  - {expression: "clm_dtl_paid_amt varies by clm_dtl_claim_type", type: STATISTICAL, confidence: HIGH}
-  - {expression: "effective/service start dates should not follow termination/thru dates", type: TEMPORAL, confidence: MEDIUM}
-gates:
-  domain_value_validation: PASS
-  yaml_type_safety: PASS
+- name: dim_provider
+  rows: 250
+  columns:
+  - column: pcp_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.35
+      - 0.65
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.92
+      - 0.08
+- name: dim_address
+  rows: 300
+  columns:
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.95
+      - 0.05
+  - column: address_type_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - HOME
+      - MAILING
+      - BILLING
+      - SERVICE
+      - CLAIMS
+      weights:
+      - 0.45
+      - 0.25
+      - 0.15
+      - 0.1
+      - 0.05
+  - column: zip_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - '10001'
+      - '11201'
+      - '60601'
+      - '77002'
+      - '90012'
+      - '19103'
+      - '85004'
+      - '30303'
+      - '33130'
+      - '98101'
+      weights:
+      - 0.12
+      - 0.1
+      - 0.13
+      - 0.11
+      - 0.12
+      - 0.09
+      - 0.08
+      - 0.09
+      - 0.08
+      - 0.08
+  - column: country_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - US
+      - CA
+      - MX
+      - PR
+      weights:
+      - 0.985
+      - 0.008
+      - 0.004
+      - 0.003
+  - column: source_system_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - FACETS
+      - QNXT
+      - EPIC
+      - NEXTGEN
+      - LEGACY_CLAIMS
+      weights:
+      - 0.38
+      - 0.27
+      - 0.16
+      - 0.11
+      - 0.08
+- name: fact_claim_detail
+  rows: 8000
+  columns:
+  - column: clm_dtl_interest_discount_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.03
+      - 0.97
+  - column: clm_dtl_check_added_line_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.04
+      - 0.96
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.97
+      - 0.03
+  - column: clm_dtl_benefit_category
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - MEDICAL
+      - SURGICAL
+      - DIAGNOSTIC
+      - PREVENTIVE
+      - LABORATORY
+      - MENTAL_HEALTH
+      - PHARMACY
+      - DME
+      weights:
+      - 0.28
+      - 0.14
+      - 0.16
+      - 0.11
+      - 0.12
+      - 0.08
+      - 0.06
+      - 0.05
+  - column: clm_dtl_claim_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - PROFESSIONAL
+      - INSTITUTIONAL
+      - PHARMACY
+      - DENTAL
+      - VISION
+      weights:
+      - 0.58
+      - 0.25
+      - 0.08
+      - 0.06
+      - 0.03
+  - column: clm_dtl_line_status
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - PAID
+      - DENIED
+      - PENDED
+      - ADJUSTED
+      - VOIDED
+      weights:
+      - 0.72
+      - 0.12
+      - 0.06
+      - 0.07
+      - 0.03
+  - column: clm_dtl_fee_schedule_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - CMS_MPFS
+      - CMS_OPPS
+      - DRG
+      - ASC
+      - RBRVS
+      - CUSTOM_CONTRACT
+      - NDC_AWP
+      weights:
+      - 0.31
+      - 0.14
+      - 0.12
+      - 0.08
+      - 0.18
+      - 0.12
+      - 0.05
+  - column: clm_dtl_rendering_provider_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 01 - Physician
+      - 20 - Hospital
+      - 77 - Physician Assistant
+      - 72 - Nurse Practitioner
+      - 64 - Clinical Nurse Specialist
+      - 24 - Pharmacy
+      - 54 - Laboratory
+      - 25 - Non-Physician Practitioner
+      weights:
+      - 0.38
+      - 0.18
+      - 0.11
+      - 0.12
+      - 0.04
+      - 0.06
+      - 0.07
+      - 0.04
+  - column: clm_dtl_adjudication_status
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - FINAL_PAID
+      - FINAL_DENIED
+      - PENDING_REVIEW
+      - COB_PENDING
+      - REVERSED
+      - CORRECTED
+      weights:
+      - 0.7
+      - 0.12
+      - 0.06
+      - 0.04
+      - 0.03
+      - 0.05
+  - column: clm_dtl_procedure_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - '99213'
+      - '99214'
+      - '99203'
+      - '93000'
+      - '80053'
+      - '85025'
+      - '36415'
+      - '71046'
+      - '97110'
+      - G0439
+      - J1885
+      - A0428
+      weights:
+      - 0.18
+      - 0.16
+      - 0.08
+      - 0.06
+      - 0.1
+      - 0.09
+      - 0.08
+      - 0.06
+      - 0.07
+      - 0.05
+      - 0.04
+      - 0.03
+  - column: clm_dtl_revenue_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 0300 - Laboratory
+      - 0450 - Emergency Room
+      - 0360 - Operating Room
+      - 0250 - Pharmacy
+      - 0510 - Clinic
+      - 0320 - Radiology Diagnostic
+      - 0270 - Medical Surgical Supplies
+      - 0120 - Room and Board Semi-Private
+      - 0761 - Treatment Room
+      - 0420 - Physical Therapy
+      weights:
+      - 0.15
+      - 0.14
+      - 0.08
+      - 0.1
+      - 0.16
+      - 0.11
+      - 0.08
+      - 0.07
+      - 0.06
+      - 0.05
+- name: fact_claim_header
+  rows: 3000
+  columns:
+  - column: clm_is_par_referring_provider
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.76
+      - 0.24
+  - column: clm_is_par_rendering_provider
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.82
+      - 0.18
+  - column: clm_pcp_visit_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.28
+      - 0.72
+  - column: clm_accept_assignment_indicator
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.88
+      - 0.12
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.96
+      - 0.04
+  - column: clm_claim_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - PROFESSIONAL
+      - INSTITUTIONAL
+      - PHARMACY
+      - DENTAL
+      - VISION
+      weights:
+      - 0.56
+      - 0.26
+      - 0.08
+      - 0.07
+      - 0.03
+  - column: clm_bill_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 000 - Professional CMS-1500
+      - 111 - Hospital Inpatient Admit Through Discharge
+      - 131 - Hospital Outpatient
+      - 851 - Critical Access Hospital
+      - 711 - Rural Health Clinic
+      - 321 - Home Health
+      - 831 - Ambulatory Surgery Center
+      weights:
+      - 0.55
+      - 0.13
+      - 0.16
+      - 0.04
+      - 0.04
+      - 0.03
+      - 0.05
+  - column: clm_admission_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 0 - Not Applicable
+      - 1 - Emergency
+      - 2 - Urgent
+      - 3 - Elective
+      - 5 - Trauma Center
+      - 9 - Information Not Available
+      weights:
+      - 0.62
+      - 0.16
+      - 0.08
+      - 0.09
+      - 0.02
+      - 0.03
+  - column: clm_plan_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - HMO
+      - PPO
+      - EPO
+      - POS
+      - HDHP
+      - MEDADV
+      - MEDICAID
+      weights:
+      - 0.24
+      - 0.3
+      - 0.1
+      - 0.09
+      - 0.12
+      - 0.08
+      - 0.07
+  - column: clm_submitting_provider_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 01 - Physician
+      - 20 - Hospital
+      - 24 - Pharmacy
+      - 54 - Laboratory
+      - 72 - Nurse Practitioner
+      - 77 - Physician Assistant
+      - 83 - Clinic
+      weights:
+      - 0.36
+      - 0.24
+      - 0.07
+      - 0.08
+      - 0.1
+      - 0.06
+      - 0.09
+  - column: clm_referring_provider_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 01 - Physician
+      - 72 - Nurse Practitioner
+      - 77 - Physician Assistant
+      - 20 - Hospital
+      - 83 - Clinic
+      - 99 - Not Applicable
+      weights:
+      - 0.44
+      - 0.14
+      - 0.08
+      - 0.07
+      - 0.1
+      - 0.17
+  - column: clm_pcp_in_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - IN_NETWORK_PCP
+      - OUT_OF_NETWORK_PCP
+      - PCP_NOT_REQUIRED
+      - NO_PCP_ON_FILE
+      weights:
+      - 0.48
+      - 0.09
+      - 0.31
+      - 0.12
+  - column: clm_admitting_diagnosis_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - R07.9 - Chest Pain Unspecified
+      - J18.9 - Pneumonia Unspecified Organism
+      - I10 - Essential Hypertension
+      - E11.9 - Type 2 Diabetes Without Complications
+      - R10.9 - Unspecified Abdominal Pain
+      - N39.0 - Urinary Tract Infection
+      - S72.001A - Fracture Right Femur Initial
+      - I50.9 - Heart Failure Unspecified
+      - K35.80 - Acute Appendicitis
+      - Z00.00 - General Adult Medical Exam
+      weights:
+      - 0.12
+      - 0.11
+      - 0.14
+      - 0.12
+      - 0.13
+      - 0.1
+      - 0.05
+      - 0.09
+      - 0.04
+      - 0.1
+  - column: clm_drg_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 470 - Major Hip and Knee Joint Replacement
+      - 871 - Septicemia Without MV Greater Than 96 Hours MCC
+      - 291 - Heart Failure and Shock MCC
+      - 392 - Esophagitis Gastroenteritis and Misc Digestive Disorders
+      - 194 - Simple Pneumonia and Pleurisy CC
+      - 603 - Cellulitis Without MCC
+      - 690 - Kidney and Urinary Tract Infections Without MCC
+      - 775 - Vaginal Delivery Without Complicating Diagnoses
+      - 000 - Not Applicable
+      weights:
+      - 0.06
+      - 0.06
+      - 0.05
+      - 0.05
+      - 0.06
+      - 0.04
+      - 0.05
+      - 0.03
+      - 0.6
+  - column: clm_service_type_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 1 - Medical Care
+      - 30 - Health Benefit Plan Coverage
+      - 33 - Chiropractic
+      - 35 - Dental Care
+      - 47 - Hospital
+      - 48 - Hospital Inpatient
+      - 50 - Hospital Outpatient
+      - 86 - Emergency Services
+      - 88 - Pharmacy
+      - 98 - Professional Physician Visit Office
+      weights:
+      - 0.18
+      - 0.05
+      - 0.03
+      - 0.06
+      - 0.1
+      - 0.08
+      - 0.12
+      - 0.1
+      - 0.08
+      - 0.2
+  - column: clm_cob_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - NONE
+      - PRIMARY
+      - SECONDARY
+      - TERTIARY
+      - MEDICARE_CROSSOVER
+      - MEDICAID_WRAP
+      weights:
+      - 0.62
+      - 0.14
+      - 0.13
+      - 0.02
+      - 0.06
+      - 0.03
+  - column: source_system_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - FACETS
+      - QNXT
+      - EPIC
+      - NEXTGEN
+      - LEGACY_CLAIMS
+      weights:
+      - 0.4
+      - 0.28
+      - 0.13
+      - 0.09
+      - 0.1
+- name: dim_member
+  rows: 500
+  columns:
+  - column: mbr_secured_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.04
+      - 0.96
+  - column: mbr_pharmacy_discount_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.18
+      - 0.82
+  - column: mbr_deceased_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.02
+      - 0.98
+  - column: mbr_pcp_lock_in_indicator
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.16
+      - 0.84
+  - column: mbr_sub_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.58
+      - 0.42
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.91
+      - 0.09
+  - column: mbr_marital_status
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - S - Single
+      - M - Married
+      - D - Divorced
+      - W - Widowed
+      - U - Unknown
+      - P - Domestic Partner
+      weights:
+      - 0.34
+      - 0.42
+      - 0.08
+      - 0.05
+      - 0.07
+      - 0.04
+  - column: mbr_relationship_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 18 - Self
+      - 01 - Spouse
+      - 19 - Child
+      - 53 - Life Partner
+      - G8 - Other Relationship
+      - 34 - Other Adult
+      weights:
+      - 0.58
+      - 0.19
+      - 0.17
+      - 0.02
+      - 0.02
+      - 0.02
+  - column: mbr_zip_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - '10001'
+      - '11201'
+      - '60601'
+      - '77002'
+      - '90012'
+      - '19103'
+      - '85004'
+      - '30303'
+      - '33130'
+      - '98101'
+      weights:
+      - 0.11
+      - 0.1
+      - 0.13
+      - 0.12
+      - 0.12
+      - 0.09
+      - 0.08
+      - 0.09
+      - 0.08
+      - 0.08
+  - column: mbr_pcp_lock_in_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - NONE
+      - PCP_REQUIRED
+      - SPECIALIST_REFERRAL_REQUIRED
+      - PHARMACY_LOCK_IN
+      - CASE_MANAGEMENT_LOCK_IN
+      weights:
+      - 0.74
+      - 0.14
+      - 0.05
+      - 0.04
+      - 0.03
+  - column: source_system_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - FACETS
+      - QNXT
+      - EPIC
+      - NEXTGEN
+      - LEGACY_ENROLLMENT
+      weights:
+      - 0.36
+      - 0.31
+      - 0.12
+      - 0.09
+      - 0.12
+- name: dim_member_identifier
+  rows: 500
+  columns:
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.93
+      - 0.07
+  - column: id_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - SUBSCRIBER_ID
+      - MEMBER_ID
+      - MEDICARE_MBI
+      - MEDICAID_ID
+      - SSN_LAST4
+      - ALT_MEMBER_ID
+      - EMPLOYEE_ID
+      weights:
+      - 0.3
+      - 0.28
+      - 0.1
+      - 0.1
+      - 0.06
+      - 0.1
+      - 0.06
+  - column: source_system_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - FACETS
+      - QNXT
+      - EPIC
+      - NEXTGEN
+      - LEGACY_ENROLLMENT
+      weights:
+      - 0.37
+      - 0.3
+      - 0.12
+      - 0.08
+      - 0.13
+- name: dim_member_history
+  rows: 500
+  columns:
+  - column: mbr_secured_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.04
+      - 0.96
+  - column: mbr_pharmacy_discount_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.17
+      - 0.83
+  - column: mbr_deceased_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.02
+      - 0.98
+  - column: mbr_pcp_lock_in_indicator
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.15
+      - 0.85
+  - column: mbr_sub_flag
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.57
+      - 0.43
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.86
+      - 0.14
+  - column: mbr_marital_status
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - S - Single
+      - M - Married
+      - D - Divorced
+      - W - Widowed
+      - U - Unknown
+      - P - Domestic Partner
+      weights:
+      - 0.34
+      - 0.41
+      - 0.08
+      - 0.05
+      - 0.08
+      - 0.04
+  - column: mbr_relationship_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 18 - Self
+      - 01 - Spouse
+      - 19 - Child
+      - 53 - Life Partner
+      - G8 - Other Relationship
+      - 34 - Other Adult
+      weights:
+      - 0.57
+      - 0.19
+      - 0.18
+      - 0.02
+      - 0.02
+      - 0.02
+  - column: mbr_zip_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - '10001'
+      - '11201'
+      - '60601'
+      - '77002'
+      - '90012'
+      - '19103'
+      - '85004'
+      - '30303'
+      - '33130'
+      - '98101'
+      weights:
+      - 0.11
+      - 0.1
+      - 0.13
+      - 0.12
+      - 0.12
+      - 0.09
+      - 0.08
+      - 0.09
+      - 0.08
+      - 0.08
+  - column: mbr_pcp_lock_in_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - NONE
+      - PCP_REQUIRED
+      - SPECIALIST_REFERRAL_REQUIRED
+      - PHARMACY_LOCK_IN
+      - CASE_MANAGEMENT_LOCK_IN
+      weights:
+      - 0.75
+      - 0.13
+      - 0.05
+      - 0.04
+      - 0.03
+  - column: source_system_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - FACETS
+      - QNXT
+      - EPIC
+      - NEXTGEN
+      - LEGACY_ENROLLMENT
+      weights:
+      - 0.36
+      - 0.31
+      - 0.12
+      - 0.09
+      - 0.12
+- name: fact_member_enrollment
+  rows: 2500
+  columns:
+  - column: is_active
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - Y
+      - N
+      weights:
+      - 0.88
+      - 0.12
+  - column: mbr_enr_insured_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 18 - Self
+      - 01 - Spouse
+      - 19 - Child
+      - 53 - Life Partner
+      - 34 - Other Adult
+      - G8 - Other Relationship
+      weights:
+      - 0.59
+      - 0.18
+      - 0.17
+      - 0.02
+      - 0.02
+      - 0.02
+  - column: mbr_enr_insured_event_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - 001 - Initial Enrollment
+      - 021 - Addition
+      - 024 - Cancellation
+      - 025 - Change in Identifying Data
+      - 030 - Audit or Compare
+      - 303 - Maintenance
+      - 834 - Benefit Enrollment
+      weights:
+      - 0.34
+      - 0.18
+      - 0.12
+      - 0.1
+      - 0.05
+      - 0.13
+      - 0.08
+  - column: mbr_enr_status
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - ACTIVE
+      - TERMINATED
+      - PENDING
+      - COBRA
+      - SUSPENDED
+      - FUTURE_EFFECTIVE
+      weights:
+      - 0.74
+      - 0.11
+      - 0.05
+      - 0.04
+      - 0.03
+      - 0.03
+  - column: mbr_enr_group_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - GRP1001 - Commercial Large Group
+      - GRP2001 - Small Employer Group
+      - GRP3001 - Individual Exchange
+      - GRP4001 - Medicare Advantage
+      - GRP5001 - Medicaid Managed Care
+      - GRP6001 - Self-Funded ASO
+      weights:
+      - 0.26
+      - 0.16
+      - 0.17
+      - 0.14
+      - 0.12
+      - 0.15
+  - column: mbr_enr_subgroup_code
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - SG001 - Active Employees
+      - SG002 - Dependents
+      - SG003 - Retirees
+      - SG004 - COBRA Continuation
+      - SG005 - Exchange Silver Plan
+      - SG006 - Exchange Gold Plan
+      - SG007 - Medicare HMO
+      - SG008 - Medicaid TANF
+      weights:
+      - 0.34
+      - 0.24
+      - 0.08
+      - 0.04
+      - 0.1
+      - 0.07
+      - 0.08
+      - 0.05
+  - column: id_type
+    strategy: CATEGORICAL_VALUES
+    domain:
+      values:
+      - SUBSCRIBER_ID
+      - MEMBER_ID
+      - MEDICARE_MBI
+      - MEDICAID_ID
+      - ALT_MEMBER_ID
+      - EMPLOYEE_ID
+      weights:
+      - 0.34
+      - 0.3
+      - 0.1
+      - 0.09
+      - 0.1
+      - 0.07

@@ -1,0 +1,81 @@
+metric_view_designs:
+  - metric_view:
+      name: member_claims_metric_view_v2
+      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`"
+      source_table: fact_claim_detail_enriched_v2
+      source_fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_claim_detail_enriched_v2
+      source_grain: one row represents a claim detail/service line enriched with one claim header
+    measures:
+      - {name: Total Claims, expr: COUNT(DISTINCT clm_dtl_claim_id), kpis: [C-1]}
+      - {name: Total Claim Lines, expr: COUNT(*), kpis: [C-2]}
+      - {name: Total Paid Amount, expr: SUM(clm_dtl_paid_amt), kpis: [C-3]}
+      - {name: Average Paid per Claim, expr: "MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Claims`), 0)", kpis: [C-4]}
+      - {name: Denial Rate, expr: "MEASURE(`Denied Lines`) / NULLIF(MEASURE(`Total Claim Lines`), 0)", kpis: [ADD-1]}
+      - {name: Clean Claim Rate, expr: "MEASURE(`Clean Claim Lines`) / NULLIF(MEASURE(`Total Claim Lines`), 0)", kpis: [ADD-2]}
+      - {name: Payment-to-Billed Ratio, expr: "MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Billed Amount`), 0)", kpis: [ADD-3]}
+      - {name: Payment-to-Allowed Ratio, expr: "MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Total Allowed Amount`), 0)", kpis: [ADD-4]}
+      - {name: Average Paid per Member, expr: "MEASURE(`Total Paid Amount`) / NULLIF(MEASURE(`Unique Claiming Members`), 0)", kpis: [ADD-5]}
+      - {name: Claims per Member, expr: "MEASURE(`Total Claims`) / NULLIF(MEASURE(`Unique Claiming Members`), 0)", kpis: [ADD-6]}
+      - {name: Lines per Claim, expr: "MEASURE(`Total Claim Lines`) / NULLIF(MEASURE(`Total Claims`), 0)", kpis: [ADD-7]}
+      - {name: Inpatient Paid Amount, expr: conditional SUM on clm_dtl_claim_type, kpis: [ADD-8]}
+      - {name: Outpatient Paid Amount, expr: conditional SUM on clm_dtl_claim_type, kpis: [ADD-9]}
+      - {name: Participating Provider Rate, expr: "MEASURE(`Participating Provider Paid Amount`) / NULLIF(MEASURE(`Total Paid Amount`), 0)", kpis: [ADD-10]}
+    dimensions: [service_month, service_date, claim_type, benefit_category, benefit_level, line_status, adjudication_status, clean_claim_indicator, place_of_service, procedure_code, revenue_code, rendering_provider_type, rendering_provider_specialty, participating_provider, line_of_business, plan_code]
+    joins: []
+    kpis_supported: [C-1, C-2, C-3, C-4, ADD-1, ADD-2, ADD-3, ADD-4, ADD-5, ADD-6, ADD-7, ADD-8, ADD-9, ADD-10]
+    kpis_skipped: []
+    data_quality_blockers: []
+  - metric_view:
+      name: member_claims_enrollment_metric_view_v2
+      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v2`"
+      source_table: fact_member_enrollment_enriched_v2
+      source_fqn: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_enriched_v2
+      source_grain: one row represents a member enrollment event/coverage period enriched with member demographics
+    measures:
+      - {name: Active Members, expr: COUNT(DISTINCT member_sk), kpis: [M-2, M-3]}
+      - {name: New Member Enrollment, expr: COUNT(DISTINCT member_sk), kpis: [M-1]}
+      - {name: Member Months, expr: COUNT DISTINCT member-month key, kpis: [M-2]}
+      - {name: Enrollment Records, expr: COUNT(*), kpis: [M-1, M-2, M-3]}
+    dimensions: [service_month, effective_date, termination_date, line_of_business, state, zip_code, sex, race, ethnicity, plan_id, product_id, enrollment_status, group_name, subgroup_name]
+    joins: []
+    kpis_supported: [M-1, M-2, M-3]
+    kpis_skipped: []
+    data_quality_blockers: []
+not_implemented_kpis:
+  - {kpi: MC-1, name: PMPM, reason: Cross-grain ratio requires claims numerator plus enrollment denominator, reference_sql: See metric_view_plan.yaml}
+  - {kpi: MC-2, name: Claims per 1,000 Members, reason: Cross-grain ratio requires claims numerator plus enrollment denominator, reference_sql: See metric_view_plan.yaml}
+  - {kpi: MC-3, name: Utilization Rate, reason: Cross-grain ratio requires claims and enrollment facts, reference_sql: See metric_view_plan.yaml}
+  - {kpi: MC-4, name: High-Cost Member Count, reason: Requires member-level pre-aggregation and HAVING threshold, reference_sql: See metric_view_plan.yaml}
+  - {kpi: W-1, name: Rolling 3-Month PMPM, reason: Requires rolling window over cross-grain monthly aggregates, reference_sql: See metric_view_plan.yaml}
+  - {kpi: W-2, name: MoM Active Member Growth, reason: Requires LAG offset window SQL, reference_sql: See metric_view_plan.yaml}
+intermediate_views:
+  - name: fact_claim_detail_enriched_v2
+    source_tables: [fact_claim_detail_v2, fact_claim_header_v2]
+    join_type: N:1
+    fanout_check: PASS
+    source_rows: 2000
+    joined_rows: 2000
+  - name: fact_member_enrollment_enriched_v2
+    source_tables: [fact_member_enrollment_v2, dim_member_v2]
+    join_type: N:1
+    fanout_check: PASS
+    source_rows: 1500
+    joined_rows: 1500
+coverage_table:
+  - {kpi: M-1, source: fact_member_enrollment_enriched_v2, grain: enrollment period, measure: New Member Enrollment, join_safety: PASS, status: READY}
+  - {kpi: M-2, source: fact_member_enrollment_enriched_v2, grain: enrollment period, measure: Active Members, join_safety: PASS, status: READY}
+  - {kpi: M-3, source: fact_member_enrollment_enriched_v2, grain: enrollment period enriched with geography, measure: Active Members, join_safety: PASS, status: READY}
+  - {kpi: C-1, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Total Claims, join_safety: PASS, status: READY}
+  - {kpi: C-2, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Total Claim Lines, join_safety: PASS, status: READY}
+  - {kpi: C-3, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Total Paid Amount, join_safety: PASS, status: READY}
+  - {kpi: C-4, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Average Paid per Claim, join_safety: PASS, status: READY}
+  - {kpi: ADD-1, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Denial Rate, join_safety: PASS, status: READY}
+  - {kpi: ADD-2, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Clean Claim Rate, join_safety: PASS, status: READY}
+  - {kpi: ADD-3, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Payment-to-Billed Ratio, join_safety: PASS, status: READY}
+  - {kpi: ADD-4, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Payment-to-Allowed Ratio, join_safety: PASS, status: READY}
+  - {kpi: ADD-5, source: fact_claim_detail_enriched_v2, grain: claim line enriched with member, measure: Average Paid per Member, join_safety: PASS, status: READY}
+  - {kpi: ADD-6, source: fact_claim_detail_enriched_v2, grain: claim line enriched with member, measure: Claims per Member, join_safety: PASS, status: READY}
+  - {kpi: ADD-7, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Lines per Claim, join_safety: PASS, status: READY}
+  - {kpi: ADD-8, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Inpatient Paid Amount, join_safety: PASS, status: READY}
+  - {kpi: ADD-9, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Outpatient Paid Amount, join_safety: PASS, status: READY}
+  - {kpi: ADD-10, source: fact_claim_detail_enriched_v2, grain: claim line, measure: Participating Provider Rate, join_safety: PASS, status: READY}

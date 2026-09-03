@@ -113,3 +113,18 @@ llm:
 validation:
   require_all_kpis: true
   min_benchmark_questions: 15
+# Quality gates — configurable thresholds for gate_checks.py programmatic enforcement.
+# These override the defaults in framework/templates/gate_checks.py.
+# If a key is omitted, gate_checks.py uses its built-in DEFAULT_QUALITY_GATES.
+quality_gates:
+  # Dashboard thresholds
+  min_widgets_per_canvas_page: 2    # Minimum widgets on each canvas page (rejects empty pages)
+  min_filters_per_dashboard: 3      # Minimum filter widgets per dashboard
+  min_datasets_per_dashboard: 1     # Minimum datasets per dashboard
+  min_canvas_pages_per_dashboard: 1  # Minimum canvas pages (KPI spec may require more)
+  # Genie thresholds
+  min_genie_instruction_chars: 200   # Minimum instruction text length
+  min_genie_tables: 1                # Minimum metric views attached
+  min_genie_sample_questions: 5      # Minimum sample questions in UI
+  min_genie_example_sqls: 5          # Minimum example SQL teaching queries
+  min_genie_description_chars: 50    # Minimum space description length

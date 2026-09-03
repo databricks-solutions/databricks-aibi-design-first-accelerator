@@ -1,0 +1,93 @@
+metric_view_plan:
+  total_kpis: 22
+  implementable_in_metric_views: 16
+  not_implemented: 6
+  metric_views:
+    - name: member_claims_metric_view_v2
+      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`"
+      source: fact_claim_detail_enriched_v2
+      primary: true
+      intermediate_view:
+        name: fact_claim_detail_enriched_v2
+        sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_claim_detail_enriched_v2`"
+        join_sql: |
+          SELECT d.*, h.clm_member_sk, h.clm_line_of_business, h.clm_plan_code,
+                 h.clm_is_par_submitting_provider, h.clm_is_par_referring_provider,
+                 h.clm_is_par_rendering_provider, h.clm_claim_thru_date
+          FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_claim_detail_v2` d
+          JOIN `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_claim_header_v2` h
+            ON d.clm_dtl_claim_id = h.clm_id
+        join_type: "N:1 (fact_claim_detail_v2 to fact_claim_header_v2)"
+        fanout_validated: true
+        source_rows: 2000
+        joined_rows: 2000
+      grain: one row represents a claim detail/service line enriched with one claim header
+      kpis: [C-1, C-2, C-3, C-4, ADD-1, ADD-2, ADD-3, ADD-4, ADD-5, ADD-6, ADD-7, ADD-8, ADD-9, ADD-10]
+    - name: member_claims_enrollment_metric_view_v2
+      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v2`"
+      source: fact_member_enrollment_enriched_v2
+      primary: false
+      grain_qualifier: enrollment
+      intermediate_view:
+        name: fact_member_enrollment_enriched_v2
+        sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_member_enrollment_enriched_v2`"
+        join_sql: |
+          SELECT e.*, m.mbr_state, m.mbr_zip_code, m.mbr_sex, m.mbr_race, m.mbr_ethnicity
+          FROM `aw_serverless_stable_catalog`.`aibi_member_claims`.`fact_member_enrollment_v2` e
+          JOIN `aw_serverless_stable_catalog`.`aibi_member_claims`.`dim_member_v2` m
+            ON e.member_sk = m.member_sk
+        join_type: "N:1 (fact_member_enrollment_v2 to dim_member_v2)"
+        fanout_validated: true
+        source_rows: 1500
+        joined_rows: 1500
+      grain: one row represents a member enrollment event or enrollment coverage period enriched with member demographics
+      kpis: [M-1, M-2, M-3]
+  not_implemented:
+    - kpi: MC-1
+      name: PMPM
+      reason: Requires cross-grain ratio between claim paid numerator and enrollment member-month denominator. Metric view measures cannot safely compose measures across two metric views/source grains.
+      status: NOT_IMPLEMENTED
+      documentation_only: true
+      sql: "See validated reference SQL in prior execution output; query returned one row."
+      validated: true
+      validation_row_count: 1
+    - kpi: MC-2
+      name: Claims per 1,000 Members
+      reason: Requires cross-grain ratio between claim count and enrollment member-month denominator; cannot be expressed in one metric view without unsafe fact-to-fact fanout.
+      status: NOT_IMPLEMENTED
+      documentation_only: true
+      sql: "See validated reference SQL in prior execution output; query returned one row."
+      validated: true
+      validation_row_count: 1
+    - kpi: MC-3
+      name: Utilization Rate
+      reason: Requires members with claims from claim header and active enrolled members from enrollment source; cross-grain ratio not safe in a single metric view.
+      status: NOT_IMPLEMENTED
+      documentation_only: true
+      sql: "See validated reference SQL in prior execution output; query returned one row."
+      validated: true
+      validation_row_count: 1
+    - kpi: MC-4
+      name: High-Cost Member Count
+      reason: Requires pre-aggregation to member level and threshold/HAVING filter over SUM(paid); not expressible as a simple metric view measure without subquery/HAVING.
+      status: NOT_IMPLEMENTED
+      documentation_only: true
+      sql: "WITH paid_by_member AS (...) SELECT COUNT(*) AS high_cost_member_count FROM paid_by_member WHERE member_paid > 10000"
+      validated: true
+      validation_row_count: 1
+    - kpi: W-1
+      name: Rolling 3-Month PMPM
+      reason: Requires rolling window over separately aggregated cross-grain numerator and denominator.
+      status: NOT_IMPLEMENTED
+      documentation_only: true
+      sql: "See validated reference SQL in prior execution output; query returned one row."
+      validated: true
+      validation_row_count: 1
+    - kpi: W-2
+      name: MoM Active Member Growth
+      reason: Requires prior-period offset/LAG over monthly active members; documented as dashboard SQL dataset per KPI spec fallback.
+      status: NOT_IMPLEMENTED
+      documentation_only: true
+      sql: "See validated reference SQL in prior execution output; query returned one row."
+      validated: true
+      validation_row_count: 1

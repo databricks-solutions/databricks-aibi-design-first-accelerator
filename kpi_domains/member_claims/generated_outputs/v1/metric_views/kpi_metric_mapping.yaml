@@ -1,285 +1,103 @@
-- kpi_id: M-1
-  kpi_name: New Member Enrollment
-  business_definition: Count distinct members entering coverage in the period.
-  status: READY
-  required_grain: member enrollment event/span
-  measure_components:
-    - {physical_table: fact_member_enrollment_v1, physical_column: member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, enrollment_status, line_of_business, plan_id]
-  time_dimension: mbr_enr_effective_date
-  aggregation_semantics: DISTINCT_COUNT
-  validation_strategy: compare COUNT(DISTINCT member_sk) from enrollment by effective month to metric view measure
-  gaps: []
-- kpi_id: M-2
-  kpi_name: Members by Line of Business
-  business_definition: Active member distribution across products/lines of business.
-  status: READY
-  required_grain: member enrollment event/span
-  measure_components:
-    - {physical_table: fact_member_enrollment_v1, physical_column: member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, line_of_business, plan_id, enrollment_status]
-  time_dimension: mbr_enr_effective_date
-  aggregation_semantics: SEMI_ADDITIVE
-  validation_strategy: compare COUNT(DISTINCT member_sk) by mbr_enr_line_of_business
-  gaps: [Enrollment source is event/span, not expanded member-month snapshot; do not sum across time.]
-- kpi_id: M-3
-  kpi_name: Members by Geography
-  business_definition: Active member population by geography.
-  status: READY
-  required_grain: member enrollment event/span with member dimension
-  measure_components:
-    - {physical_table: fact_member_enrollment_v1, physical_column: member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, member_state, member_zip, enrollment_status]
-  time_dimension: mbr_enr_effective_date
-  aggregation_semantics: SEMI_ADDITIVE
-  validation_strategy: compare enrollment COUNT(DISTINCT member_sk) grouped through safe member join
-  gaps: []
 - kpi_id: C-1
   kpi_name: Total Claims
-  business_definition: Count distinct claims.
   status: READY
-  required_grain: claim service line/detail line
+  required_grain: claim
   measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_claim_id, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, claim_type, line_status, benefit_category, line_of_business]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: DISTINCT_COUNT
-  validation_strategy: compare COUNT(DISTINCT clm_dtl_claim_id) to metric view measure
-  gaps: []
-- kpi_id: C-2
-  kpi_name: Total Claim Lines
-  business_definition: Count claim service lines.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: '*', aggregation: COUNT}
-  dimensions: [service_month, claim_type, line_status, benefit_category]
-  time_dimension: clm_dtl_specific_dos_date
+  - physical_table: fact_claim_header
+    physical_column: clm_claim_id
+    aggregation: COUNT_DISTINCT
   aggregation_semantics: ADDITIVE
-  validation_strategy: compare COUNT(*) to metric view measure
-  gaps: []
 - kpi_id: C-3
   kpi_name: Total Paid Amount
-  business_definition: Sum paid amount across claim lines.
   status: READY
-  required_grain: claim service line/detail line
+  required_grain: claim_line
   measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-  dimensions: [service_month, claim_type, line_status, benefit_category]
-  time_dimension: clm_dtl_specific_dos_date
+  - physical_table: fact_claim_detail
+    physical_column: clm_dtl_paid_amt
+    aggregation: SUM
   aggregation_semantics: ADDITIVE
-  validation_strategy: compare SUM(clm_dtl_paid_amt) to metric view measure
-  gaps: []
+- kpi_id: C-2
+  kpi_name: Total Claim Lines
+  status: READY
+  required_grain: claim_line
+  measure_components:
+  - physical_table: fact_claim_detail
+    physical_column: '*'
+    aggregation: COUNT
+  aggregation_semantics: ADDITIVE
 - kpi_id: C-4
   kpi_name: Average Paid per Claim
-  business_definition: Total paid divided by distinct claim count.
   status: READY
-  required_grain: claim service line/detail line
+  required_grain: claim_line
   measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_claim_id, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, claim_type]
-  time_dimension: clm_dtl_specific_dos_date
+  - physical_table: fact_claim_detail
+    physical_column: clm_dtl_paid_amt
+    aggregation: SUM
+  - physical_table: fact_claim_detail
+    physical_column: clm_dtl_claim_id
+    aggregation: COUNT_DISTINCT
   aggregation_semantics: RATIO
-  validation_strategy: compare SUM(paid)/COUNT(DISTINCT claim) to metric view derived measure
-  gaps: []
+- kpi_id: M-2
+  kpi_name: Members by Line of Business
+  status: READY
+  required_grain: enrollment
+  measure_components:
+  - physical_table: fact_member_enrollment
+    physical_column: member_sk
+    aggregation: COUNT_DISTINCT
+  aggregation_semantics: SEMI_ADDITIVE
+- kpi_id: M-3
+  kpi_name: Members by Geography
+  status: READY
+  required_grain: enrollment
+  measure_components:
+  - physical_table: fact_member_enrollment
+    physical_column: member_sk
+    aggregation: COUNT_DISTINCT
+  aggregation_semantics: SEMI_ADDITIVE
+- kpi_id: denial_rate
+  kpi_name: Denial Rate
+  status: READY
+  required_grain: claim_line
+  aggregation_semantics: RATIO
+- kpi_id: clean_claim_rate
+  kpi_name: Clean Claim Rate
+  status: READY
+  required_grain: claim_line
+  aggregation_semantics: RATIO
+- kpi_id: payment_to_billed
+  kpi_name: Payment-to-Billed Ratio
+  status: READY
+  required_grain: claim_line
+  aggregation_semantics: RATIO
 - kpi_id: MC-1
   kpi_name: PMPM
-  business_definition: Cost per member per month.
-  status: UNSUPPORTED
-  required_grain: conformed month/member-month plus claim cost
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-    - {physical_table: fact_member_enrollment_v1, physical_column: member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month]
-  time_dimension: service_month
-  aggregation_semantics: RATIO
-  validation_strategy: not implemented in metric view; requires span-expanded member-month denominator and conformed aggregate source
-  gaps: [No member-month exposure table or span-expanded monthly enrollment table exists.]
-- kpi_id: MC-2
-  kpi_name: Claims per 1000 Members
-  business_definition: Claim frequency normalized by member-month population.
-  status: UNSUPPORTED
-  required_grain: conformed month/member-month plus claim count
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_claim_id, aggregation: COUNT_DISTINCT}
-    - {physical_table: fact_member_enrollment_v1, physical_column: member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month]
-  time_dimension: service_month
-  aggregation_semantics: RATIO
-  validation_strategy: not implemented; same denominator gap as PMPM
-  gaps: [No member-month exposure table exists.]
-- kpi_id: MC-3
-  kpi_name: Utilization Rate
-  business_definition: Share of active enrolled members who used services.
-  status: UNSUPPORTED
-  required_grain: conformed member/month utilization aggregate
-  measure_components:
-    - {physical_table: fact_claim_header_v1, physical_column: clm_member_sk, aggregation: COUNT_DISTINCT}
-    - {physical_table: fact_member_enrollment_v1, physical_column: member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month]
-  time_dimension: service_month
-  aggregation_semantics: RATIO
-  validation_strategy: not implemented; requires combining claim and enrollment facts at conformed month grain
-  gaps: [No conformed monthly utilization aggregate exists.]
+  status: NOT_IMPLEMENTED
+  reason: Requires fact-to-fact join (claims+enrollment) which has data quality gap
+    in this run
 - kpi_id: MC-4
   kpi_name: High-Cost Member Count
-  business_definition: Members whose spend exceeds 10000.
-  status: UNSUPPORTED
-  required_grain: pre-aggregated member spend
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-  dimensions: [service_month]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: WINDOW
-  validation_strategy: not implemented as metric view; requires HAVING/pre-aggregation threshold
-  gaps: [Metric view measure cannot express COUNT DISTINCT members filtered by aggregate spend threshold without pre-aggregation.]
+  status: NOT_IMPLEMENTED
+  reason: Requires HAVING clause (member_paid > $10,000) not expressible in metric
+    view
 - kpi_id: W-1
   kpi_name: Rolling 3-Month PMPM
-  business_definition: Rolling 3 month PMPM using separately rolled paid and member-months.
-  status: UNSUPPORTED
-  required_grain: conformed monthly PMPM aggregate
-  measure_components: []
-  dimensions: [service_month]
-  time_dimension: service_month
-  aggregation_semantics: WINDOW
-  validation_strategy: not implemented due missing member-month denominator
-  gaps: [Depends on unsupported PMPM denominator.]
+  status: NOT_IMPLEMENTED
+  reason: Window measure requires trailing aggregation on PMPM ratio
 - kpi_id: W-2
   kpi_name: MoM Active Member Growth
-  business_definition: Month-over-month active member growth.
-  status: UNSUPPORTED
-  required_grain: monthly active member aggregate
-  measure_components:
-    - {physical_table: fact_member_enrollment_v1, physical_column: member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month]
-  time_dimension: mbr_enr_effective_date
-  aggregation_semantics: WINDOW
-  validation_strategy: not implemented as metric view; reference SQL uses LAG
-  gaps: [Requires LAG/offset over monthly aggregate.]
-- kpi_id: D-1
-  kpi_name: Denial Rate
-  business_definition: Denied claim lines divided by total claim lines.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_line_status, aggregation: COUNT}
-  dimensions: [service_month, claim_type, line_status]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare conditional SUM line status to COUNT(*) ratio
-  gaps: []
-- kpi_id: D-2
-  kpi_name: Clean Claim Rate
-  business_definition: Clean claim lines divided by total claim lines.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_clean_claim_ind, aggregation: COUNT}
-  dimensions: [service_month, claim_type]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare conditional SUM clean indicator to COUNT(*) ratio
-  gaps: []
-- kpi_id: D-3
-  kpi_name: Payment-to-Billed Ratio
-  business_definition: Total paid divided by billed amount.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_billed_amt, aggregation: SUM}
-  dimensions: [service_month, claim_type]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare SUM(paid)/SUM(billed)
-  gaps: []
-- kpi_id: D-4
-  kpi_name: Payment-to-Allowed Ratio
-  business_definition: Total paid divided by allowed amount.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_allowed_amt, aggregation: SUM}
-  dimensions: [service_month, claim_type]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare SUM(paid)/SUM(allowed)
-  gaps: []
-- kpi_id: D-5
-  kpi_name: Average Paid per Member
-  business_definition: Total paid divided by unique claiming members.
-  status: READY
-  required_grain: enriched claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-    - {physical_table: fact_claim_header_v1, physical_column: clm_member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, line_of_business]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare enriched detail SUM(paid)/COUNT(DISTINCT clm_member_sk)
-  gaps: []
-- kpi_id: D-6
-  kpi_name: Claims per Member
-  business_definition: Distinct claims divided by unique claiming members.
-  status: READY
-  required_grain: enriched claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_claim_id, aggregation: COUNT_DISTINCT}
-    - {physical_table: fact_claim_header_v1, physical_column: clm_member_sk, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, line_of_business]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare COUNT(DISTINCT claim)/COUNT(DISTINCT member)
-  gaps: []
-- kpi_id: D-7
-  kpi_name: Lines per Claim
-  business_definition: Claim lines divided by distinct claims.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: '*', aggregation: COUNT}
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_claim_id, aggregation: COUNT_DISTINCT}
-  dimensions: [service_month, claim_type]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare COUNT(*)/COUNT(DISTINCT claim)
-  gaps: []
-- kpi_id: D-8
-  kpi_name: Inpatient Paid Amount
-  business_definition: Paid amount for institutional/inpatient claim type.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-  dimensions: [service_month, claim_type]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: ADDITIVE
-  validation_strategy: compare filtered SUM paid for institutional claim type
-  gaps: []
-- kpi_id: D-9
-  kpi_name: Outpatient Paid Amount
-  business_definition: Paid amount for professional/outpatient claim type.
-  status: READY
-  required_grain: claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-  dimensions: [service_month, claim_type]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: ADDITIVE
-  validation_strategy: compare filtered SUM paid for professional claim type
-  gaps: []
-- kpi_id: D-10
-  kpi_name: Participating Provider Rate
-  business_definition: Paid amount associated with participating providers divided by total paid.
-  status: READY
-  required_grain: enriched claim service line/detail line
-  measure_components:
-    - {physical_table: fact_claim_detail_v1, physical_column: clm_dtl_paid_amt, aggregation: SUM}
-    - {physical_table: fact_claim_header_v1, physical_column: clm_is_par_rendering_provider, aggregation: SUM}
-  dimensions: [service_month, line_of_business]
-  time_dimension: clm_dtl_specific_dos_date
-  aggregation_semantics: RATIO
-  validation_strategy: compare SUM paid where par flag true divided by total paid
-  gaps: []
+  status: NOT_IMPLEMENTED
+  reason: Requires LAG() window function
+- kpi_id: M-1
+  kpi_name: New Member Enrollment
+  status: SKIPPED_MISSING_DATA
+  reason: Requires SCD2 history with valid_from_date; dim_member_history available
+    but no enrollment period linkage
+- kpi_id: MC-2
+  kpi_name: Claims per 1,000 Members
+  status: NOT_IMPLEMENTED
+  reason: Requires cross-grain computation (claims / member_months * 1000)
+- kpi_id: MC-3
+  kpi_name: Utilization Rate
+  status: NOT_IMPLEMENTED
+  reason: Requires cross-grain (claims members / enrolled members)

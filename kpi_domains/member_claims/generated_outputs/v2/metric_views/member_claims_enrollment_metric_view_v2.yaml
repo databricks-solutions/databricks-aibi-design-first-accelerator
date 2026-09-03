@@ -1,0 +1,63 @@
+version: 1.1
+comment: "Member Claims enrollment/member metric view sourced from pre-validated enrollment records enriched with member demographics."
+source: aw_serverless_stable_catalog.aibi_member_claims.fact_member_enrollment_enriched_v2
+fields:
+  - name: service_month
+    expr: DATE_TRUNC('MONTH', mbr_enr_effective_date)
+    comment: "Common month dimension based on enrollment effective date."
+  - name: effective_date
+    expr: mbr_enr_effective_date
+    comment: "Enrollment effective date."
+  - name: termination_date
+    expr: mbr_enr_termination_date
+    comment: "Enrollment termination date."
+  - name: line_of_business
+    expr: mbr_enr_line_of_business
+    comment: "Enrollment line of business."
+  - name: state
+    expr: mbr_state
+    comment: "Member state from member dimension."
+  - name: zip_code
+    expr: mbr_zip_code
+    comment: "Member ZIP code from member dimension."
+  - name: sex
+    expr: mbr_sex
+    comment: "Member sex."
+  - name: race
+    expr: mbr_race
+    comment: "Member race."
+  - name: ethnicity
+    expr: mbr_ethnicity
+    comment: "Member ethnicity."
+  - name: plan_id
+    expr: mbr_enr_plan_id
+    comment: "Enrollment plan identifier."
+  - name: product_id
+    expr: mbr_enr_product_id
+    comment: "Enrollment product identifier."
+  - name: enrollment_status
+    expr: mbr_enr_status
+    comment: "Enrollment status."
+  - name: group_name
+    expr: mbr_enr_group_name
+    comment: "Enrollment group name."
+  - name: subgroup_name
+    expr: mbr_enr_subgroup_name
+    comment: "Enrollment subgroup name."
+measures:
+  - name: Active Members
+    expr: COUNT(DISTINCT member_sk)
+    comment: "Distinct enrolled members."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: New Member Enrollment
+    expr: COUNT(DISTINCT member_sk)
+    comment: "Distinct members entering coverage by enrollment effective period."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: Member Months
+    expr: COUNT(DISTINCT CONCAT(CAST(member_sk AS STRING), '-', CAST(DATE_TRUNC('MONTH', mbr_enr_effective_date) AS STRING)))
+    comment: "Distinct member-month exposure based on enrollment effective month."
+    format: {type: number, decimal_places: {type: exact, places: 0}}
+  - name: Enrollment Records
+    expr: COUNT(*)
+    comment: "Enrollment fact row count."
+    format: {type: number, decimal_places: {type: exact, places: 0}}

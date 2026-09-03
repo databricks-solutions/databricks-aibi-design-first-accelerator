@@ -113,12 +113,33 @@ for i, (q, _) in enumerate(BENCHMARK_QUESTIONS, 1):
 # =============================================================================
 
 import json
+import os
+import sys
 import uuid
 from databricks.sdk import WorkspaceClient
 
 # Use SDK for API calls — NEVER raw requests + extracted token
 # (raw requests violates safety rules and doesn't work in all contexts)
 w = WorkspaceClient()
+
+# ── Gate Checks integration — programmatic enforcement layer ──
+# gate_checks.py provides runtime assertions that PREVENT deployment of
+# empty/incomplete Genie spaces (no instructions, no tables, no questions).
+_gate_checks_loaded = False
+try:
+    _templates_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else None
+    if _templates_dir and _templates_dir not in sys.path:
+        sys.path.insert(0, _templates_dir)
+    from gate_checks import (
+        run_genie_predeploy_gates,
+        validate_genie_from_api,
+        write_ground_truth_validation,
+        GateCheckError,
+    )
+    _gate_checks_loaded = True
+    print("✅ gate_checks loaded — programmatic Genie enforcement active")
+except ImportError:
+    print("⚠️  gate_checks.py not found — using template assertions only (reduced safety)")
 
 def validate_genie_config(
     table_identifiers: list,
@@ -319,6 +340,20 @@ print("✅ Helper functions loaded: get_workspace_url, get_api_headers, build_se
 # Run this cell to apply the configuration from Cells 2–7.
 # =============================================================================
 
+# ── LAYER 1: Pre-deploy gate enforcement ──
+# When gate_checks is loaded, this runs comprehensive checks that
+# physically block API creation of empty/incomplete Genie spaces.
+if _gate_checks_loaded:
+    run_genie_predeploy_gates(
+        title=SPACE_TITLE,
+        description=SPACE_DESCRIPTION,
+        table_identifiers=TABLE_IDENTIFIERS,
+        general_instructions=GENERAL_INSTRUCTIONS,
+        sample_questions=SAMPLE_QUESTIONS,
+        example_sqls=EXAMPLE_QUESTION_SQLS,
+    )
+    print("  Pre-deploy gates PASSED — proceeding to API call")
+
 serialised = build_serialized_space(
     general_instructions=GENERAL_INSTRUCTIONS,
     metric_view_descriptions=METRIC_VIEW_DESCRIPTIONS,
@@ -377,6 +412,19 @@ print(f"   Tables      : {TABLE_IDENTIFIERS}")
 if not SPACE_ID:
     print(f"\n\u26a0\ufe0f  Copy this ID into Cell 2 for future updates:")
     print(f'   SPACE_ID = "{new_id}"')
+
+# ── LAYER 2: Post-deploy API readback validation ──
+# Reads the space back from the API and verifies the deployed content
+# is non-empty (instructions, tables, questions all present).
+if _gate_checks_loaded:
+    try:
+        post_deploy_result = validate_genie_from_api(new_id, SPACE_TITLE)
+        print(f"\n\u2705 Post-deploy gate PASSED — API readback verified")
+    except GateCheckError as e:
+        print(f"\n\u274c POST-DEPLOY GATE FAILED for '{SPACE_TITLE}':")
+        print(f"   {str(e)[:300]}")
+        raise
+
 # Exit with space_id so orchestrator can validate without list API
 dbutils.notebook.exit(json.dumps({"space_id": new_id, "title": result.get("title", SPACE_TITLE)}))
 

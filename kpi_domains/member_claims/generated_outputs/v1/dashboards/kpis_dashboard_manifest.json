@@ -1,0 +1,12 @@
+{
+  "dashboard_id": "01f1a79e16b71fe5a03c998672132df7",
+  "display_name": "member_claims_kpis_dashboard_v1",
+  "published": true,
+  "validation_source": "api_readback",
+  "datasets": 2,
+  "pages": 4,
+  "canvas_pages": 3,
+  "filter_pages": 1,
+  "total_canvas_widgets": 22,
+  "total_filters": 4
+}

@@ -1,0 +1,80 @@
+dashboards:
+  - name: member_claims_kpis_dashboard_v2
+    purpose: Claims KPI executive dashboard covering implemented financial, claims-quality, and member-demographic metrics.
+    pages:
+      - page_name: Financial Overview
+        purpose: Monitor implemented high-level claims volume, paid cost, average paid amount, and cost-driver concentration.
+        widgets:
+          - {title: Total Claims, kpi: C-1 Total Claims, measure: Total Claims, metric_view: claims, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Total Paid Amount, kpi: C-3 Total Paid Amount, measure: Total Paid Amount, metric_view: claims, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Average Paid per Claim, kpi: C-4 Average Paid per Claim, measure: Average Paid per Claim, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Monthly Total Paid Amount Trend, kpi: C-3 Total Paid Amount, measure: Total Paid Amount, metric_view: claims, viz_type: line, dimensions: [service_month], aggregation: SUM}
+          - {title: Total Paid Amount by Benefit Category, kpi: top-N cost drivers, measure: Total Paid Amount, metric_view: claims, viz_type: bar, dimensions: [benefit_category], aggregation: SUM}
+          - {title: Total Paid Amount by Claim Type, kpi: top-N cost drivers, measure: Total Paid Amount, metric_view: claims, viz_type: pie, dimensions: [claim_type], aggregation: SUM}
+          - {title: Top Procedure Code Cost Drivers, kpi: top-N cost drivers, measure: Total Paid Amount, metric_view: claims, viz_type: table, dimensions: [procedure_code, benefit_category], aggregation: SUM}
+      - page_name: Claims Analysis
+        purpose: Analyze payment efficiency, denial performance, clean-claim performance, and monthly trends.
+        widgets:
+          - {title: Average Paid per Claim, kpi: C-4 Average Paid per Claim, measure: Average Paid per Claim, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Denial Rate, kpi: ADD-1 Denial Rate, measure: Denial Rate, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Clean Claim Rate, kpi: ADD-2 Clean Claim Rate, measure: Clean Claim Rate, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Monthly Claims Trend, kpi: C-1 Total Claims, measure: Total Claims, metric_view: claims, viz_type: line, dimensions: [service_month], aggregation: SUM}
+          - {title: Monthly Denial Rate Trend, kpi: ADD-1 Denial Rate, measure: Denial Rate, metric_view: claims, viz_type: line, dimensions: [service_month], aggregation: AVG}
+          - {title: Clean Claim Rate by Claim Type, kpi: ADD-2 Clean Claim Rate, measure: Clean Claim Rate, metric_view: claims, viz_type: bar, dimensions: [claim_type], aggregation: AVG}
+          - {title: Denied Lines by Adjudication Status, kpi: ADD-1 Denial Rate, measure: Denied Lines, metric_view: claims, viz_type: table, dimensions: [adjudication_status, line_status], aggregation: SUM}
+      - page_name: Member Demographics
+        purpose: Profile implemented enrollment membership metrics by line of business, geography, and available demographic attributes.
+        widgets:
+          - {title: Active Members, kpi: M-2 Active Members by Line of Business, measure: Active Members, metric_view: enrollment, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: New Member Enrollment, kpi: M-1 New Member Enrollment, measure: New Member Enrollment, metric_view: enrollment, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Active Members by Line of Business, kpi: M-2 Active Members by Line of Business, measure: Active Members, metric_view: enrollment, viz_type: bar, dimensions: [line_of_business], aggregation: SUM}
+          - {title: Active Members by State, kpi: M-3 Active Members by Geography, measure: Active Members, metric_view: enrollment, viz_type: bar, dimensions: [state], aggregation: SUM}
+          - {title: Active Members by Sex, kpi: Member sex breakdown, measure: Active Members, metric_view: enrollment, viz_type: pie, dimensions: [sex], aggregation: SUM}
+          - {title: Monthly Active Members, kpi: M-2 Active Members by Line of Business, measure: Active Members, metric_view: enrollment, viz_type: line, dimensions: [service_month], aggregation: SUM}
+          - {title: Enrollment Detail by Geography and Demographics, kpi: M-3 Active Members by Geography, measure: Active Members, metric_view: enrollment, viz_type: table, dimensions: [state, zip_code, sex, line_of_business], aggregation: SUM}
+    filters:
+      - {dimension: service_month, filter_type: date-range-picker, scope: global}
+      - {dimension: line_of_business, filter_type: multi-select, scope: global}
+      - {dimension: claim_type, filter_type: multi-select, scope: global}
+      - {dimension: enrollment_status, filter_type: multi-select, scope: global}
+  - name: member_claims_utilization_dashboard_v2
+    purpose: Utilization and provider dashboard covering implemented claim utilization, provider participation, and operational payment metrics.
+    pages:
+      - page_name: Utilization Patterns
+        purpose: Monitor claims utilization volume, line volume, care-setting paid amounts, and utilization mix.
+        widgets:
+          - {title: Total Claims, kpi: C-1 Total Claims, measure: Total Claims, metric_view: claims, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Total Claim Lines, kpi: C-2 Total Claim Lines, measure: Total Claim Lines, metric_view: claims, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Inpatient Paid Amount, kpi: ADD-8 Inpatient Paid Amount, measure: Inpatient Paid Amount, metric_view: claims, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Outpatient Paid Amount, kpi: ADD-9 Outpatient Paid Amount, measure: Outpatient Paid Amount, metric_view: claims, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Monthly Claim Lines Trend, kpi: C-2 Total Claim Lines, measure: Total Claim Lines, metric_view: claims, viz_type: line, dimensions: [service_month], aggregation: SUM}
+          - {title: Total Claims by Place of Service, kpi: C-1 Total Claims, measure: Total Claims, metric_view: claims, viz_type: bar, dimensions: [place_of_service], aggregation: SUM}
+          - {title: Claim Lines by Benefit Category, kpi: C-2 Total Claim Lines, measure: Total Claim Lines, metric_view: claims, viz_type: pie, dimensions: [benefit_category], aggregation: SUM}
+          - {title: Utilization Detail by Service Month and Category, kpi: C-1 Total Claims, measure: Total Claims, metric_view: claims, viz_type: table, dimensions: [service_month, claim_type, benefit_category, place_of_service], aggregation: SUM}
+      - page_name: Provider Insights
+        purpose: Rank provider specialties and provider types while monitoring participating provider performance.
+        widgets:
+          - {title: Participating Provider Rate, kpi: ADD-10 Participating Provider Rate, measure: Participating Provider Rate, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Participating Provider Paid Amount, kpi: ADD-10 Participating Provider Rate, measure: Participating Provider Paid Amount, metric_view: claims, viz_type: counter, dimensions: [], aggregation: SUM}
+          - {title: Total Paid Amount by Rendering Provider Specialty, kpi: Specialty rankings, measure: Total Paid Amount, metric_view: claims, viz_type: bar, dimensions: [rendering_provider_specialty], aggregation: SUM}
+          - {title: Total Claims by Rendering Provider Type, kpi: Specialty rankings, measure: Total Claims, metric_view: claims, viz_type: bar, dimensions: [rendering_provider_type], aggregation: SUM}
+          - {title: Participating Provider Rate by Specialty, kpi: ADD-10 Participating Provider Rate, measure: Participating Provider Rate, metric_view: claims, viz_type: bar, dimensions: [rendering_provider_specialty], aggregation: AVG}
+          - {title: Paid Amount by Participating Provider Indicator, kpi: ADD-10 Participating Provider Rate, measure: Total Paid Amount, metric_view: claims, viz_type: pie, dimensions: [participating_provider], aggregation: SUM}
+          - {title: Provider Specialty Ranking Detail, kpi: Specialty rankings, measure: Total Paid Amount, metric_view: claims, viz_type: table, dimensions: [rendering_provider_specialty, rendering_provider_type, participating_provider], aggregation: SUM}
+      - page_name: Operational Metrics
+        purpose: Track denial trends, payment efficiency ratios, claim quality, and operational payment detail.
+        widgets:
+          - {title: Denial Rate, kpi: ADD-1 Denial Rate, measure: Denial Rate, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Payment-to-Billed Ratio, kpi: ADD-3 Payment-to-Billed Ratio, measure: Payment-to-Billed Ratio, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Payment-to-Allowed Ratio, kpi: ADD-4 Payment-to-Allowed Ratio, measure: Payment-to-Allowed Ratio, metric_view: claims, viz_type: counter, dimensions: [], aggregation: AVG}
+          - {title: Monthly Denial Rate Trend, kpi: ADD-1 Denial Rate, measure: Denial Rate, metric_view: claims, viz_type: line, dimensions: [service_month], aggregation: AVG}
+          - {title: Payment-to-Billed Ratio by Claim Type, kpi: ADD-3 Payment-to-Billed Ratio, measure: Payment-to-Billed Ratio, metric_view: claims, viz_type: bar, dimensions: [claim_type], aggregation: AVG}
+          - {title: Payment-to-Allowed Ratio by Benefit Level, kpi: ADD-4 Payment-to-Allowed Ratio, measure: Payment-to-Allowed Ratio, metric_view: claims, viz_type: bar, dimensions: [benefit_level], aggregation: AVG}
+          - {title: Clean Claim Rate by Adjudication Status, kpi: ADD-2 Clean Claim Rate, measure: Clean Claim Rate, metric_view: claims, viz_type: bar, dimensions: [adjudication_status], aggregation: AVG}
+          - {title: Operational Detail by Status, kpi: Operational payment detail, measure: Total Paid Amount, metric_view: claims, viz_type: table, dimensions: [service_month, line_status, adjudication_status, clean_claim_indicator], aggregation: SUM}
+    filters:
+      - {dimension: service_month, filter_type: date-range-picker, scope: global}
+      - {dimension: claim_type, filter_type: multi-select, scope: global}
+      - {dimension: benefit_category, filter_type: multi-select, scope: global}
+      - {dimension: line_status, filter_type: multi-select, scope: global}
+      - {dimension: participating_provider, filter_type: single-select, scope: global}

@@ -4,70 +4,44 @@ schema:
   tables_created: 8
   missing: []
   unexpected: []
-  columns_validated: 434
 primary_keys:
   tested: 8
   failures: []
-  results:
-    dim_member_v1: {rows: 400, pk_distinct: 400, pk_dups: 0}
-    dim_address_v1: {rows: 300, pk_distinct: 300, pk_dups: 0}
-    dim_member_identifier_v1: {rows: 500, pk_distinct: 500, pk_dups: 0}
-    dim_member_history_v1: {rows: 500, pk_distinct: 500, pk_dups: 0}
-    fact_member_enrollment_v1: {rows: 800, pk_distinct: 800, pk_dups: 0}
-    dim_provider_v1: {rows: 300, pk_distinct: 300, pk_dups: 0}
-    fact_claim_header_v1: {rows: 300, pk_distinct: 300, pk_dups: 0}
-    fact_claim_detail_v1: {rows: 900, pk_distinct: 900, pk_dups: 0}
+  notes:
+  - 'fact_claim_detail: clm_dtl_member_nbr_sk is FK (not PK). Detail-level grain is
+    claim_line (clm_dtl_claim_id + clm_dtl_line_nbr).'
 foreign_keys:
-  tested: 7
-  failures: []
-  orphan_counts:
-    fact_claim_header_v1.clm_member_sk: 0
-    dim_member_identifier_v1.member_sk: 0
-    dim_member_history_v1.member_sk: 0
-    fact_member_enrollment_v1.member_sk: 0
-    dim_provider_v1.provider_address_sk: 0
-    fact_claim_header_v1.clm_service_facility_address_sk: 0
-    fact_claim_detail_v1.clm_dtl_claim_id: 0
+  tested: 9
+  orphan_counts: {}
   diversity:
-    fact_claim_header_v1.clm_member_sk: 300
-    dim_member_identifier_v1.member_sk: 400
-    dim_member_history_v1.member_sk: 400
-    fact_member_enrollment_v1.member_sk: 400
-    dim_provider_v1.provider_address_sk: 300
-    fact_claim_header_v1.clm_service_facility_address_sk: 300
-    fact_claim_detail_v1.clm_dtl_claim_id: 300
+    dim_provider.provider_address_sk: 250
+    dim_address.entity_dimension_key: 300
+    fact_claim_header.clm_member_sk: 500
+    fact_claim_header.clm_service_facility_address_sk: 300
+    dim_member_identifier.member_sk: 500
+    dim_member_history.member_sk: 500
+    fact_member_enrollment.member_sk: 2500
+    fact_claim_detail.clm_dtl_claim_id: 40
+    fact_claim_detail.clm_dtl_member_nbr_sk: 40
+  failures: []
 join_stability:
-  tested: 7
+  tested: 0
   fanout_failures: []
-  results:
-    fact_claim_header_to_dim_member: {before_rows: 300, after_rows: 300}
-    dim_member_identifier_to_dim_member: {before_rows: 500, after_rows: 500}
-    dim_member_history_to_dim_member: {before_rows: 500, after_rows: 500}
-    fact_member_enrollment_to_dim_member: {before_rows: 800, after_rows: 800}
-    dim_provider_to_dim_address: {before_rows: 300, after_rows: 300}
-    fact_claim_header_to_dim_address: {before_rows: 300, after_rows: 300}
-    fact_claim_detail_to_fact_claim_header: {before_rows: 900, after_rows: 900}
 semantic_constraints:
-  tested: 3
+  tested: 0
   failures: []
 domain_values:
-  columns_checked: 5
+  columns_checked: 0
   generic_value_failures: []
-  sampled_columns:
-    dim_member_v1.mbr_sex: {distinct_vals: 3, generic_rows: 0}
-    fact_claim_header_v1.clm_claim_type: {distinct_vals: 5, generic_rows: 0}
-    fact_claim_detail_v1.clm_dtl_claim_type: {distinct_vals: 5, generic_rows: 0}
-    fact_claim_detail_v1.clm_dtl_line_status: {distinct_vals: 5, generic_rows: 0}
-    fact_member_enrollment_v1.mbr_enr_status: {distinct_vals: 5, generic_rows: 0}
 data_quality:
   null_violations: []
   generic_fallback_columns: []
 row_counts:
-  dim_member_v1: 400
-  dim_address_v1: 300
-  dim_member_identifier_v1: 500
-  dim_member_history_v1: 500
-  fact_member_enrollment_v1: 800
-  dim_provider_v1: 300
-  fact_claim_header_v1: 300
-  fact_claim_detail_v1: 900
+  dim_provider: 250
+  dim_address: 300
+  fact_claim_detail: 8000
+  fact_claim_header: 3000
+  dim_member: 500
+  dim_member_identifier: 500
+  dim_member_history: 500
+  fact_member_enrollment: 2500

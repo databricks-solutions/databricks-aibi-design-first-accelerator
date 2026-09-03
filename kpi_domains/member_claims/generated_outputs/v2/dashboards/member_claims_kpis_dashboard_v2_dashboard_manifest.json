@@ -1,0 +1,25 @@
+{
+  "dashboard_id": "01f1a7afcc711ed7b16b3a197eea33bc",
+  "display_name": "member_claims_kpis_dashboard_v2",
+  "published": true,
+  "validation_source": "api_readback",
+  "warehouse_id": "2d8e531640ffa469",
+  "metric_views": [
+    "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`",
+    "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v2`"
+  ],
+  "datasets": 2,
+  "dataset_count": 2,
+  "pages": 4,
+  "pages_count": 4,
+  "canvas_pages": 3,
+  "filter_pages": 1,
+  "total_canvas_widgets": 18,
+  "widget_count": 18,
+  "widgets_count": 18,
+  "total_filters": 6,
+  "filter_count": 6,
+  "filters_count": 6,
+  "datasets_validated": true,
+  "page_names": ["Filters", "Financial Overview", "Claims Analysis", "Member Demographics"]
+}

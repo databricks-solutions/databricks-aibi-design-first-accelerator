@@ -94,14 +94,25 @@ PHASE D — BUILD & DEPLOY NOTEBOOK (Steps 9-13)
   13. Read genie_space_notebook.py.template
   14. Populate cells 2-7 with config, instructions, questions, SQL, benchmarks
   15. Copy cells 8-10 VERBATIM from template (helpers + create/update + validate)
+      NOTE: The template now auto-imports gate_checks.py for enforcement.
+      Gate checks run automatically:
+        - PRE-DEPLOY: run_genie_predeploy_gates() verifies description,
+          instructions, tables, questions, and example SQLs are all populated.
+          Raises GateCheckError if ANY content is missing — API call is blocked.
+        - POST-DEPLOY: validate_genie_from_api() reads the space back from
+          the API and verifies the deployed content matches.
   16. Save notebook to {OUTPUT_FOLDER}/genie_space/{notebook_name}
   17. Execute cells: Cell 7 (validate_genie_config) → Cell 8 (helpers) → Cell 9 (create/update API)
   18. Cell 9 calls POST /api/2.0/genie/spaces with FULL serialized_space
+      Gate enforcement fires automatically within Cell 9.
 
 PHASE E — VALIDATE & PERSIST (Steps 14-22)
-  19. GET /api/2.0/genie/spaces/{id}?include_serialized_space=true
+  19. If gate_checks post-deploy validation passed (Layer 2), use that result.
+      Otherwise: GET /api/2.0/genie/spaces/{id}?include_serialized_space=true
   20. Verify: instructions present, sample_questions ≥15, example_sqls ≥10, benchmarks ≥15
   21. Write genie_manifest.json, benchmark_results.yaml, validation artifact
+      NOTE: If gate_checks wrote source:api_readback validation, do NOT
+      overwrite it with source:agent_reported content.
 ```
 
 ### SHORTCUT DETECTION (agent self-check BEFORE any action)
@@ -117,7 +128,9 @@ If you are about to do ANY of the following, **STOP — you are shortcutting:**
 | Skipping `validate_genie_config()` execution | Deploys broken SQL | Must execute ALL example SQL before API call |
 | Writing 4-line instruction text | Fails minimum quality (need ≥500 chars) | LLM produces 800-1500 char markdown-formatted instructions |
 
-**The ONLY valid deployment path is: template notebook populated → validate_genie_config() passes → build_serialized_space() → POST/PATCH API with full payload.**
+**The ONLY valid deployment path is: template notebook populated → validate_genie_config() passes → gate_checks pre-deploy passes → build_serialized_space() → POST/PATCH API with full payload → gate_checks post-deploy readback passes.**
+
+`gate_checks.py` (`framework/templates/gate_checks.py`) is auto-imported by the template notebook. It provides programmatic enforcement that physically blocks deployment of empty/incomplete Genie spaces. Do NOT catch or suppress `GateCheckError`.
 
 ---
 
@@ -223,6 +236,16 @@ In the last failed run, the agent produced:
 - No `validate_genie_config()` executed
 
 This happened because the agent used `createAsset(assetType="genie")` instead of the full template workflow.
+
+**In the v3 run, a MORE SUBTLE failure occurred:**
+- `genie_manifest.json` claimed `sample_questions_count: 10`, `example_sqls_count: 5`, `benchmarks_count: 15`
+- BUT the API readback showed: **0 instructions, 0 sample questions, 0 example SQLs, 0 benchmarks**
+- The agent created the space via `POST /api/2.0/genie/spaces` with `table_identifiers` but **without `serialized_space`**
+- The manifest was written from agent MEMORY, not from API readback
+- No `validate_genie_from_api()` was ever called
+- The cross-validation sweep was never executed
+
+This is why the **Manifest Integrity Rule** now requires `validation_source: api_readback`.
 
 **If your execution produces ANY of the above patterns, you have FAILED. Go back to Phase A.**
 
@@ -482,6 +505,38 @@ Do not compensate by querying raw tables or recreating KPI formulas inside Genie
 
 ---
 
+## MANIFEST INTEGRITY RULE (NON-NEGOTIABLE)
+
+**NEVER write `genie_manifest.json` unless ALL of these are true:**
+
+1. The Genie space has been created/updated via `POST /api/2.0/genie/spaces` with a FULL `serialized_space` payload
+2. `validate_genie_from_api(space_id, title)` from `gate_checks.py` has been called and returned `status: PASS`
+3. The API readback confirmed: **instructions ≥200 chars, ≥5 sample questions, ≥5 example SQLs, ≥1 metric view attached**
+4. The manifest includes `validation_source: api_readback`
+5. The manifest's `sample_questions_count`, `example_sqls_count`, `benchmarks_count` come from the **API readback** result, NOT from counting Python variables
+
+**A manifest that claims counts that don’t match the API readback is FRAUD.** This is the exact failure mode from prior runs: the agent wrote `sample_questions_count: 10` while the API had 0.
+
+**Manifest schema (required fields):**
+
+```json
+{
+  "space_id": "<uuid>",
+  "title": "<name>",
+  "description": "<description>",
+  "validation_source": "api_readback",
+  "tables": ["catalog.schema.mv1", "catalog.schema.mv2"],
+  "sample_questions_count": 10,
+  "example_sqls_count": 5,
+  "benchmarks_count": 15,
+  "instruction_chars": 850
+}
+```
+
+All numeric fields MUST come from the `validate_genie_from_api()` return value.
+
+---
+
 ## State & Checkpoint Contract
 
 This step uses **artifact-as-state** checkpointing (see `06_state_contract.md`).
@@ -497,15 +552,17 @@ If it does not exist → execute the phase normally.
 2. Manage `run_context.yaml` per `06_state_contract.md` Section 8.
 3. For each artifact below, apply ONE cheap check:
    - `genie_semantic_inventory.yaml` exists: skip build_inventory
-   - Genie manifest (`*_genie_manifest.json`) exists with `space_id` field: skip create_genie_space
+   - Genie manifest (`*_genie_manifest.json`) exists with `space_id` field **AND** `validation_source: api_readback`: skip create_genie_space
+   - **IMPORTANT:** If a manifest exists but does NOT have `validation_source: api_readback`, it is UNVERIFIED. Run `validate_genie_from_api()` before skipping. If readback fails, re-execute from Phase A.
    - `genie_benchmark_validation.yaml` exists: skip validate_genie
-4. Continue from the **first phase whose artifact is missing**.
+4. Continue from the **first phase whose artifact is missing or unverified**.
 5. Maintain `run_context.yaml` at each phase boundary (see contract).
 
 **Rules:**
 
 - Every `report_progress(status="completed")` marks a phase as done.
 - **Never re-execute a phase whose output artifact already exists and is structurally valid.**
+- **Never SKIP validation just because a manifest exists — the manifest must be API-verified.**
 - For Genie spaces: if manifest contains a valid `space_id`, **UPDATE** the existing space rather than creating a new one.
 - If `RESUME_CONTEXT` is provided (App mode), use it to accelerate. Otherwise, discover state from the output folder.
 
@@ -516,7 +573,7 @@ If it does not exist → execute the phase normally.
 | load_config | Config + contracts loaded | Always re-read (stateless) |
 | build_inventory | genie_semantic_inventory.yaml | file exists |
 | llm_design | llm_genie_design.yaml | file exists + instructions >= 500 chars + questions >= 15 |
-| create_genie_space | *_genie_manifest.json | file exists + contains space_id |
+| create_genie_space | *_genie_manifest.json | file exists + contains space_id + `validation_source: api_readback` |
 | validate_genie | genie_benchmark_validation.yaml | file exists |
 
 ---

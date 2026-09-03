@@ -86,6 +86,31 @@ In both patterns, the pipeline contract and stage prompts are identical. Only th
   output_contracts: Every step has an Output Contract table listing required artifacts
 -->
 
+### Manifest Integrity Rule (Global — Applies to ALL Deployment Manifests)
+
+All deployment manifests (`*_manifest.json`, `genie_manifest.json`) MUST be produced using **API readback validation**, not agent self-reporting.
+
+**Required fields in every manifest:**
+
+```yaml
+validation_source: api_readback   # MUST be "api_readback" — never "agent_reported"
+```
+
+**Manifest writing procedure (NON-NEGOTIABLE):**
+
+1. Deploy the asset via the API (create + publish for dashboards, POST for Genie)
+2. Call `validate_dashboard_from_api()` or `validate_genie_from_api()` from `gate_checks.py`
+3. Confirm the readback returns `status: PASS`
+4. Write the manifest using **counts from the API readback**, NOT from agent memory
+5. Include `validation_source: api_readback` in the manifest
+
+**A manifest that claims success without API readback is FRAUD.** This is the #1 cause of pipeline failures: the agent writes `published: true` and `sample_questions_count: 10` without ever reading the deployed asset back, and the actual asset is empty.
+
+**State checkpoint impact:** When resuming from checkpoints:
+- Manifest with `validation_source: api_readback` → trust and skip
+- Manifest WITHOUT `validation_source` → re-run API readback validation before skipping
+- No manifest → execute from the beginning
+
 ### Anti-Shortcut Enforcement
 
 The agent MUST NOT take shortcuts even when:
@@ -2208,6 +2233,47 @@ If any dataset SQL fails, the dashboard MUST NOT be created until the SQL is fix
 
 ---
 
+### POST-STEP 4 VALIDATION (MANDATORY before proceeding to Step 5)
+
+After Step 4 completes, execute this API readback validation for EACH dashboard:
+
+```python
+# POST-STEP 4 VALIDATION — verify dashboards have filters, widgets, and titles via API readback
+import json, sys
+from databricks.sdk import WorkspaceClient
+w = WorkspaceClient()
+
+sys.path.insert(0, f"{deploy_root}/framework/templates")
+from gate_checks import validate_dashboard_from_api
+
+# Read each dashboard manifest and validate against the live API
+for manifest_path in glob.glob(f"{OUTPUT_FOLDER}/dashboards/*_dashboard_manifest.json"):
+    with open(manifest_path) as f:
+        manifest = json.load(f)
+    dashboard_id = manifest["dashboard_id"]
+    dashboard_name = manifest["display_name"]
+    
+    # This reads the ACTUAL deployed dashboard from the API and checks:
+    # - Canvas pages have ≥ min_widgets widgets each
+    # - At least 1 filter page exists with ≥ min_filters filter widgets
+    # - Datasets are non-empty
+    # Raises GateCheckError on failure.
+    result = validate_dashboard_from_api(dashboard_id, dashboard_name, quality_gates=quality_gates)
+    print(f"✅ Dashboard '{dashboard_name}' API readback: {result['total_canvas_widgets']} widgets, {result['total_filters']} filters")
+```
+
+If ANY readback fails: **DO NOT proceed to Step 5. Re-execute Step 4 from the design phase.**
+
+This gate exists because prior runs created dashboards with datasets and page names but:
+- Zero filter pages (no interactive filtering)
+- Empty widget titles
+- No counter/scorecard widgets
+- Fewer pages than the KPI spec requires
+
+The API returning a `dashboard_id` and `lifecycle_state=ACTIVE` does NOT prove the dashboard has content. Only `validate_dashboard_from_api()` confirms structural completeness.
+
+---
+
 # Step 5: Create Genie Space / Genie Agent
 
 <!-- @tool
@@ -2387,6 +2453,69 @@ This gate exists because prior runs created blank spaces and declared success. T
 
 ---
 
+# Step 5.3: Cross-Validation Sweep (MANDATORY — NEVER SKIP)
+
+Before generating documentation, run a terminal cross-validation sweep that independently audits ALL deployed assets against their manifests. This is the final safety net that catches any discrepancy between what the manifests claim and what was actually deployed.
+
+**This step is UNCONDITIONAL.** Even if all prior steps reported success, this sweep MUST run. It is the ONLY way to verify that deployed assets contain actual content (not empty shells).
+
+**This step uses `gate_checks.py` from `{deploy_root}/framework/templates/gate_checks.py`.**
+
+```python
+import sys, json, os
+sys.path.insert(0, f"{deploy_root}/framework/templates")
+from gate_checks import run_cross_validation, write_ground_truth_validation, GateCheckError
+
+# Run the sweep — reads every manifest, GETs every deployed asset from API
+try:
+    report = run_cross_validation(OUTPUT_FOLDER, quality_gates=quality_gates)
+    # Write the ground-truth report
+    write_ground_truth_validation(
+        f"{OUTPUT_FOLDER}/ground_truth_validation.yaml",
+        report,
+        source="cross_validation_sweep",
+    )
+    print("✅ GATE 5.3 PASSED: Cross-validation sweep confirmed all deployed assets")
+except GateCheckError as e:
+    # Write the FAIL report for diagnostics
+    import yaml
+    fail_report = {
+        "source": "cross_validation_sweep",
+        "overall_status": "FAIL",
+        "error": str(e)[:1000],
+    }
+    with open(f"{OUTPUT_FOLDER}/ground_truth_validation.yaml", "w") as f:
+        yaml.dump(fail_report, f)
+    # DO NOT PROCEED — re-execute failed stages
+    raise RuntimeError(
+        f"❌ GATE 5.3 FAILED: Cross-validation detected empty/broken deployed assets.\n"
+        f"Error: {str(e)[:500]}\n"
+        f"ACTION: Re-execute the failed stage (dashboards and/or Genie) before retrying."
+    )
+```
+
+**GATE 5.3: Cross-Validation Must Pass**
+
+If `run_cross_validation()` raises `GateCheckError`:
+
+1. Record the failure in `run_manifest.json` under a `cross_validation` stage.
+2. The `ground_truth_validation.yaml` will still be written (with `overall_status: FAIL`) for diagnostic purposes.
+3. **Do NOT proceed to documentation. Do NOT write run_manifest.json with status=COMPLETED.**
+4. Re-execute ONLY the failed stage (dashboards and/or Genie) before retrying. "Failed stage" means the specific asset creation step that produced an incomplete asset — NOT the data layer, NOT metric views. The cross-validation sweep reads existing deployed assets; it does not need data regeneration.
+5. After repair, re-run THIS sweep to confirm the fix.
+6. **NEVER re-run the data layer notebook (`dbldatagen_notebook`) or any notebook that imports `dbldatagen` as part of cross-validation repair.** If the data layer passed earlier, those tables still exist. Re-running data generation wastes time and fails on environments without `dbldatagen` installed.
+
+If `run_cross_validation()` returns successfully (no exception), proceed to documentation.
+
+The `ground_truth_validation.yaml` artifact is the single source of truth for deployed asset quality. The documentation step MUST reference it.
+
+**Why this sweep catches what manifests don't:**
+- Dashboard manifests may claim `published: true` but the dashboard has 0 filter pages
+- Genie manifests may claim `sample_questions_count: 10` but the API returns 0
+- This sweep reads the ACTUAL deployed state via REST API, not the agent's files
+
+---
+
 # Step 6: Generate Documentation
 
 <!-- @tool
@@ -2424,6 +2553,26 @@ Otherwise mark:
 ```text
 generate_documentation = SKIPPED
 ```
+
+### MANDATORY: Read and Follow 05_generate_documentation.md (NO SHORTCUTS)
+
+The documentation stage MUST read `05_generate_documentation.md` and follow its EXACT section structure. Writing a quick inline README summary is a **pipeline violation** — it was the root cause of quality divergence between Genie Code and App agent runs.
+
+**Enforcement checklist (verify BEFORE writing readme.md):**
+
+```text
+1. Did you READ 05_generate_documentation.md?                         → If no, HALT and read it
+2. Does your README have ALL 11 sections from the prompt?             → If no, add missing sections
+   Required: Solution Overview, Architecture Flow, Source Schema,
+   Data Layer, Metric Views, KPI Catalog, Not Implemented KPIs,
+   Dashboards, Genie Space, Cross-Validation, Output Artifacts
+3. Do dashboard/Genie counts come from api_readback artifacts?        → If no, read the manifests
+4. Does the KPI Catalog table have EVERY KPI from the spec?           → If no, add missing entries
+5. Are NOT_IMPLEMENTED KPIs documented with reference SQL?            → If no, read metric_view_plan.yaml
+6. Is ground_truth_validation.yaml referenced?                        → If no, add cross-validation section
+```
+
+**Common violation (detected in prior runs):** The Genie Code agent wrote a 90-line flat summary with no artifact inventory, no architecture diagram, no per-KPI status table with reasons, and no NOT_IMPLEMENTED reference SQL — while the App agent followed the full prompt and produced a structured 107-line README with all sections. Both agents had the same prompts; the difference was that the Genie Code agent skipped reading `05_generate_documentation.md` entirely.
 
 ---
 

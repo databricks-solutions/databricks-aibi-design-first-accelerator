@@ -20,12 +20,44 @@
 # COMMAND ----------
 
 import json
+import os
+import sys
 import time
 from typing import Any
 
 from databricks.sdk import WorkspaceClient
 
 w = WorkspaceClient()
+
+# ════════════════════════════════════════════════════════════════════════════
+# Gate Checks integration — programmatic enforcement layer
+# ════════════════════════════════════════════════════════════════════════════
+# gate_checks.py provides runtime assertions that PREVENT deployment of
+# empty/incomplete dashboards. It is loaded from the framework templates
+# directory alongside this file. If unavailable, a warning is printed
+# and deployment proceeds with inline assertions only (reduced safety).
+
+_gate_checks_loaded = False
+try:
+    # Add the templates directory to sys.path so gate_checks can be imported
+    _templates_dir = os.path.dirname(os.path.abspath(__file__)) if '__file__' in dir() else None
+    if _templates_dir and _templates_dir not in sys.path:
+        sys.path.insert(0, _templates_dir)
+    from gate_checks import (
+        run_dashboard_predeploy_gates,
+        validate_dashboard_from_api,
+        write_ground_truth_validation,
+        GateCheckError,
+    )
+    _gate_checks_loaded = True
+    print("✅ gate_checks loaded — programmatic enforcement active")
+except ImportError:
+    print("⚠️  gate_checks.py not found — using inline assertions only (reduced safety)")
+    # Define no-op fallbacks so deploy_dashboard doesn't break
+    def run_dashboard_predeploy_gates(*a, **kw): return {}
+    def validate_dashboard_from_api(*a, **kw): return {"status": "SKIPPED", "source": "gate_checks_unavailable"}
+    def write_ground_truth_validation(*a, **kw): pass
+    class GateCheckError(RuntimeError): pass
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -535,27 +567,62 @@ def deploy_dashboard(
     datasets: list[dict],
     pages: list[dict],
     filter_dimensions: list[str] | None = None,
+    *,
+    required_artifacts: list[str] | None = None,
+    quality_gates: dict | None = None,
+    output_folder: str | None = None,
 ) -> dict:
     """Build, validate, create/update, and publish a dashboard.
 
     IDEMPOTENT: If a dashboard with the same display_name exists, it is UPDATED
     instead of creating a duplicate.
 
+    Gate enforcement (when gate_checks.py is available):
+    - PRE-DEPLOY: Verifies required artifacts exist, all canvas pages have
+      widgets, and a filters page with >= min_filters exists. Raises
+      GateCheckError if ANY check fails — the API call never executes.
+    - POST-DEPLOY: Reads the dashboard back from the Lakeview API and verifies
+      the deployed content matches what was sent. Writes ground-truth
+      validation to output_folder if provided.
+
+    Args:
+        display_name: Dashboard display name (used for idempotency matching).
+        warehouse_id: SQL warehouse ID for the dashboard.
+        parent_path: Workspace parent path for dashboard creation.
+        datasets: List of dataset dicts built by build_dataset().
+        pages: List of page dicts (filter + canvas) built by page builders.
+        filter_dimensions: Column names used for filter binding warnings.
+        required_artifacts: File paths that must exist before deploy (gate check).
+        quality_gates: Optional quality thresholds from accelerator.yaml.
+        output_folder: If provided, writes ground-truth validation YAML here.
+
     Returns dict with keys: dashboard_id, display_name, path, published.
-    Raises on any API or validation error.
+    Raises GateCheckError or AssertionError on any validation failure.
     """
     # Pre-flight: validate structure
     sd = build_serialized_dashboard(datasets, pages, filter_dimensions)
 
-    # Structural assertions before API call
-    page_types = [p.get("pageType") for p in pages]
-    assert "PAGE_TYPE_GLOBAL_FILTERS" in page_types, \
-        "BLOCKED: Dashboard has no PAGE_TYPE_GLOBAL_FILTERS page. Add filters first."
-    assert "PAGE_TYPE_CANVAS" in page_types, \
-        "BLOCKED: Dashboard has no PAGE_TYPE_CANVAS page."
-    filter_page = next(p for p in pages if p.get("pageType") == "PAGE_TYPE_GLOBAL_FILTERS")
-    assert len(filter_page.get("layout", [])) >= 3, \
-        f"BLOCKED: Filter page has only {len(filter_page.get('layout', []))} widgets (need >=3)."
+    # ── LAYER 1: Programmatic pre-deploy gate enforcement ──
+    # When gate_checks is loaded, this runs comprehensive checks that
+    # physically block API creation of empty/incomplete dashboards.
+    # When gate_checks is NOT loaded, falls back to inline assertions.
+    if _gate_checks_loaded:
+        run_dashboard_predeploy_gates(
+            sd,
+            display_name,
+            required_artifacts=required_artifacts,
+            quality_gates=quality_gates,
+        )
+    else:
+        # Fallback inline assertions (reduced safety)
+        page_types = [p.get("pageType") for p in pages]
+        assert "PAGE_TYPE_GLOBAL_FILTERS" in page_types, \
+            "BLOCKED: Dashboard has no PAGE_TYPE_GLOBAL_FILTERS page. Add filters first."
+        assert "PAGE_TYPE_CANVAS" in page_types, \
+            "BLOCKED: Dashboard has no PAGE_TYPE_CANVAS page."
+        filter_page = next(p for p in pages if p.get("pageType") == "PAGE_TYPE_GLOBAL_FILTERS")
+        assert len(filter_page.get("layout", [])) >= 3, \
+            f"BLOCKED: Filter page has only {len(filter_page.get('layout', []))} widgets (need >=3)."
 
     # Idempotency: check for existing dashboard with same name
     dashboard_id = None
@@ -580,6 +647,29 @@ def deploy_dashboard(
     time.sleep(1)
     publish_dashboard(dashboard_id, warehouse_id)
     print(f"  ✓ Published")
+
+    # ── LAYER 2: Post-deploy API readback validation ──
+    # Reads the dashboard back from the API and verifies the deployed
+    # content is non-empty. Writes ground-truth validation YAML.
+    if _gate_checks_loaded:
+        try:
+            post_deploy_result = validate_dashboard_from_api(
+                dashboard_id,
+                display_name,
+                quality_gates=quality_gates,
+            )
+            if output_folder:
+                validation_path = os.path.join(
+                    output_folder, "dashboards",
+                    f"{display_name}_validation.yaml",
+                )
+                write_ground_truth_validation(
+                    validation_path, post_deploy_result, source="api_readback",
+                )
+        except GateCheckError as e:
+            print(f"\n❌ POST-DEPLOY GATE FAILED for '{display_name}':")
+            print(f"   {str(e)[:300]}")
+            raise
 
     return {
         "dashboard_id": dashboard_id,

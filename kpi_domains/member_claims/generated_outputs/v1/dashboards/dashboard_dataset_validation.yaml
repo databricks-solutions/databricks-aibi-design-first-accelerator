@@ -1,91 +1,11 @@
-datasets:
-  - name: ds_kpis_financial_claims
-    dashboard: member_claims_kpis_dashboard_v1
-    page: Financial Overview
-    widget: multiple
-    sql_status: PASS
-    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
-    expected_shape: page-level shared dataset; one row per Service Date/service_month/Claim Type/Line Status/Benefit Category with claim financial and quality measures
-    actual_rows: 900
-    actual_columns: [Service Date, service_month, Claim Type, Line Status, Benefit Category, total_paid, total_claims, average_paid_per_claim, denied_lines, denial_rate, clean_lines, clean_claim_rate, total_claim_lines, inpatient_paid, outpatient_paid, payment_to_billed, payment_to_allowed]
-    measures: [total_paid, total_claims, average_paid_per_claim, denied_lines, denial_rate, clean_lines, clean_claim_rate, total_claim_lines, inpatient_paid, outpatient_paid, payment_to_billed, payment_to_allowed]
-    dimensions: [Service Date, service_month, Claim Type, Line Status, Benefit Category]
-    filters: [Service Date, Claim Type, Benefit Category]
-    semantic_status: PASS
-    failure_reason: null
-  - name: ds_kpis_claims_analysis
-    dashboard: member_claims_kpis_dashboard_v1
-    page: Claims Analysis
-    widget: multiple
-    sql_status: PASS
-    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
-    expected_shape: page-level shared dataset; one row per Service Date/service_month/Claim Type/Line Status/Adjudication Status/Benefit Category with claim quality measures
-    actual_rows: 900
-    actual_columns: [Service Date, service_month, Claim Type, Line Status, Adjudication Status, Benefit Category, total_paid, average_paid_per_claim, denied_lines, denial_rate, clean_lines, clean_claim_rate]
-    measures: [total_paid, average_paid_per_claim, denied_lines, denial_rate, clean_lines, clean_claim_rate]
-    dimensions: [Service Date, service_month, Claim Type, Line Status, Adjudication Status, Benefit Category]
-    filters: [Service Date, Claim Type, Line Status]
-    semantic_status: PASS
-    failure_reason: null
-  - name: ds_kpis_member_demographics
-    dashboard: member_claims_kpis_dashboard_v1
-    page: Member Demographics
-    widget: multiple
-    sql_status: PASS
-    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v1`"
-    expected_shape: page-level shared dataset; one row per Enrollment Effective Date/service_month/Enrollment Status/Line of Business/Member State/Member Sex with enrollment measures
-    actual_rows: 800
-    actual_columns: [Enrollment Effective Date, service_month, Enrollment Status, Line of Business, Member State, Member Sex, new_member_enrollment, active_members, enrollment_records]
-    measures: [new_member_enrollment, active_members, enrollment_records]
-    dimensions: [Enrollment Effective Date, service_month, Enrollment Status, Line of Business, Member State, Member Sex]
-    filters: [Enrollment Effective Date, Line of Business, Member State]
-    semantic_status: PASS
-    failure_reason: null
-  - name: ds_util_utilization_patterns
-    dashboard: member_claims_utilization_dashboard_v1
-    page: Utilization Patterns
-    widget: multiple
-    sql_status: PASS
-    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
-    expected_shape: page-level shared dataset; one row per Service Date/service_month/Claim Type/Line Status/Benefit Category with utilization measures
-    actual_rows: 900
-    actual_columns: [Service Date, service_month, Claim Type, Line Status, Benefit Category, total_claims, total_claim_lines, total_paid, inpatient_paid, outpatient_paid]
-    measures: [total_claims, total_claim_lines, total_paid, inpatient_paid, outpatient_paid]
-    dimensions: [Service Date, service_month, Claim Type, Line Status, Benefit Category]
-    filters: [Service Date, Claim Type, Benefit Category]
-    semantic_status: PASS
-    failure_reason: null
-  - name: ds_util_provider_insights
-    dashboard: member_claims_utilization_dashboard_v1
-    page: Provider Insights
-    widget: multiple
-    sql_status: PASS
-    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enriched_metric_view_v1`"
-    expected_shape: page-level shared dataset; one row per Service Date/service_month/Claim Type/Line of Business/Rendering Provider Specialty/Participating Rendering Provider with provider measures
-    actual_rows: 900
-    actual_columns: [Service Date, service_month, Claim Type, Line of Business, Rendering Provider Specialty, Participating Rendering Provider, total_paid, unique_claiming_members, average_paid_per_member, total_claims, claims_per_member, participating_provider_rate]
-    measures: [total_paid, unique_claiming_members, average_paid_per_member, total_claims, claims_per_member, participating_provider_rate]
-    dimensions: [Service Date, service_month, Claim Type, Line of Business, Rendering Provider Specialty, Participating Rendering Provider]
-    filters: [Service Date, Rendering Provider Specialty, Line of Business, Participating Rendering Provider]
-    semantic_status: PASS
-    failure_reason: null
-  - name: ds_util_operational_metrics
-    dashboard: member_claims_utilization_dashboard_v1
-    page: Operational Metrics
-    widget: multiple
-    sql_status: PASS
-    metric_view: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v1`"
-    expected_shape: page-level shared dataset; one row per Service Date/service_month/Claim Type/Line Status/Adjudication Status with operational measures
-    actual_rows: 900
-    actual_columns: [Service Date, service_month, Claim Type, Line Status, Adjudication Status, denial_rate, clean_claim_rate, payment_to_billed, payment_to_allowed]
-    measures: [denial_rate, clean_claim_rate, payment_to_billed, payment_to_allowed]
-    dimensions: [Service Date, service_month, Claim Type, Line Status, Adjudication Status]
-    filters: [Service Date, Claim Type, Line Status]
-    semantic_status: PASS
-    failure_reason: null
-validation_summary:
-  sql_status: PASS
-  semantic_status: PASS
-  datasets_validated: 6
-  validation_sql_calls: 3
-  failed_datasets: []
+status: PASS
+datasets_validated:
+- name: ds_kpi_claims
+  columns: 23
+  status: PASS
+- name: ds_utilization
+  columns: 15
+  status: PASS
+- name: ds_enrollment
+  columns: 6
+  status: PASS

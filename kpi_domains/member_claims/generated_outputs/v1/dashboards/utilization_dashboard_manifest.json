@@ -1,0 +1,12 @@
+{
+  "dashboard_id": "01f1a79e3f0c1403ae74c90063fb984d",
+  "display_name": "member_claims_utilization_dashboard_v1",
+  "published": true,
+  "validation_source": "api_readback",
+  "datasets": 2,
+  "pages": 4,
+  "canvas_pages": 3,
+  "filter_pages": 1,
+  "total_canvas_widgets": 19,
+  "total_filters": 3
+}

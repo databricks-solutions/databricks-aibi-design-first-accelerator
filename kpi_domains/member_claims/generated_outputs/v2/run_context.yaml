@@ -1,0 +1,39 @@
+catalog: aw_serverless_stable_catalog
+schema: aibi_member_claims
+version_suffix: _v2
+warehouse_id: "2d8e531640ffa469"
+parent_path: "/Users/arun.wagle@databricks.com"
+workspace_host: "https://fevm-aw-serverless-stable.cloud.databricks.com"
+domain_name: member_claims
+output_folder: "/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v2"
+phases_completed:
+  - load_inputs
+  - profile_metrics
+  - llm_design
+  - design_instructions
+  - generate_sql
+  - create_genie_space
+  - validate_genie
+assets:
+  metric_views:
+    - name: member_claims_metric_view_v2
+      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`"
+      primary: true
+    - name: member_claims_enrollment_metric_view_v2
+      sql_fqn: "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_enrollment_metric_view_v2`"
+      primary: false
+  genie:
+    space_name: member_claims_analytics_genie
+    title: member_claims_analytics_genie_v2
+    space_id: "01f1a7b614381a068aceb910e44a7b06"
+    notebook_name: genie_space_configuration_member_claims
+    notebook_path: "/Workspace/Users/arun.wagle@databricks.com/databricks-aibi-design-first-accelerator/kpi_domains/member_claims/generated_outputs/v2/genie_space/genie_space_configuration_member_claims"
+genie_validation:
+  validation_source: api_readback
+  status: PASS
+  metric_views: 2
+  instruction_chars: 3378
+  sample_questions: 15
+  example_sqls: 15
+  benchmarks: 15
+  benchmark_pass_rate: 1.0

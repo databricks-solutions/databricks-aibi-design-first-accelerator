@@ -1,0 +1,76 @@
+domain: member_claims
+volume: low
+version_suffix: _v2
+volume_targets:
+  dim_member: 500
+  dim_address: 500
+  dim_provider: 300
+  dim_member_identifier: 800
+  dim_member_history: 1000
+  fact_member_enrollment: 1500
+  fact_claim_header: 500
+  fact_claim_detail: 2000
+tables:
+  - name: dim_member
+    rows: 500
+    columns:
+      - {column: mbr_sex, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Female", "Male", "Unknown"], weights: [0.51, 0.47, 0.02]}}
+      - {column: mbr_race, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["White", "Black or African American", "Asian", "American Indian or Alaska Native", "Native Hawaiian or Pacific Islander", "Other", "Unknown"], weights: [0.52, 0.18, 0.12, 0.03, 0.02, 0.08, 0.05]}}
+      - {column: mbr_ethnicity, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Hispanic or Latino", "Not Hispanic or Latino", "Unknown"], weights: [0.18, 0.76, 0.06]}}
+      - {column: mbr_marital_status, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Single", "Married", "Divorced", "Widowed", "Separated"], weights: [0.35, 0.42, 0.11, 0.08, 0.04]}}
+      - {column: mbr_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare", "Medicaid", "Exchange", "TRICARE"], weights: [0.42, 0.26, 0.22, 0.07, 0.03]}}
+      - {column: mbr_state, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA"], weights: [0.18, 0.15, 0.13, 0.12, 0.11, 0.10, 0.09, 0.12]}}
+  - name: dim_address
+    rows: 500
+    columns:
+      - {column: entity_type_key, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["MEMBER", "PROVIDER", "FACILITY"], weights: [0.55, 0.30, 0.15]}}
+      - {column: address_type_code, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["HOME", "MAILING", "BILLING", "SERVICE", "PRACTICE"], weights: [0.38, 0.20, 0.12, 0.15, 0.15]}}
+      - {column: city, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Los Angeles", "Houston", "Miami", "New York", "Philadelphia", "Chicago", "Columbus", "Atlanta"], weights: [0.18, 0.15, 0.13, 0.12, 0.11, 0.10, 0.09, 0.12]}}
+      - {column: state, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA"], weights: [0.18, 0.15, 0.13, 0.12, 0.11, 0.10, 0.09, 0.12]}}
+      - {column: country_code, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: CATEGORICAL_VALUES, domain: {values: ["US", "PR", "GU"], weights: [0.96, 0.03, 0.01]}}
+  - name: dim_provider
+    rows: 300
+    columns:
+      - {column: source_system, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Facets", "QNXT", "Epic", "ProviderOne"], weights: [0.40, 0.30, 0.20, 0.10]}}
+  - name: dim_member_identifier
+    rows: 800
+    columns:
+      - {column: id_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Member ID", "Subscriber ID", "Medicaid ID", "Medicare MBI", "DEERS Beneficiary ID"], weights: [0.38, 0.24, 0.18, 0.14, 0.06]}}
+      - {column: source_system_code, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["FACETS", "QNXT", "EPIC", "ELIG"], weights: [0.40, 0.30, 0.20, 0.10]}}
+  - name: dim_member_history
+    rows: 1000
+    columns:
+      - {column: mbr_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare", "Medicaid", "Exchange", "TRICARE"], weights: [0.42, 0.26, 0.22, 0.07, 0.03]}}
+      - {column: mbr_state, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["CA", "TX", "FL", "NY", "PA", "IL", "OH", "GA"], weights: [0.18, 0.15, 0.13, 0.12, 0.11, 0.10, 0.09, 0.12]}}
+  - name: fact_member_enrollment
+    rows: 1500
+    columns:
+      - {column: source_system, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Facets", "QNXT", "Eligibility Hub", "State Exchange"], weights: [0.40, 0.30, 0.20, 0.10]}}
+      - {column: mbr_enr_status, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Active", "Terminated", "Pending", "Suspended", "COBRA"], weights: [0.68, 0.18, 0.07, 0.04, 0.03]}}
+      - {column: mbr_enr_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare", "Medicaid", "Exchange", "TRICARE"], weights: [0.42, 0.26, 0.22, 0.07, 0.03]}}
+      - {column: mbr_enr_termination_reason, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Voluntary Termination", "Nonpayment", "Employer Group Terminated", "Moved Out of Area", "Deceased", "Other Coverage"], weights: [0.30, 0.18, 0.17, 0.14, 0.05, 0.16]}}
+      - {column: id_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Member ID", "Subscriber ID", "Medicaid ID", "Medicare MBI"], weights: [0.42, 0.26, 0.20, 0.12]}}
+  - name: fact_claim_header
+    rows: 500
+    columns:
+      - {column: clm_claim_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Professional", "Institutional", "Pharmacy", "Dental", "Vision"], weights: [0.44, 0.24, 0.18, 0.09, 0.05]}}
+      - {column: clm_bill_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Inpatient Hospital", "Outpatient Hospital", "Skilled Nursing", "Home Health", "Clinic"], weights: [0.22, 0.34, 0.10, 0.08, 0.26]}}
+      - {column: clm_admission_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Emergency", "Urgent", "Elective", "Newborn", "Trauma"], weights: [0.28, 0.20, 0.38, 0.09, 0.05]}}
+      - {column: clm_admission_source, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Physician Referral", "Clinic Referral", "Emergency Room", "Transfer", "Court/Law Enforcement"], weights: [0.34, 0.21, 0.25, 0.15, 0.05]}}
+      - {column: clm_line_of_business, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Commercial", "Medicare", "Medicaid", "Exchange", "TRICARE"], weights: [0.42, 0.26, 0.22, 0.07, 0.03]}}
+      - {column: clm_is_par_submitting_provider, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Participating", "Non-Participating", "Out-of-Network"], weights: [0.72, 0.18, 0.10]}}
+      - {column: clm_orig_source, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["EDI 837", "Provider Portal", "Paper Claim", "Clearinghouse", "Manual Entry"], weights: [0.54, 0.20, 0.10, 0.12, 0.04]}}
+  - name: fact_claim_detail
+    rows: 2000
+    columns:
+      - {column: clm_dtl_benefit_category, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Medical", "Surgical", "Pharmacy", "Behavioral Health", "Maternity", "Preventive Care"], weights: [0.36, 0.18, 0.17, 0.11, 0.08, 0.10]}}
+      - {column: clm_dtl_benefit_level, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["In Network", "Out of Network", "Tier 1", "Tier 2", "Emergency"], weights: [0.58, 0.15, 0.12, 0.08, 0.07]}}
+      - {column: clm_dtl_claim_type, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Professional", "Institutional", "Pharmacy", "Dental", "Vision"], weights: [0.44, 0.24, 0.18, 0.09, 0.05]}}
+      - {column: clm_dtl_line_status, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Paid", "Denied", "Pending", "Adjusted", "Reversed"], weights: [0.68, 0.16, 0.07, 0.06, 0.03]}}
+      - {column: clm_dtl_clean_claim_ind, datatype: string, semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Clean", "Not Clean", "Requires Review"], weights: [0.74, 0.18, 0.08]}}
+      - {column: clm_dtl_place_of_service, datatype: varchar(2), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["11", "21", "22", "23", "31", "32", "81"], weights: [0.36, 0.13, 0.22, 0.09, 0.07, 0.05, 0.08]}}
+      - {column: clm_dtl_adjudication_status, datatype: string, semantic_type: STATUS, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["Auto Adjudicated", "Manual Review", "Denied Medical Necessity", "Pended for Records", "Coordination of Benefits"], weights: [0.58, 0.18, 0.10, 0.08, 0.06]}}
+      - {column: clm_dtl_procedure_code, datatype: varchar(15), semantic_type: CATEGORICAL_ATTRIBUTE, generation_strategy: WEIGHTED_CATEGORICAL, domain: {values: ["99213", "99214", "93000", "80053", "J0585", "D0120", "99396"], weights: [0.24, 0.20, 0.12, 0.16, 0.08, 0.09, 0.11]}}
+semantic_constraints:
+  - {expression: "valid_from_date <= valid_to_date", type: TEMPORAL, confidence: HIGH}
+  - {expression: "child.FK IN parent.PK", type: STRUCTURAL, confidence: HIGH}

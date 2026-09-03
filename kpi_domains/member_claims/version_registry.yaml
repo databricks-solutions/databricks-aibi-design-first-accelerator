@@ -2,8 +2,25 @@ domain: member_claims
 versions:
 - version: 1
   status: completed
-  created_by: app
-  run_id: 29fc6257-9fc8-4eb5-93df-74ce37dc6337
-  started_at: '2026-09-01T02:03:05.992475+00:00'
+  created_by: genie_code
+  run_id: ecc9afea-f097-4ab5-8aad-b7bd51b2e57d
+  started_at: '2026-09-03T13:07:57.585441+00:00'
   assets_created: {}
-  completed_at: '2026-09-01T03:15:26.715714+00:00'
+  completed_at: '2026-09-03T13:55:25.641390+00:00'
+  dashboards:
+  - name: member_claims_kpis_dashboard_v1
+    id: 01f1a79e16b71fe5a03c998672132df7
+  - name: member_claims_utilization_dashboard_v1
+    id: 01f1a79e3f0c1403ae74c90063fb984d
+  genie_space:
+    name: member_claims_analytics_genie_v1
+    id: 01f1a79eebc217808072e6a6880c79cf
+- version: 2
+  status: running
+  created_by: app
+  run_id: ab4afe9c-ea18-4bd9-af24-ff31e8e0cbeb
+  started_at: '2026-09-03T14:27:03.919826+00:00'
+  assets_created: {}
+  completed_at: '2026-09-03T16:49:29.166140+00:00'
+  error_summary: 'Critical failure in ''execute_notebook'': NOTEBOOK ERROR (run_id=65435789491183):
+    ModuleNotFoundError: No module named ''dbldatagen'''

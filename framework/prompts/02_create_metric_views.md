@@ -110,7 +110,8 @@ metric_view_fqns:
 ### When NOT to Create Additional Metric Views
 
 - All KPIs can be served by a single source grain → 1 metric view is correct
-- A secondary grain has fewer than 2 implementable KPIs → document as NOT_IMPLEMENTED with reference SQL instead
+- A secondary grain has zero implementable KPIs → do not create a metric view for that grain
+- A secondary grain has one or more implementable KPIs → create the metric view if the KPI is valid, sourced from a distinct fact grain, and may be consumed by dashboards or Genie. Do NOT drop a secondary grain solely because it has only 1 implementable KPI.
 - The required join for an intermediate view fails the fanout safety test → do NOT create the intermediate view or the metric view that depends on it
 
 ---
@@ -155,6 +156,7 @@ The resulting Metric Views must be: semantically correct, grain-aware, resistant
 
 ## PROHIBITED ACTIONS
 
+0. **DO NOT classify enrollment/secondary-grain KPIs as NOT_IMPLEMENTED without creating their metric view** — if `fact_member_enrollment` (or any secondary fact table) has >= 2 KPIs with status READY, you MUST plan a secondary metric view in Step 4.5. Jumping straight to NOT_IMPLEMENTED because "it requires a different grain" is the #1 cause of metric view count divergence between runs. The correct flow is: mark READY in Step 4 → group by grain in Step 4.5 → create secondary MV → only mark NOT_IMPLEMENTED for HAVING/LAG/window KPIs.
 1. **DO NOT execute Metric View DDL via `spark.sql()`** — `WITH METRICS LANGUAGE YAML` is ONLY supported via SQL Warehouse (Statement Execution API). Spark Connect raises `UNSUPPORTED_CLAUSE_FOR_OPERATION`.
 2. **DO NOT invent columns** — every expr must reference confirmed physical columns.
 3. **DO NOT blindly guess join keys** from column-name similarity alone — use ONLY relationships declared in `semantic_model.yaml` (both ERD-declared and inferred). Relationship discovery happens upstream in the data layer (Step 3.4). Step 2.5 here only verifies those relationships via data probes. If a relationship is missing from `semantic_model.yaml`, do NOT infer it here — mark the KPI as SKIPPED_UNRESOLVED_RELATIONSHIP.
@@ -397,6 +399,16 @@ Write `{workspace.output_folder}/metric_views/kpi_metric_mapping.yaml`:
 
 **IMPORTANT: Do NOT mark a KPI as UNSUPPORTED solely because it requires a different grain than the primary metric view.** If the KPI's physical columns exist in a table (e.g., enrollment KPIs in `fact_member_enrollment`), mark it as `READY` with its `required_grain`. Step 4.5 will group READY KPIs by grain and dynamically create additional metric views as needed. Only mark UNSUPPORTED when the physical columns genuinely do not exist or the KPI business definition cannot be mapped to any available source.
 
+### Column Name Authority: Physical Schema vs Spec Names
+
+**The `physical_column` field in `kpi_metric_mapping.yaml` MUST use the exact column name from the ACTUAL physical table, not from the KPI spec text or `semantic_model.yaml` business names.**
+
+Observed failure mode: The agent writes `physical_column: member_sk` because the spec says "member surrogate key", but the actual column in `fact_member_enrollment` is `member_sk` (correct) while in `dim_address` the actual column is `address_key` not `addr_key` (the ERD-parsed name). The ERD image column names are authoritative and already in `erd_parsed.yaml`. For greenfield data, `erd_parsed.yaml` column names MUST match because the data layer created tables from the same spec. For brownfield data, always validate with `DESCRIBE TABLE`.
+
+**Rule:** When building `kpi_metric_mapping.yaml`, cross-reference each `physical_column` against `erd_parsed.yaml` (greenfield) or `DESCRIBE TABLE` output (brownfield). If the column name doesn't exist in the actual table schema, the mapping is WRONG and will cause downstream failures in metric view DDL, dashboard datasets, and Genie example SQL.
+
+The metric view DDL step (Step 5+) may alias these physical names to cleaner dimension names (e.g., `clm_dtl_claim_type AS claim_type`). Those aliases become the authoritative column names for dashboards and Genie. Dashboard SQL MUST use the metric view's aliased names, NOT the source table's physical names.
+
 ### Measure Classification Rules
 
 | Type | Rule |
@@ -409,6 +421,40 @@ Write `{workspace.output_folder}/metric_views/kpi_metric_mapping.yaml`:
 | DERIVED | References other measures via `MEASURE(name)` composition |
 
 **GATE 4.1**: kpi_metric_mapping.yaml exists. HALT if missing.
+
+### GATE 4.2: KPI Enumeration Completeness (MANDATORY)
+
+After writing `kpi_metric_mapping.yaml`, verify that EVERY KPI from the KPI specification is present in the mapping — not just the ones that map to the primary fact table. Count the KPIs in the spec and count the entries in your mapping file.
+
+```text
+IF count(kpi_mapping_entries) < count(kpi_spec_entries):
+  → HALT: "KPI enumeration incomplete: spec has {N} KPIs but mapping has {M}.
+           Missing KPIs must be added with status READY (if columns exist in any
+           fact table) or UNSUPPORTED (if genuinely unmappable)."
+```
+
+**Common violation (detected in prior runs):** The agent only maps KPIs whose columns exist in the PRIMARY fact table, silently dropping KPIs that belong to other fact tables (e.g., enrollment KPIs from `fact_member_enrollment`). This is WRONG — Step 4.5 needs the complete list to perform grain analysis.
+
+### GATE 4.3: No Premature NOT_IMPLEMENTED Classification (MANDATORY)
+
+Scan `kpi_metric_mapping.yaml` for any KPI marked `NOT_IMPLEMENTED` or `UNSUPPORTED` whose reason mentions "cross-grain", "different grain", "enrollment", or "different fact table".
+
+```text
+IF any KPI is NOT_IMPLEMENTED with a grain-based reason:
+  → HALT: "Premature NOT_IMPLEMENTED: KPI {id} was classified as NOT_IMPLEMENTED
+           because it requires a different grain. This decision belongs to Step 4.5
+           (Multi-Metric View Planning), NOT Step 4. Reclassify as READY with the
+           correct source_table and required_grain. Step 4.5 will determine whether
+           a secondary metric view is feasible."
+```
+
+The ONLY valid reasons for NOT_IMPLEMENTED at Step 4 are:
+- KPI requires HAVING clause (threshold-based filtering)
+- KPI requires window functions (LAG, LEAD, rolling aggregation)
+- KPI requires subqueries in the measure definition
+- Physical columns genuinely do not exist in ANY table
+
+"Requires a different fact table" is NOT a valid reason — it means a second metric view is needed, which is Step 4.5's job.
 
 ---
 
@@ -572,6 +618,58 @@ For each NOT_IMPLEMENTED KPI:
 2. Execute the query against the warehouse to confirm it returns correct results
 3. Store the validated SQL in `metric_view_plan.yaml` under `not_implemented`
 4. These KPIs are **not included in dashboards or Genie spaces** — they are documentation-only artifacts
+
+### GATE 4.5: Multi-Grain Analysis Verification (MANDATORY)
+
+After writing `metric_view_plan.yaml`, verify the grain analysis was complete:
+
+```text
+1. List ALL fact tables from erd_parsed.yaml / schema_profile.yaml
+2. For each fact table, check: does kpi_metric_mapping.yaml have >= 1 READY KPI
+   sourced from this table?
+3. For each fact table with >= 2 READY KPIs at a DISTINCT grain from the primary:
+   → metric_view_plan.yaml MUST contain a metric view entry for that grain
+   → If it does NOT, HALT: "Grain group missed: {fact_table} has {N} READY KPIs
+     at {grain} but no metric view was planned for it."
+```
+
+**Common violation (detected in prior runs):** The agent plans only the primary metric view (from the largest fact table) and classifies all KPIs from other fact tables as NOT_IMPLEMENTED without creating secondary metric views. Another observed failure mode is planning the secondary metric view and then silently dropping it during creation because it contains only 1 KPI. Both behaviors are WRONG. The correct behavior is:
+- `fact_claim_detail` → primary claims metric view (claim-line grain)
+- `fact_member_enrollment` → secondary enrollment metric view (enrollment grain), even if it currently carries only `M-2`
+- Only KPIs requiring HAVING/LAG/window are genuinely NOT_IMPLEMENTED
+
+**Self-check before proceeding:**
+```text
+Fact tables in schema:       {list all fact tables}
+Fact tables with metric views: {list fact tables that source a planned metric view}
+Fact tables WITHOUT metric views: {list any fact tables with >= 2 READY KPIs but no MV}
+
+IF Fact tables WITHOUT metric views is non-empty:
+  → Go back to STEP B and create the missing metric view(s)
+```
+
+### GATE 5.7: Planned-vs-Created Metric View Parity (MANDATORY)
+
+Before marking the metric-view stage complete, compare:
+- `metric_view_plan.yaml` → `metric_views[]`
+- `metric_view_validation.yaml` → `metric_views[]`
+- `step_handoff.yaml` → `metric_view_fqns[]`
+
+```text
+IF count(planned_metric_views) != count(validated_metric_views):
+  → FAIL the stage. Do NOT downgrade the missing metric view's KPI(s) to NOT_IMPLEMENTED.
+  → Diagnose why the planned metric view was not created, fix the creation step, and rerun validation.
+
+IF count(validated_metric_views) != count(step_handoff.metric_view_fqns):
+  → FAIL the stage. Downstream stages must receive the full metric view set.
+```
+
+A run is NOT allowed to end Step 5 with:
+- plan says 2 metric views
+- validation says 1 metric view
+- downstream dashboards/Genie proceed anyway
+
+That exact mismatch caused fresh-run divergence and must now be treated as a hard failure.
 
 ## Guard Rails
 

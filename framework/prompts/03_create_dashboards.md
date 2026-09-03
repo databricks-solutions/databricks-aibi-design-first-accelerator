@@ -125,6 +125,9 @@ The following actions are STRICTLY FORBIDDEN:
 12. **DO NOT call `w.lakeview.create()` before Steps 1-11 are complete** — the design contract, dataset validation YAML, and preflight structural validation MUST all exist first. Jumping to API creation "because the dashboard seems simple" is the #1 cause of dashboard failures.
 13. **DO NOT use `execute_python` for dashboard creation or publishing** — the subprocess has NO WorkspaceClient, NO Databricks SDK access, and NO API tokens. Use the `create_dashboard` and `publish_dashboard` tools instead. Any Python code using `w.lakeview.*`, `w.api_client.do(...)`, or `requests.post(...)` will FAIL.
 14. **DO NOT use `multilineTextboxSpec` as a plain string for text widgets** — the Lakeview API rejects plain strings and returns `'failed to parse serialized dashboard'`. The field MUST be an object: `"multilineTextboxSpec": {"value": "<markdown>"}`. Also NEVER use `textboxSpec` or `textbox_spec` (wrong key names). The template's `build_text_widget()` handles this correctly; always use it.
+15. **DO NOT hand-write filter widget JSON inline** — ALWAYS use `build_filter_widget()` or `build_filters_page()` from the helper template. Hand-written filter JSON consistently omits `queryName` from `encodings.fields[]`, which makes filters appear as "no fields or parameters selected" in the Lakeview UI. The template function at line 454 ALWAYS includes `queryName: "main_query"`. If you are building dashboard JSON without importing and calling the template helpers, you are violating this rule.
+16. **DO NOT define your own widget builder functions** (e.g., `def bar(...)`, `def counter(...)`, `def line(...)`) — ALWAYS import `build_bar_chart`, `build_counter`, `build_line_chart` etc. from `lakeview_dashboard_helpers.py.template`. Hand-rolled builder functions have wrong signatures and produce `TypeError: bar() missing required positional argument` crashes. See Step 8 for the exact import boilerplate.
+17. **DO NOT skip DESCRIBE on the metric view before building datasets** — always run `DESCRIBE TABLE {metric_view_fqn}` and use the RETURNED column names in dataset SQL and filter field references. The metric view dimension names (e.g., `claim_type`, `service_date`) may differ from the source table column names (e.g., `clm_dtl_claim_type`, `clm_dtl_specific_dos_date`). Using source-table column names in dashboard SQL will produce empty results or filter binding failures.
 
 ### HARD STOP RULE: No Divergence from This Prompt
 
@@ -136,6 +139,9 @@ If the executing agent:
 - Uses `"query": "..."` instead of `"queryLines": ["..."]` in datasets → **INVALID**
 - Omits filter widgets entirely → **INVALID**
 - Skips dataset SQL execution validation → **INVALID**
+- Hand-writes filter JSON without using `build_filter_widget()` / `build_filters_page()` → **INVALID** (consistently omits `queryName`)
+- Builds dataset SQL using column names from `erd_parsed.yaml` or `kpi_metric_mapping.yaml` without first running `DESCRIBE TABLE {metric_view_fqn}` → **INVALID** (metric view aliases differ from source table column names)
+- Defines its own `bar()`, `counter()`, `line()` or similar widget builder functions instead of importing from the template → **INVALID** (signature mismatch causes TypeError crashes)
 
 Any of these invalidate the dashboard and require re-execution from Step 1 of this prompt.
 
@@ -230,6 +236,9 @@ ds = build_validated_dataset("ds_name", sql, "Display Name")
 
 # 3. Build filters page using shared dataset (deterministic structure)
 filters_page = build_filters_page(dataset_name, filter_dimensions)
+assert every filter field in filters_page includes queryName == "main_query"
+assert every filter fieldName matches an actual dataset column name returned by describe_metric_view()
+# NOTE: A filter widget with fieldName but NO queryName is structurally invalid for Lakeview UI binding.
 
 # 4. Build canvas widgets using builder functions
 widget = build_counter(name, dataset_name, field_name, display, title, agg)
@@ -289,6 +298,45 @@ Do not bypass `MEASURE()` with raw-table calculations merely to make a visualiza
 
 ---
 
+## MANIFEST INTEGRITY RULE (NON-NEGOTIABLE)
+
+**NEVER write `*_dashboard_manifest.json` with `published: true` unless ALL of these are true:**
+
+1. The dashboard has been created via the Lakeview API (you have a `dashboard_id`)
+2. The dashboard has been published via `POST /api/2.0/lakeview/dashboards/{id}/published`
+3. `validate_dashboard_from_api(dashboard_id, name)` from `gate_checks.py` has been called and returned `status: PASS`
+4. The API readback confirmed: **≥1 filter page, ≥3 filter widgets, ≥2 widgets per canvas page**
+5. Every filter widget's `spec.encodings.fields[]` includes BOTH:
+   - `fieldName`
+   - `queryName: "main_query"`
+6. Every filter widget query references the SAME dataset used by the widgets it is intended to filter
+7. The manifest includes `validation_source: api_readback`
+
+**A manifest that claims `published: true` without API readback is FRAUD.** It will be caught by the master prompt's cross-validation sweep (GATE 5.3) and force a full re-execution.
+
+**Observed failure mode (fresh run):** filter widgets were present in the deployed JSON and had dataset references, but their `encodings.fields[]` entries omitted `queryName`. In the Lakeview UI this appears as: "Filter has no fields or parameters selected." Treat this as a deployment failure, not a cosmetic issue.
+
+**Manifest schema (required fields):**
+
+```json
+{
+  "dashboard_id": "<uuid>",
+  "display_name": "<name>",
+  "published": true,
+  "validation_source": "api_readback",
+  "datasets": 4,
+  "pages": 4,
+  "canvas_pages": 3,
+  "filter_pages": 1,
+  "total_canvas_widgets": 12,
+  "total_filters": 3
+}
+```
+
+All numeric fields MUST come from the `validate_dashboard_from_api()` return value, NOT from agent memory.
+
+---
+
 ## State & Checkpoint Contract
 
 This step uses **artifact-as-state** checkpointing (see `06_state_contract.md`).
@@ -305,15 +353,17 @@ If it does not exist → execute the phase normally.
 3. For each artifact below, apply ONE cheap check:
    - `dashboard_design.yaml` exists → skip design_dashboard
    - `dashboard_dataset_validation.yaml` exists → skip validate_datasets
-   - Dashboard manifest (`*_dashboard_manifest.json`) exists with `dashboard_id` field → skip create_dashboard
-   - Manifest has `published: true` → skip publish_dashboard
-   - `dashboard_validation.yaml` exists → skip validate_dashboard
-3. Continue from the **first phase whose artifact is missing**.
+   - Dashboard manifest (`*_dashboard_manifest.json`) exists with `dashboard_id` field **AND** `validation_source: api_readback` → skip create_dashboard
+   - Manifest has `published: true` **AND** `validation_source: api_readback` → skip publish_dashboard
+   - `dashboard_validation.yaml` exists with `source: api_readback` → skip validate_dashboard
+   - **IMPORTANT:** If a manifest exists but does NOT have `validation_source: api_readback`, it is UNVERIFIED. Run `validate_dashboard_from_api()` before skipping.
+3. Continue from the **first phase whose artifact is missing or unverified**.
 
 **Rules:**
 
 - Every `report_progress(status="completed")` marks a phase as done.
 - **Never re-execute a phase whose output artifact already exists and is structurally valid.**
+- **Never SKIP validation just because a manifest exists — the manifest must be API-verified.**
 - For dashboards: if manifest contains a valid `dashboard_id`, **UPDATE** the existing dashboard rather than creating a new one.
 - If `RESUME_CONTEXT` is provided (App mode), use it to accelerate. Otherwise, discover state from the output folder.
 
@@ -324,9 +374,9 @@ If it does not exist → execute the phase normally.
 | load_config | Config + contracts loaded | Always re-read (stateless) |
 | design_dashboard | dashboard_design.yaml | file exists |
 | validate_datasets | dashboard_dataset_validation.yaml | file exists |
-| create_dashboard | *_dashboard_manifest.json | file exists + contains dashboard_id |
-| publish_dashboard | manifest.published = true | manifest field check |
-| validate_dashboard | dashboard_validation.yaml | file exists |
+| create_dashboard | *_dashboard_manifest.json | file exists + contains dashboard_id + `validation_source: api_readback` |
+| publish_dashboard | manifest.published = true | manifest field check + `validation_source: api_readback` |
+| validate_dashboard | dashboard_validation.yaml | file exists with `source: api_readback` |
 
 ---
 
@@ -996,6 +1046,8 @@ When generating dataset SQL — especially UNION ALL queries:
 3. **Complete column names**: Never truncate or abbreviate column identifiers. Use the full column name as it appears in the metric view schema.
 4. **One dataset per execute_sql**: Execute each dataset SQL individually for validation. Do NOT combine multiple unrelated datasets into one multi-statement call.
 5. **Alias all computed columns**: Every expression (`SUM(...)`, `CASE WHEN...`, literals) must have an explicit `AS alias`.
+6. **LIMIT inside UNION ALL is a PARSE_SYNTAX_ERROR**: In Databricks SQL, `LIMIT` binds to the entire statement, NOT to individual sub-queries. `SELECT ... LIMIT 1 UNION ALL SELECT ...` is INVALID. Either omit LIMIT from sub-queries, or wrap each in parentheses: `(SELECT ... LIMIT 1) UNION ALL (SELECT ... LIMIT 1)`.
+7. **On SQL failure, fix the SQL — do NOT fall back to execute_python**: If a dataset SQL query fails, diagnose and correct the SQL syntax. NEVER switch to `execute_python` as a workaround — the Python subprocess has NO Databricks SDK access and cannot create or validate dashboards.
 
 If a generated SQL exceeds ~30 lines, mentally verify the structure before calling `execute_sql`:
 - Count the columns in the first SELECT
@@ -1782,9 +1834,40 @@ and:
 
 ```text
 framework/templates/lakeview_dashboard_helpers.py.template
+framework/templates/gate_checks.py
 ```
 
 where configured.
+
+**MANDATORY**: Both files MUST be loaded. `gate_checks.py` provides programmatic enforcement that PREVENTS deployment of empty or incomplete dashboards. The helpers template auto-imports `gate_checks.py` when both files are in the same directory.
+
+### How to Load the Template Helpers
+
+The template file has a `.template` extension and must be copied to a `.py` file before import. Use this EXACT boilerplate at the top of every `execute_python` call that builds dashboards:
+
+```python
+import sys, os, shutil
+
+deploy_root = os.environ.get("DEPLOY_ROOT", "/Workspace/Users/{username}/databricks-aibi-design-first-accelerator")
+templates_dir = f"{deploy_root}/framework/templates"
+tmp_helpers = "/tmp/pipeline_python/lakeview_dashboard_helpers.py"
+
+# Copy .template → .py so Python can import it
+shutil.copy2(f"{templates_dir}/lakeview_dashboard_helpers.py.template", tmp_helpers)
+shutil.copy2(f"{templates_dir}/gate_checks.py", "/tmp/pipeline_python/gate_checks.py")
+sys.path.insert(0, "/tmp/pipeline_python")
+
+from lakeview_dashboard_helpers import (
+    build_dataset, build_text_widget, build_counter,
+    build_bar_chart, build_line_chart,
+    build_filter_widget, build_filters_page, build_canvas_page,
+    build_serialized_dashboard, deploy_dashboard,
+)
+```
+
+**DO NOT define your own `bar()`, `counter()`, `line()`, or any other shorthand function.** The template provides the canonical builders. Defining your own function with a different signature is the #1 cause of `TypeError: bar() missing required positional argument` failures.
+
+**Observed failure mode (Apps agent, v1):** The agent generated inline Python with `def bar(n, d, x, y, t):` (5 params) and later called it as `bar(n, d, x, y, t, p)` (6 params), producing `TypeError: bar() missing 1 required positional argument: 'p'`. The fix is to NEVER define widget builders inline — always import from the template.
 
 Use the project's supported helpers:
 
@@ -1808,9 +1891,28 @@ build_canvas_page(name, display_name, layout)        # PAGE_TYPE_CANVAS
 # Assembly + validation
 build_serialized_dashboard(datasets, pages, filter_dimensions)
 
-# End-to-end
-deploy_dashboard(display_name, warehouse_id, parent_path, datasets, pages, filter_dimensions)
+# End-to-end (PREFERRED — includes gate enforcement)
+deploy_dashboard(
+    display_name, warehouse_id, parent_path, datasets, pages, filter_dimensions,
+    required_artifacts=[...],   # paths to design contract + dataset validation YAML
+    quality_gates=quality_gates, # from accelerator.yaml quality_gates section
+    output_folder=OUTPUT_FOLDER, # writes ground-truth validation YAML after deploy
+)
 ```
+
+### Gate Enforcement Built Into deploy_dashboard()
+
+`deploy_dashboard()` now includes automatic gate enforcement when `gate_checks.py` is available:
+
+- **Pre-deploy (Layer 1)**: Before the API call, verifies that every canvas page has widgets (>= `min_widgets_per_canvas_page`), a filter page exists with >= `min_filters_per_dashboard` filters, and all `required_artifacts` files exist. If ANY check fails, `GateCheckError` is raised and the API call NEVER executes.
+- **Post-deploy (Layer 2)**: After create + publish, reads the dashboard back from the Lakeview API and verifies the deployed content matches. Writes a ground-truth validation YAML with `source: api_readback` to `output_folder`.
+
+This means:
+- Creating a dashboard with 0 widgets will raise `GateCheckError("PRE_DEPLOY_WIDGETS")` — the API call is physically blocked.
+- Creating a dashboard without a filter page will raise `GateCheckError("PRE_DEPLOY_FILTERS")`.
+- If the deployed dashboard doesn't match (silent API failure), `GateCheckError("POST_DEPLOY_DASHBOARD")` is raised.
+
+Do NOT catch and suppress `GateCheckError`. If it fires, the dashboard is incomplete and must be fixed.
 
 ### CRITICAL: Shared Dataset Pattern
 
@@ -2414,6 +2516,14 @@ Do NOT consider a widget valid simply because its JSON is accepted by the API.
 ---
 
 # Step 19: Dashboard Validation Artifact
+
+### GATE 19.1: Ground-Truth Validation Required
+
+If `gate_checks.py` is loaded and `deploy_dashboard()` was called with `output_folder`, then per-dashboard validation YAMLs with `source: api_readback` already exist. These are the **authoritative** validation artifacts.
+
+Do NOT overwrite `source: api_readback` validation files with `source: agent_reported` content. If the API readback validation already exists and shows `status: PASS`, use it directly.
+
+If gate_checks was NOT available (fallback mode), write the validation artifact manually:
 
 Write:
 

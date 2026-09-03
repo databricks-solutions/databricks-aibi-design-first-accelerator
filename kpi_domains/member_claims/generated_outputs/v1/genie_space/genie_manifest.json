@@ -1,0 +1,15 @@
+{
+  "space_id": "01f1a79eebc217808072e6a6880c79cf",
+  "title": "member_claims_analytics_genie_v1",
+  "warehouse_id": "2d8e531640ffa469",
+  "metric_views": [
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_enrollment_metric_view_v1",
+    "aw_serverless_stable_catalog.aibi_member_claims.member_claims_metric_view_v1"
+  ],
+  "sample_questions_count": 18,
+  "example_sqls_count": 18,
+  "benchmark_count": 16,
+  "instructions_chars": 2386,
+  "validation_source": "api_acceptance",
+  "status": "CREATED_AND_CONFIGURED"
+}

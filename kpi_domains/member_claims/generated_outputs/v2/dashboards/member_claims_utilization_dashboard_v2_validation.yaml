@@ -1,0 +1,55 @@
+source: api_readback
+status: PASS
+dashboard:
+  dashboard_id: 01f1a7afe03812bbb10edb91630b432d
+  display_name: member_claims_utilization_dashboard_v2
+  status: PASS
+  published: true
+  warehouse_id: 2d8e531640ffa469
+source_metric_views:
+  - "`aw_serverless_stable_catalog`.`aibi_member_claims`.`member_claims_metric_view_v2`"
+pages:
+  expected: 4
+  actual: 4
+  canvas_pages: 3
+  filter_pages: 1
+  status: PASS
+datasets:
+  expected: 1
+  actual: 1
+  empty_queries: 0
+  failed_queries: 0
+  status: PASS
+widgets:
+  expected: 18
+  actual: 18
+  invalid_widgets: 0
+  status: PASS
+filters:
+  expected_min: 3
+  actual: 5
+  binding_failures: 0
+  impact_tests:
+    - name: line_status_filter_impact
+      status: PASS
+      evidence: filtered line_status segments reconcile to unfiltered claim total
+  status: PASS
+kpis:
+  rendered_and_validated:
+    - Total Claims
+    - Total Claim Lines
+    - Inpatient Paid Amount
+    - Outpatient Paid Amount
+    - Participating Provider Rate
+    - Participating Provider Paid Amount
+    - Total Paid Amount
+    - Denial Rate
+    - Payment-to-Billed Ratio
+    - Payment-to-Allowed Ratio
+    - Clean Claim Rate
+  skipped_not_validated_in_metric_layer: []
+api:
+  create_status: PASS
+  get_status: PASS
+  publish_status: PASS
+overall_status: PASS

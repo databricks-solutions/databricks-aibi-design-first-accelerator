@@ -156,7 +156,72 @@ genie_space/*_manifest.json
 genie_space/*_validation.yaml
 
 genie_space/{assets.sample_queries_file}
+
+ground_truth_validation.yaml
 ```
+
+### Ground-Truth Validation Artifact (MANDATORY)
+
+`ground_truth_validation.yaml` is the **highest-authority** validation artifact. It MUST exist before documentation can be written. It was produced by `gate_checks.py` via API readback (not agent self-reporting) and reflects the actual deployed state of every asset.
+
+**If `ground_truth_validation.yaml` does NOT exist:**
+1. Run the cross-validation sweep BEFORE generating documentation. Use this EXACT code for both App (`execute_python`) and Genie Code contexts:
+    ```python
+    import sys, os, shutil
+
+    deploy_root = os.environ.get("DEPLOY_ROOT", "/Workspace/Users/{username}/databricks-aibi-design-first-accelerator")
+    templates_dir = f"{deploy_root}/framework/templates"
+
+    # For execute_python subprocess: copy gate_checks.py to a writable location
+    tmp_dir = "/tmp/pipeline_python"
+    os.makedirs(tmp_dir, exist_ok=True)
+    shutil.copy2(f"{templates_dir}/gate_checks.py", f"{tmp_dir}/gate_checks.py")
+    sys.path.insert(0, tmp_dir)
+
+    from gate_checks import run_cross_validation, write_ground_truth_validation
+    report = run_cross_validation(OUTPUT_FOLDER, quality_gates=quality_gates)
+    write_ground_truth_validation(f"{OUTPUT_FOLDER}/ground_truth_validation.yaml", report, source="cross_validation_sweep")
+    ```
+2. If the sweep fails, the documentation MUST record the failure — do NOT report assets as successfully deployed.
+3. **DO NOT re-execute earlier pipeline stages** (data layer, metric views, dashboards, Genie) to produce `ground_truth_validation.yaml`. The sweep reads EXISTING manifests and calls EXISTING APIs — it creates nothing new. If earlier stages failed, their failures should be documented, not retried during the documentation step.
+4. **DO NOT run any notebook that imports `dbldatagen`** — that is exclusively a Step 2 (data layer) dependency. If the agent encounters a `dbldatagen` import error during documentation or cross-validation, it means the wrong notebook is being executed. HALT and report the error.
+
+**Validation source hierarchy** (most trustworthy first):
+
+1. `source: cross_validation_sweep` — terminal sweep that read every manifest and verified via API
+2. `source: api_readback` — post-deploy readback of individual assets
+3. `source: agent_reported` or no `source` field — written by the agent without API verification. **NEVER use agent_reported counts in the README.**
+
+**Rules:**
+- If a per-dashboard `*_validation.yaml` has `source: api_readback`, use its counts (widgets, filters, datasets) as authoritative for the README.
+- If a validation artifact has `source: agent_reported` or no `source` field, treat it as **unverified**. Cross-reference against `ground_truth_validation.yaml` if available.
+- If `ground_truth_validation.yaml` shows `overall_status: FAIL` but per-asset validation files show `PASS`, the ground-truth artifact takes precedence — the per-asset files are unreliable.
+- The README's dashboard widget/filter counts and Genie instruction/question counts MUST come from `api_readback` or `cross_validation_sweep` artifacts when available, NOT from agent-reported manifests.
+- **NEVER write `status: COMPLETED` in run_manifest.json if `ground_truth_validation.yaml` shows `overall_status: FAIL`.**
+
+### Artifact Completeness Check
+
+Compare the files actually present in the output folder against the expected artifact list below. Any missing artifacts should be documented in the Known Limitations section.
+
+**Expected dashboard artifacts** (per dashboard):
+- `llm_dashboard_design.yaml`
+- `dashboard_design.yaml`
+- `dashboard_dataset_validation.yaml`
+- `{name}_dashboard_manifest.json`
+- `{name}_validation.yaml`
+- `dashboard_validation.yaml`
+
+**Expected Genie artifacts:**
+- `genie_semantic_inventory.yaml`
+- `llm_genie_design.yaml`
+- `{name}_manifest.json`
+- `{name}_validation.yaml`
+- `benchmark_results.yaml`
+- `genie_benchmark_validation.yaml`
+- `sample_queries_{domain}.sql`
+- Configuration notebook
+
+Missing intermediate artifacts (e.g., no `dashboard_design.yaml`) indicate that the agent skipped mandatory steps. Flag these in the README.
 
 Do not require artifacts that are not applicable to the configured `data_source.type`.
 
