@@ -86,6 +86,37 @@ In both patterns, the pipeline contract and stage prompts are identical. Only th
   output_contracts: Every step has an Output Contract table listing required artifacts
 -->
 
+### Guardrails Contract (MANDATORY)
+
+The framework uses a centralized guardrails system under `framework/prompts/guardrails/`.
+
+Before executing ANY step:
+1. Read `guardrails/00_global_rules.md` (9 cross-cutting rules that apply to every step)
+2. Read the step-specific guardrails file listed in the step prompt's Guardrails header
+3. Each guardrails file contains: gates (must-pass checkpoints), prohibited actions, and anti-patterns (observed failure modes with root causes and fixes)
+
+Guardrail files are BINDING — violations are pipeline failures.
+Do NOT invent rules not in the guardrails files.
+Do NOT skip reading guardrails because "this step is simple."
+
+| Step | Guardrails File |
+|---|---|
+| Step 2: Create Data Layer | `guardrails/01_data_layer_guardrails.md` |
+| Step 3: Create Metric Views | `guardrails/02_metric_view_guardrails.md` |
+| Step 4: Create Dashboards | `guardrails/03_dashboard_guardrails.md` |
+| Step 5: Create Genie Space | `guardrails/04_genie_guardrails.md` |
+| Step 6: Generate Documentation | `guardrails/05_documentation_guardrails.md` |
+
+### Template Notebook Pattern (MANDATORY for deployment steps)
+
+Deployment steps use template notebooks that bake guardrails into the code path:
+
+| Step | Template | LLM Produces | Template Handles |
+|---|---|---|---|
+| Step 2: Data Layer | `dbldatagen_notebook.py.template` | Table configs + domain values | Validation, generation, row counts |
+| Step 4: Dashboards | `dashboard_notebook.py.template` | `dashboard_design.yaml` | DESCRIBE, build, deploy, readback |
+| Step 5: Genie Space | `genie_space_notebook.py.template` | Instructions, questions, SQL | API calls, validation, readback |
+
 ### Manifest Integrity Rule (Global — Applies to ALL Deployment Manifests)
 
 All deployment manifests (`*_manifest.json`, `genie_manifest.json`) MUST be produced using **API readback validation**, not agent self-reporting.

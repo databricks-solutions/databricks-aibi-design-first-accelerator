@@ -1,5 +1,12 @@
 # Create Genie Space
 
+> **Guardrails:** Before executing this step, read and internalize:
+> 1. `framework/prompts/guardrails/00_global_rules.md` (ALWAYS — every step)
+> 2. `framework/prompts/guardrails/04_genie_guardrails.md` (THIS step's gates, rules, and anti-patterns)
+>
+> Genie space deployment uses `genie_space_notebook.py.template` (the Genie compiler).
+> These guardrail files are BINDING. Violations are pipeline failures.
+
 ## CONTEXT ISOLATION — Read This First
 
 Forget all execution details from prior steps (ERD parsing, synthetic data, metric view creation, dashboard deployment). You do NOT need that context.

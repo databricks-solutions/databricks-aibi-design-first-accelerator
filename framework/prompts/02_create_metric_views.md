@@ -1,5 +1,11 @@
 # Create Metric Views
 
+> **Guardrails:** Before executing this step, read and internalize:
+> 1. `framework/prompts/guardrails/00_global_rules.md` (ALWAYS — every step)
+> 2. `framework/prompts/guardrails/02_metric_view_guardrails.md` (THIS step's gates, rules, and anti-patterns)
+>
+> These guardrail files are BINDING. Violations are pipeline failures.
+
 ## CONTEXT ISOLATION — Read This First
 
 Forget all execution details from the Data Layer step (ERD parsing, synthetic data generation, DDL execution). You do NOT need that context.

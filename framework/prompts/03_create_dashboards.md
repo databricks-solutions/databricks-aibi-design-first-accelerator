@@ -1,5 +1,13 @@
 # Create Dashboards
 
+> **Guardrails:** Before executing this step, read and internalize:
+> 1. `framework/prompts/guardrails/00_global_rules.md` (ALWAYS — every step)
+> 2. `framework/prompts/guardrails/03_dashboard_guardrails.md` (THIS step's gates, rules, and anti-patterns)
+>
+> Dashboard deployment uses `dashboard_notebook.py.template` (the dashboard compiler).
+> The LLM's job is to produce `dashboard_design.yaml`. The template handles deployment.
+> These guardrail files are BINDING. Violations are pipeline failures.
+
 ## CONTEXT ISOLATION — Read This First
 
 Forget all execution details from prior steps (ERD parsing, synthetic data generation, metric view DDL). You do NOT need that context.

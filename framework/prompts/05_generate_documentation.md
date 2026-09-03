@@ -1,5 +1,11 @@
 # Generate Documentation
 
+> **Guardrails:** Before executing this step, read and internalize:
+> 1. `framework/prompts/guardrails/00_global_rules.md` (ALWAYS — every step)
+> 2. `framework/prompts/guardrails/05_documentation_guardrails.md` (THIS step's gates, rules, and anti-patterns)
+>
+> These guardrail files are BINDING. Violations are pipeline failures.
+
 ## Role
 
 Produce a factual, auditable run summary after all accelerator pipeline stages complete.
