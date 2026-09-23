@@ -33,6 +33,36 @@ class UploadFormatTests(unittest.TestCase):
     def test_preflight_error_is_repairable(self):
         classify=AgentLoop.run.__globals__['classify_error']
         self.assertEqual(classify('ERROR: WORKSPACE_UPLOAD_FORMAT_REQUIRED'), 'LLM_REPAIRABLE')
+    def test_notebook_upload_without_format_never_submits(self):
+        from unittest.mock import Mock
+        for method in ('upload', 'import_'):
+            with self.subTest(method=method):
+                source = "# Databricks notebook source\n# COMMAND ----------\ndef put(path, raw):\n    w.workspace." + method + "(path, raw)\n"
+                jobs = SimpleNamespace(run_notebook=Mock())
+                executor = ToolExecutor(SimpleNamespace(), {
+                    'workspace': SimpleNamespace(read_file=lambda path: source), 'jobs': jobs})
+                result = executor.execute('execute_notebook', {'path': '/Workspace/inspection'})
+                self.assertIn('WORKSPACE_UPLOAD_FORMAT_REQUIRED', result)
+                self.assertIn('cell 2', result)
+                jobs.run_notebook.assert_not_called()
+
+    def test_explicit_notebook_format_passes_preflight(self):
+        source = "w.workspace.import_(path=p, content=payload, format=ImportFormat.SOURCE, language=Language.PYTHON)"
+        executor = ToolExecutor(SimpleNamespace(), {
+            'workspace': SimpleNamespace(read_file=lambda path: source)})
+        self.assertIsNone(executor._py_compile_check('/Workspace/inspection'))
+
+    def test_unreadable_notebook_never_submits(self):
+        from unittest.mock import Mock
+        jobs = SimpleNamespace(run_notebook=Mock())
+        executor = ToolExecutor(SimpleNamespace(), {
+            'workspace': SimpleNamespace(read_file=Mock(side_effect=PermissionError('denied'))),
+            'jobs': jobs})
+        result = executor.execute('execute_notebook', {'path': '/Workspace/inspection'})
+        self.assertIn('NOTEBOOK_PREFLIGHT_ERROR', result)
+        self.assertIn('denied', result)
+        jobs.run_notebook.assert_not_called()
+
     def test_workspace_store_preserves_raw_bytes_and_create_only_flag(self):
         module=ModuleType('databricks.sdk.service.workspace')
         module.ImportFormat=SimpleNamespace(RAW='RAW')

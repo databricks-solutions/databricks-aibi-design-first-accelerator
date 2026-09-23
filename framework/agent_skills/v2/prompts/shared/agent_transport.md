@@ -82,6 +82,22 @@ a bare string passed to SDK upload, AUTO, or a silent SOURCE fallback. Never ret
 SDK/API write failure using a second transport. Server/permission errors propagate.
 Probe installed SDK capabilities in each execution host; App and notebook environments
 may have different SDK versions. Do not upgrade libraries mid-run to bypass admission. Notebook deployment uses its explicit notebook format.
+Before executing any generated control/inspection notebook, inspect its full source, including
+helper functions, against the same transport rules as inline Python. Syntax compilation alone
+is insufficient. A setup inspection uses read operations; do not add scratch Workspace writes
+merely to inspect configuration. Required lifecycle/diagnostic writes use the attested store.
+Every direct SDK import/upload must state the appropriate format; do not let wrappers rely on
+defaults. Check payload encoding and the target object type separately for files and notebooks.
+If the host cannot inspect submitted source, stop before execution and report the missing capability.
+
+For `The zip archive contains no items`, record the failing API operation, exact notebook path,
+Jobs run ID, traceback/cell, and executed source digest when available. Inspect that cell and
+its helper before assigning a cause: this message alone does not prove an omitted upload format.
+Preserve the original error. Check existing writes and the frozen helper/template versions before
+master-owned recovery; do not blindly resubmit the notebook or switch formats after failure.
+A failed terminal transaction remains failed; use the existing master recovery lifecycle rather
+than rewriting it to completed. Do not claim live recovery from local test results.
+
 Templates and Python helpers may run in a notebook. If runtime filesystem access to
 /Workspace files is required by a selected Spark template, verify that exact mount
 is readable/writable in its execution environment before deployment. Do not assume

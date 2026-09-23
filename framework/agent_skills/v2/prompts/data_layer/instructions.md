@@ -281,7 +281,7 @@ This works identically in **Genie Code** and **Databricks App** mode — both us
    → CACHE MISS: call vision model (full parse)
    → Inject "_erd_image_hash: {erd_hash}" as a top-level field in the output
 
-4. Save erd_parsed.yaml to CURRENT version's OUTPUT_FOLDER via SDK workspace import
+4. Save validated erd_parsed.yaml to CURRENT version's OUTPUT_FOLDER using the attested WorkspaceStore.write (shared agent_transport.md)
    (always — even on cache hit, so the current version is self-contained)
 ```
 
@@ -290,10 +290,10 @@ This works identically in **Genie Code** and **Databricks App** mode — both us
 Both environments use `WorkspaceClient()` with their respective authentication (runtime token for Genie Code, service principal token for App). The SDK methods used are:
 - `workspace.export()` to read files (ERD image and prior YAML)
 - `workspace.list()` to enumerate version folders
-- `workspace.import_()` to save the YAML to the current version folder
+- Attested `WorkspaceStore.write()` to save validated YAML with explicit RAW semantics, SDK compatibility selection, and byte readback (shared `agent_transport.md`); never a bare `workspace.import_()`
 - `hashlib.sha256()` for hash computation (stdlib, no dependencies)
 
-No environment-specific branching is needed. The algorithm is identical in both modes.
+The cache algorithm is identical in both modes; the shared transport handles SDK capability differences on the actual execution host.
 
 **Rules:**
 - The `_erd_image_hash` field is metadata only — downstream stages MUST ignore it

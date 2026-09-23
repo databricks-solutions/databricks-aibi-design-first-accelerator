@@ -428,27 +428,9 @@ class ToolExecutor:
         if not code.strip():
             return "ERROR: No code provided."
 
-        # Plain workspace files must not fall through to SDK source/archive inference.
-        # Diagnose generated calls; never rewrite the agent's code behind its back.
-        import ast
-        try:
-            tree = ast.parse(code)
-        except SyntaxError:
-            tree = None  # Let Python return its normal syntax diagnostic below.
-        for node in ast.walk(tree) if tree is not None else ():
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr in ('upload', 'import_')
-                    and isinstance(node.func.value, ast.Attribute)
-                    and node.func.value.attr == 'workspace'
-                    and not any(k.arg in ('format', None) for k in node.keywords)):
-                return (
-                    f"ERROR: WORKSPACE_UPLOAD_FORMAT_REQUIRED at line {node.lineno}. "
-                    "Use the attested WorkspaceStore.write() for lifecycle files. "
-                    "For other plain files use explicit RAW transport with the older-SDK fallback in agent_transport.md, "
-                    "with UTF-8 bytes for upload (base64 text for import_). "
-                    "Notebook imports require their explicit SOURCE/language or JUPYTER format. "
-                    "No Python code was executed."
-                )
+        format_error = self._workspace_upload_format_check(code)
+        if format_error:
+            return format_error
 
         # Build environment: inherit parent + ensure workspace access
         env = os.environ.copy()
@@ -886,6 +868,31 @@ class ToolExecutor:
         except Exception as e:
             return f"ERROR executing notebook: {str(e)}"
 
+    @staticmethod
+    def _workspace_upload_format_check(code: str) -> str | None:
+        """Reject direct SDK writes with omitted formats before execution."""
+        import ast
+        try:
+            tree = ast.parse(code)
+        except SyntaxError:
+            tree = None  # Let Python return its normal syntax diagnostic below.
+        for node in ast.walk(tree) if tree is not None else ():
+            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                    and node.func.attr in ('upload', 'import_')
+                    and isinstance(node.func.value, ast.Attribute)
+                    and node.func.value.attr == 'workspace'
+                    and not any(k.arg in ('format', None) for k in node.keywords)):
+                return (
+                    f"ERROR: WORKSPACE_UPLOAD_FORMAT_REQUIRED at line {node.lineno}. "
+                    "Use the attested WorkspaceStore.write() for lifecycle files. "
+                    "For other plain files use explicit RAW transport with the older-SDK fallback in agent_transport.md, "
+                    "with UTF-8 bytes for upload (base64 text for import_). "
+                    "Notebook imports require their explicit SOURCE/language or JUPYTER format. "
+                    "No Python code was executed."
+                )
+
+        return None
+
     def _py_compile_check(self, path: str) -> str | None:
         """Pre-flight syntax check for Python notebooks.
 
@@ -904,9 +911,9 @@ class ToolExecutor:
         try:
             source = self._ws.read_file(path)
             if not source:
-                return None  # Empty notebook, let it run (will fail gracefully)
-        except Exception:
-            return None  # Can't read = let the job run and report its own error
+                return f"ERROR: NOTEBOOK_PREFLIGHT_ERROR: empty source at {path}; no job submitted."
+        except Exception as exc:
+            return f"ERROR: NOTEBOOK_PREFLIGHT_ERROR: cannot inspect {path}: {exc}; no job submitted."
 
         # Split into cells (Databricks source format)
         cell_separator = "# COMMAND ----------"
@@ -951,6 +958,10 @@ class ToolExecutor:
                     f"Cell {idx + 1}{line_info}: {e.msg}{text_info}"
                 )
                 continue  # Skip Gate 2 if compile already failed
+
+            format_error = self._workspace_upload_format_check(cell_stripped)
+            if format_error:
+                return f"{format_error} Notebook: {path}, cell {idx + 1}; no job submitted."
 
             # Gate 2: f-string backslash detector (Python 3.11 compat)
             # compile() on 3.12+ won't catch this, but serverless runs 3.11
