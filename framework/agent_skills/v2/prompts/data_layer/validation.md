@@ -244,6 +244,32 @@ def bind_data_template(template_text, run_context, step_handoff):
     return {key: sources[key] for key in sorted(required)}
 ```
 
+Construct the **entire deployment request** on the same execution surface as this gate,
+using the current template bytes and authenticated context/handoff. Return the serialized
+request as a tool result and pass it unchanged to `deploy_from_template`; do not rebuild
+`placeholders` from memory. For Genie Code, use the identical returned map with the shared
+native/SDK deployment transport. The output path must already pass current-run ownership
+checks; constructing this request does not authorize a new path.
+
+```python
+def build_data_deployment_request(template_text, run_context, step_handoff,
+                                  template_path, output_path, run_context_path):
+    return {
+        "template_path": template_path,
+        "output_path": output_path,
+        "run_context_path": run_context_path,
+        "language": "PYTHON",
+        "placeholders": bind_data_template(template_text, run_context, step_handoff),
+    }
+```
+
+Rebuild this request separately for each template, including after DDL succeeds. In
+particular, a DDL map without `ASSET_SUFFIX` is not a synthetic-template binding map.
+Before issuing deployment, compare the request's placeholder key set to the exact
+frozen template interface and require equality. The synthetic suffix is copied verbatim
+from authenticated persisted identity, never derived from a folder or version number.
+Missing or conflicting persisted suffix is an authority failure, not permission to guess.
+
 If an updated frozen template introduces an unmapped field, halt for its owning
 contract to be resolved; do not guess a value. This gate does not replace template
 digest authentication, persisted handoff parity, or runtime pre-data checks.

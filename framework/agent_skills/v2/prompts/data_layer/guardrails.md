@@ -347,3 +347,14 @@ failures or report PASS after rejection. Keep incomplete drafts in diagnostics. 
 structure blocks canonical parse completion and all dependent deployment, not independent
 source analysis. Report `update` during analysis and `failed` on unresolved admission; use
 only existing shared status/checkpoint values. No partial deployment or silent table omission.
+
+### DL-G4 deployment request integrity
+
+Use `build_data_deployment_request` in validation GATE TEMPLATE-BINDING to construct
+all deployment arguments together. Pass its output unchanged; do not hand-transcribe a
+partial placeholder map. Recompute it when changing templates. The DDL interface omits
+`ASSET_SUFFIX`; the synthetic interface requires it. Both values and required keys come
+from the frozen template and authenticated run handoff, never hardcoded domain/version
+values. A rejected request remains a deployment failure and blocks all dependent calls.
+No notebook import occurred for a missing-binding rejection, but earlier run operations
+still require the master's normal recovery/readback checks.

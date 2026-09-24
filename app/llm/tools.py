@@ -275,7 +275,11 @@ TOOL_DEFINITIONS = [
                             "Dictionary of placeholder keys to values. Keys are the placeholder "
                             "names WITHOUT the double braces (e.g. DOMAIN_NAME not the braced version). "
                             "Values are the substitution strings. ALL placeholders in the template "
-                            "must be provided — the tool will error if any remain unreplaced."
+                            "must be provided — the tool will error if any remain unreplaced. "
+                            "For v2 data templates, pass the exact map from bind_data_template "
+                            "in data_layer/validation.md. dbldatagen requires ASSET_SUFFIX from "
+                            "authenticated step_handoff.asset_suffix, matching run_context.version.asset_suffix. "
+                            "Do not reuse the DDL map for dbldatagen or reconstruct the version suffix."
                         ),
                         "additionalProperties": {"type": "string"}
                     },

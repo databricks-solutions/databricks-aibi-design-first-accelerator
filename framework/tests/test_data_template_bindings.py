@@ -40,6 +40,23 @@ class DataTemplateBindingTests(unittest.TestCase):
                 rendered = ws.import_notebook.call_args.args[1]
                 self.assertNotRegex(rendered, r'\{\{[A-Z_][A-Z0-9_]*\}\}')
 
+    def test_complete_request_retains_synthetic_suffix(self):
+        text = (ROOT / 'framework/agent_skills/v2/prompts/data_layer/validation.md').read_text()
+        source = next(block for block in re.findall(r'```python\n(.*?)```', text, re.S)
+                      if 'def build_data_deployment_request(' in block)
+        namespace = {'bind_data_template': self.bind}
+        exec(compile(source, 'data_layer/validation.md', 'exec'), namespace)
+        request = namespace['build_data_deployment_request'](
+            self.template('dbldatagen'), self.context, self.handoff,
+            '/template', '/Workspace/output/v23/notebooks/synthetic',
+            '/Workspace/output/v23/run_context.yaml')
+        self.assertEqual(request['placeholders']['ASSET_SUFFIX'], '_trial_v23')
+        ws = Mock()
+        ws.read_file.return_value = self.template('dbldatagen')
+        result = Executor(SimpleNamespace(), {'workspace': ws}).execute('deploy_from_template', request)
+        self.assertTrue(result.startswith('SUCCESS'), result)
+        self.assertNotRegex(ws.import_notebook.call_args.args[1], r'\{\{[A-Z_][A-Z0-9_]*\}\}')
+
     def test_invalid_persisted_suffix_halts_binding_gate(self):
         for value in (None, '', ' ', '_different_v23'):
             with self.subTest(value=value):

@@ -825,6 +825,7 @@ type is incomplete or differs, regenerate it from the resolved ERD and record th
    - `template_path`: exact frozen `run_context.templates.ddl_notebook.path`
    - `output_path`: `{OUTPUT_FOLDER}/notebooks/ddl_{DOMAIN_NAME}.py`
    - `placeholders`: the complete map returned by executable GATE TEMPLATE-BINDING in `validation.md`, using this template’s authenticated bytes and the current context/handoff
+   - Build the entire call with `build_data_deployment_request` from that gate and submit its returned request unchanged. For synthetic deployment, rebuild from the synthetic template: do not reuse the DDL request. Its `ASSET_SUFFIX` must be the authenticated persisted suffix.
    This tool reads the template verbatim and performs ONLY placeholder substitution.
    DO NOT use `import_notebook` for this — it will reject template-based paths (G-16 enforcement).
    Read the frozen template for binding validation; leave rendering and import to the deployment transport under shared G-16.
@@ -1344,6 +1345,7 @@ volume_targets:
    - `template_path`: exact frozen `run_context.templates.dbldatagen_notebook.path`
    - `output_path`: `{OUTPUT_FOLDER}/notebooks/synthetic_data_{DOMAIN_NAME}.py`
    - `placeholders`: the complete map returned by executable GATE TEMPLATE-BINDING in `validation.md`, using this template’s authenticated bytes and the current context/handoff
+   - Build the entire call with `build_data_deployment_request` from that gate and submit its returned request unchanged. For synthetic deployment, rebuild from the synthetic template: do not reuse the DDL request. Its `ASSET_SUFFIX` must be the authenticated persisted suffix.
      Use the exact handoff target catalog/schema and `asset_suffix`; generated greenfield tables are not addressed through current accelerator source coordinates.
    The template is a Deterministic Deployment Runtime: it reads `synthetic_data_spec.yaml`, iterates over all tables in dependency order, calls `generate_table()` for each, enforces varchar limits, validates row counts, and writes the manifest. The LLM MUST NOT add custom cells — everything is driven by the spec.
 3. Execute the notebook via `execute_notebook`
