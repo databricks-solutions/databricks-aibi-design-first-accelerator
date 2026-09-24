@@ -688,7 +688,7 @@ def enforce_varchar_limits(df, table_name: str):
     return df
 
 
-def verify_before_write(df, table_name: str, pk_cols: list, fk_cols: list, categorical_cols: list):
+def verify_before_write(df, table_name: str, pk_cols: list, fk_cols: list, categorical_cols: list, domain_values=None):
     """Pre-write verification. Call BEFORE .write to catch data issues early.
     Raises AssertionError with clear message if any check fails.
 
@@ -712,9 +712,19 @@ def verify_before_write(df, table_name: str, pk_cols: list, fk_cols: list, categ
         sample = [str(row[0]) for row in df.select(col).distinct().limit(10).collect()]
         bad_patterns = any(
             v.startswith("PLACEHOLDER") or v.startswith("ID-") or
-            v.startswith("val_") or (len(v) > 8 and all(c in '0123456789' for c in v.replace('-', '')))
+            v.startswith("val_")
             for v in sample if v
         )
+        # Digit length is not evidence of a generic value: identifiers may be numeric.
+        # Compare string-domain output with the declared spec, not column-name guesses.
+        declared = (domain_values or {}).get(col)
+        if declared is not None and all(isinstance(value, str) for value in declared):
+            allowed = set(declared)
+            unexpected = [value for value in sample if value not in allowed]
+            assert not unexpected, (
+                f"[{table_name}] Column '{col}' contains values outside its declared domain "
+                f"{unexpected[:5]} — check generation overrides and width constraints"
+            )
         assert not bad_patterns, (
             f"[{table_name}] Column '{col}' has generic values {sample[:5]} — "
             f"domain override was NOT applied! Must use domain-specific values."
@@ -1155,6 +1165,7 @@ if SPEC and SPEC.get("tables"):
             pk_cols=pk_cols,
             fk_cols=list(FK_REPLACEMENTS.keys()),
             categorical_cols=list(DOMAIN_COLS.keys()),
+            domain_values={name: values for name, (values, weights) in DOMAIN_COLS.items()},
         )
 
         # Gate 4: Write to Delta table

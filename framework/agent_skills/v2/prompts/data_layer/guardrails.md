@@ -358,3 +358,18 @@ from the frozen template and authenticated run handoff, never hardcoded domain/v
 values. A rejected request remains a deployment failure and blocks all dependent calls.
 No notebook import occurred for a missing-binding rejection, but earlier run operations
 still require the master's normal recovery/readback checks.
+
+### Identifier values versus generic placeholders
+
+Do not label a value generic merely because it contains more than eight digits.
+String identifiers and codes may legitimately be numeric-looking. Infer their role
+from ERD/semantic evidence, preserve the declared type and width, and quote string
+values in the synthetic spec. Validate generated values against the declared domain
+and applicable uniqueness/relationship constraints. Do not introduce table-specific
+or column-name exemptions or replace valid identifiers with arbitrary labels to pass
+a generic-value gate. Literal PLACEHOLDER/val_ scaffolding remains prohibited.
+
+When reporting a pre-write failure, retain the exact assertion, table/column, notebook
+run ID and failing stage. A per-table pre-write failure means that table was not written
+by that invocation; earlier tables may already have been appended. The master must
+reconcile existing rows before retrying; never blindly rerun the append notebook.
