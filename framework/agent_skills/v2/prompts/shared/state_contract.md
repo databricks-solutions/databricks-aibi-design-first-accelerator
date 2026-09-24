@@ -275,6 +275,29 @@ omitted. Recompute it on every resume. This binds all immutable run inputs, capa
 helper/template path-and-hash references, enabled stages, identities, quality gates, and producer
 bundles while allowing an authenticated retry attempt to retain valid checkpoints.
 
+### Frozen context write admission
+
+Use the attested helper's `frozen_context_sha256(context)` for the exact canonical
+projection; do not reimplement the exclusion list or hash raw YAML. At initial master
+freeze only, compute and store the digest after all immutable fields are complete.
+On later updates, retain the recorded digest verbatim and call `verify_frozen_context`
+on the proposed context before writing it through the attested store. The store repeats
+this check before mutation when a frozen digest is present.
+
+Changes to progress/checkpoint records belong only in the documented mutable fields.
+Do not add top-level debugging timestamps, move paths, update template/helper hashes,
+or rewrite capability/configuration fields inside a frozen context. Put diagnostic
+metadata in the existing findings/diagnostic artifacts instead. Never remove the
+recorded digest or recompute it to make a later update pass. This write check verifies
+internal digest consistency; it is not a replacement for preimage/identity authentication.
+
+On mismatch, preserve the rejected candidate separately from canonical context and
+report the exact context path, recorded/actual digests and executing script locator.
+Compare against a known authenticated preimage to identify changed field paths; a digest
+alone cannot reveal them. If no trusted preimage is available, report that limitation
+and return to the master. Do not fabricate the old configuration or silently unfreeze
+the run. Failed terminal commit must be reported honestly if context cannot authenticate.
+
 ### Exact Reusable Phase Record
 
 `run_context.phases_completed` contains at most one current record per exact `(step, phase)` pair.

@@ -85,9 +85,35 @@ def validate_phase_checkpoint_shapes(context):
                                'frozen context authentication alone is not phase validation.')
 
 
+def frozen_context_sha256(context):
+    """Canonical digest from the shared state contract; never mutate the caller."""
+    frozen = json.loads(json.dumps(context))
+    for key in ('current_step', 'status', 'phases_completed', 'findings',
+                'completed_at', 'error', 'retry_attempt'):
+        frozen.pop(key, None)
+    frozen.setdefault('checkpointing', {}).pop('frozen_run_contract_sha256', None)
+    return canonical_sha256(frozen)
+
+
+def verify_frozen_context(context, path):
+    recorded = context.get('checkpointing', {}).get('frozen_run_contract_sha256')
+    actual = frozen_context_sha256(context)
+    if not recorded or actual != recorded:
+        raise RuntimeError(
+            f'HANDOFF_AUTHORITY_ERROR: frozen context mismatch; path={path}; '
+            f'recorded_sha256={recorded}; actual_sha256={actual}. '
+            'Preserve context and writer source; compare with the last authenticated preimage. '
+            'Do not recompute the recorded digest to authorize drift.')
+
+
 def _validate_context_write(path, raw):
     if posixpath.basename(path) == 'run_context.yaml':
-        validate_phase_checkpoint_shapes(decode(raw))
+        context = decode(raw)
+        validate_phase_checkpoint_shapes(context)
+        # Bootstrap envelopes may be written before the master freezes them.
+        # Once a digest is present, reject inconsistent updates before mutation.
+        if 'frozen_run_contract_sha256' in context.get('checkpointing', {}):
+            verify_frozen_context(context, path)
 
 
 class LocalStore:
@@ -377,12 +403,7 @@ def authenticate_context(store, path):
     context = decode(store.read(_path(path)))
     if context.get('run_context_path') != path or context.get('output_folder') != posixpath.dirname(path):
         raise RuntimeError('HANDOFF_AUTHORITY_ERROR: context path mismatch')
-    frozen = json.loads(json.dumps(context))
-    for key in ('current_step','status','phases_completed','findings','completed_at','error','retry_attempt'):
-        frozen.pop(key, None)
-    recorded = frozen['checkpointing'].pop('frozen_run_contract_sha256')
-    if canonical_sha256(frozen) != recorded:
-        raise RuntimeError('HANDOFF_AUTHORITY_ERROR: frozen context mismatch')
+    verify_frozen_context(context, path)
     if store.read(context['registry_path'] + '.lock') is not None or store.read(context['output_folder'] + '/.lifecycle/retry_transition.yaml') is not None:
         raise RuntimeError('RUN_LIFECYCLE_AUTHORITY_ERROR: active lifecycle transition')
     validate_phase_checkpoint_shapes(context)
