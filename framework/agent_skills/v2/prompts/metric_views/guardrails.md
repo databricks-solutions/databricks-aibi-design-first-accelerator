@@ -50,3 +50,19 @@ before Metric View DDL. These rules apply equally in the App and Genie Code.
 22. DO NOT reconstruct or repair missing resolved identities from `run_context.yaml`, `accelerator.yaml`, folder names, or model memory; return the defect to the master resolver
 23. DO NOT treat `metric_view_plan.yaml`, `metric_view_design.yaml`, `metric_view_spec.yaml`, or a deployment manifest as proof of deployed Metric View content; use current DESCRIBE/query/SHOW CREATE or approved API readback
 24. DO NOT rewrite desired Metric View intent to match divergent deployed readback; record drift and fail the owning gate
+
+## Runtime capability and catalog evidence parity
+
+Before template deployment, require executable Gate 0, not just a comment claiming
+capability support. The frozen contract's raw digest, resolved byte copy, plan identity,
+run/suffix, complete handoff inventory, source identities and capability decisions must
+agree. Applied fallback decisions must carry `fallback_checks` for every exact required
+check in the pinned contract, backed by actual persisted probe results. Never fabricate
+PASS to satisfy the runtime or drop an implementable KPI to avoid its capability checks.
+
+Deployment verification uses catalog SQL readback: SHOW CREATE TABLE YAML must agree
+with the spec, and DESCRIBE plus MEASURE smoke checks must pass. A count-only comparison
+is insufficient. The manifest declares `catalog_readback` and binds the exact raw spec,
+contract and normalized readback hashes. It is deployment evidence; the stage's final
+KPI validation report remains separately required. Do not fabricate that report before
+its owning validation phase. On definition drift, preserve evidence and block consumers.

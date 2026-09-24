@@ -116,6 +116,114 @@ assert "metric_views" in spec, "metric_view_spec.yaml missing 'metric_views' key
 MV_SPECS = spec["metric_views"]
 assert len(MV_SPECS) > 0, "metric_view_spec.yaml has no metric views"
 
+def validate_capability_inputs(context, handoff, plan, spec, contract_bytes, resolved_bytes):
+    """Gate 0: authenticate pinned capability bytes and declared deployment decisions."""
+    def require(ok, message):
+        if not ok:
+            raise RuntimeError('METRIC_VIEW_CAPABILITY_ERROR: ' + message)
+    contract = yaml.safe_load(contract_bytes)
+    digest = hashlib.sha256(contract_bytes).hexdigest()
+    require(contract_bytes == resolved_bytes, 'resolved contract differs from frozen input')
+    require(digest == context['inputs']['metric_view_capabilities']['sha256'], 'frozen contract digest mismatch')
+    identity = contract['contract']
+    require(contract.get('schema_version') == '1.0' and identity.get('status') == 'APPROVED', 'contract not approved/supported')
+    target = contract['execution_target']
+    require(target.get('type') == 'SQL_WAREHOUSE' and target.get('deployment_path') == 'STATEMENT_EXECUTION_API', 'incompatible execution target')
+    require(context['run_id'] == plan.get('run_id'), 'plan run mismatch')
+    require(handoff['asset_suffix'] == plan.get('asset_suffix') == context['version']['asset_suffix'], 'plan suffix mismatch')
+    for key, expected in [('capability_contract_name', identity['name']),
+                          ('capability_contract_version', identity['contract_version']),
+                          ('capability_contract_sha256', digest)]:
+        require(plan.get(key) == expected, key + ' mismatch')
+    capabilities = contract['capabilities']
+    for name, cap in capabilities.items():
+        for field in ('platform_support', 'accelerator_validation', 'target_status'):
+            require(cap.get(field) in contract['allowed_values'][field], name + ': invalid ' + field)
+        require(type(cap.get('enabled')) is bool, name + ': enabled must be boolean')
+    def native(name):
+        cap = capabilities[name]
+        return all(cap.get(k) == v for k, v in contract['resolution_policy']['native_enabled_when_all_are_true'].items())
+    decisions = plan['metric_view_plan'].get('capability_decisions', [])
+    require(isinstance(decisions, list) and decisions, 'missing capability decisions')
+    seen = set()
+    for decision in decisions:
+        name = decision.get('required_capability')
+        require(name in capabilities, 'unknown capability ' + str(name))
+        key = (decision.get('kpi'), name)
+        require(key[0] and key not in seen, 'missing or duplicate KPI/capability decision')
+        seen.add(key)
+        cap = capabilities[name]
+        for field in ('platform_support', 'accelerator_validation', 'enabled', 'target_status'):
+            require(decision.get(field) == cap[field], name + ': decision drift in ' + field)
+        require(decision.get('native_outcome') == ('USED' if native(name) else 'DISALLOWED'), name + ': native decision mismatch')
+        if decision.get('final_status') == 'READY' and not native(name):
+            fallback = cap.get('fallback') or {}
+            require(bool(fallback) and decision.get('fallback_considered') is True
+                    and decision.get('fallback_strategy') == fallback.get('strategy')
+                    and decision.get('fallback_outcome') == 'APPLIED_AND_VALIDATED', name + ': fallback not validated')
+            checks = decision.get('fallback_checks', {})
+            require(all(checks.get(k) == 'PASS' for k in fallback.get('required_checks', [])), name + ': missing fallback check evidence')
+    planned = plan['metric_view_plan']['metric_views']
+    require(all(type(v.get('primary')) is bool for v in planned)
+            and sum(v['primary'] for v in planned) == 1, 'expected exactly one boolean primary')
+    require([v['name'] for v in planned] == [v['name'] for v in spec['metric_views']], 'ordered plan/spec inventory mismatch')
+    require(len({v['name'] for v in planned}) == len(planned), 'duplicate planned names')
+    normalize = lambda value: value.replace('`', '').lower()
+    handed = handoff['metric_view_fqns']
+    require([(v['name'], normalize(v['sql_fqn']), v['primary']) for v in planned]
+            == [(v['name'], normalize(v['sql_fqn']), v['primary']) for v in handed], 'handoff inventory mismatch')
+    for entry, mv in zip(planned, spec['metric_views']):
+        require(normalize(entry['sql_fqn']) == normalize(f"{handoff['catalog']}.{handoff['schema']}.{mv['name']}"), 'target mismatch')
+        require(normalize(entry['source_fqn']) == normalize(mv['yaml']['source']), 'source mismatch')
+        for kpi in entry['kpis']:
+            rows = [d for d in decisions if d['kpi'] == kpi]
+            require(rows and all(d['final_status'] == 'READY' for d in rows), 'deployed KPI lacks READY decisions: ' + kpi)
+        yml = mv['yaml']
+        require(str(yml['version']) == target['yaml_specification'], 'YAML version mismatch')
+        # Enforce disabled constructs independently of the agent's decision rows.
+        constructs = {'filter': 'metric_view_filter', 'parameters': 'parameters',
+                      'materialization': 'metric_view_materialization'}
+        for field, capability in constructs.items():
+            if field in yml:
+                require(capability in capabilities and native(capability), 'disabled construct: ' + field)
+        require(native('yaml_specification_1_1') and native('table_or_view_source'), 'base capabilities disabled')
+        for join in yml.get('joins', []):
+            for field, capability in [('using', 'join_condition_using'), ('joins', 'nested_snowflake_joins')]:
+                require(field not in join or native(capability), 'disabled join construct: ' + field)
+        for measure in yml.get('measures', []):
+            require('window' not in measure or native('window_measures_base'), 'disabled window measure')
+    return {k: plan[k] for k in ('capability_contract_name', 'capability_contract_version', 'capability_contract_sha256')}
+
+
+def verify_definition_readback(statement, expected):
+    """Compare YAML semantics, ignoring serialization layout and numeric version spelling."""
+    import re
+    match = re.search(r'\bAS\s*\$\$(.*)\$\$\s*;?\s*$', statement, re.S | re.I)
+    if not match:
+        raise RuntimeError('METRIC_VIEW_READBACK_ERROR: SHOW CREATE returned no YAML body')
+    observed = yaml.safe_load(match.group(1))
+    expected = dict(expected)
+    if isinstance(observed, dict):
+        observed['version'] = str(observed.get('version'))
+        expected['version'] = str(expected.get('version'))
+    if observed != expected:
+        raise RuntimeError('METRIC_VIEW_READBACK_ERROR: deployed YAML differs from intended spec')
+    return observed
+
+
+# Gate 0 executes before any SQL deployment. Paths derive from the current output identity.
+RUN_CONTEXT = yaml.safe_load(read_workspace_bytes(w, f'{OUTPUT_FOLDER}/run_context.yaml'))
+HANDOFF = yaml.safe_load(read_workspace_bytes(w, f'{OUTPUT_FOLDER}/step_handoff.yaml'))
+PLAN = yaml.safe_load(read_workspace_bytes(w, f'{OUTPUT_FOLDER}/metric_views/metric_view_plan.yaml'))
+CONTRACT_PATH = RUN_CONTEXT['inputs']['metric_view_capabilities']['path']
+RESOLVED_CONTRACT_PATH = f'{OUTPUT_FOLDER}/metric_views/resolved_metric_view_capabilities.yaml'
+CAPABILITY_IDENTITY = validate_capability_inputs(
+    RUN_CONTEXT, HANDOFF, PLAN, spec, read_workspace_bytes(w, CONTRACT_PATH),
+    read_workspace_bytes(w, RESOLVED_CONTRACT_PATH))
+if (HANDOFF['catalog'], HANDOFF['schema'], HANDOFF['output_folder'], HANDOFF['warehouse_id']) != (CATALOG, SCHEMA, OUTPUT_FOLDER, WAREHOUSE_ID):
+    raise RuntimeError('METRIC_VIEW_INPUT_AUTHORITY_ERROR: rendered target differs from handoff')
+
+
 for i, mv in enumerate(MV_SPECS):
     assert "name" in mv, f"Metric view #{i} missing 'name'"
     assert "yaml" in mv, f"Metric view '{mv.get('name', i)}' missing 'yaml' content"
@@ -417,7 +525,12 @@ for mv in MV_SPECS:
             for row in desc.result.data_array:
                 if row[0] and not row[0].startswith("#"):
                     cols.append(row[0])
-        READBACK_DATA.append({"view": view_name, "columns": json.dumps(sorted(cols))})
+        definition = execute_sql(f"SHOW CREATE TABLE {fqn}")
+        if not definition.result or not definition.result.data_array:
+            raise RuntimeError(f"Verification FAILED: {view_name} has no definition readback")
+        definition_text = definition.result.data_array[0][0]
+        observed_yaml = verify_definition_readback(definition_text, mv['yaml'])
+        READBACK_DATA.append({"view": view_name, "columns": sorted(cols), "yaml": observed_yaml})
     except RuntimeError as e:
         raise RuntimeError(f"Verification FAILED: {view_name} DESCRIBE: {e}") from e
     if not cols:
@@ -430,7 +543,9 @@ for mv in MV_SPECS:
 
 readback_combined = json.dumps(READBACK_DATA, sort_keys=True)
 READBACK_HASH = hashlib.sha256(readback_combined.encode()).hexdigest()
-STATE_COMPARISON = "match" if len(DEPLOYED_VIEWS) == len(MV_SPECS) else "mismatch"
+STATE_COMPARISON = "match" if DEPLOYED_VIEWS == [mv['name'] for mv in MV_SPECS] else "mismatch"
+if STATE_COMPARISON != "match":
+    raise RuntimeError('METRIC_VIEW_READBACK_ERROR: deployed inventory differs; canonical manifest blocked')
 
 print(f"\nVerification: {len(VERIFICATION_RESULTS)} views verified")
 print(f"Readback hash: {READBACK_HASH[:16]}...")
@@ -448,7 +563,16 @@ manifest = {
     "artifact_type": "metric_views",
     "domain": "{{DOMAIN_NAME}}",
     "version_suffix": VERSION_SUFFIX,
-    "validation_source": "api_readback",
+    "validation_source": "catalog_readback",
+    "evidence_type": "asset_locator_and_deployment_attempt",
+    "artifact_id": hashlib.sha256((RUN_CONTEXT['run_id'] + SOURCE_HASH + READBACK_HASH).encode()).hexdigest(),
+    "run_id": RUN_CONTEXT['run_id'],
+    "asset_suffix": HANDOFF['asset_suffix'],
+    **CAPABILITY_IDENTITY,
+    "capability_contract_resolved_artifact": RESOLVED_CONTRACT_PATH,
+    "metric_view_spec_sha256": SOURCE_HASH,
+    "deployed_readback_sha256": READBACK_HASH,
+    "validation_artifact": f"{OUTPUT_FOLDER}/metric_views/metric_view_validation.yaml",
     "source_hash": SOURCE_HASH,
     "generated_hash": GENERATED_HASH,
     "readback_hash": READBACK_HASH,
@@ -460,6 +584,9 @@ manifest = {
         {
             "name": mv["name"],
             "fqn": f"{CATALOG}.{SCHEMA}.{mv['name']}",
+            "sql_fqn": f"{CATALOG}.{SCHEMA}.{mv['name']}",
+            "source_fqn": mv['yaml']['source'],
+            "validation_status": "PASS",
             "source": mv["yaml"]["source"],
             "measure_count": len(mv["yaml"].get("measures", [])),
             "dimension_count": len(mv["yaml"].get("fields", [])),

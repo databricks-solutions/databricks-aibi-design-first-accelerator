@@ -1002,6 +1002,7 @@ metric_view_plan:
       fallback_considered: true | false
       fallback_strategy: <strategy-or-null>
       fallback_outcome: APPLIED_AND_VALIDATED | NOT_APPLICABLE | REJECTED_CAPABILITY | REJECTED_DATA_OR_GRAIN
+      fallback_checks: {}  # when applied: exact contract required_checks keys mapped to PASS, backed by persisted probe evidence
       final_status: READY | NOT_IMPLEMENTED | SKIPPED_*
 
   metric_views:
@@ -1416,7 +1417,7 @@ The canonical `{OUTPUT_FOLDER}/metric_views/metric_view_manifest.json` MUST use 
   "capability_contract_version": "<contract.contract_version>",
   "capability_contract_sha256": "<sha256 of exact raw contract bytes>",
   "capability_contract_resolved_artifact": "{OUTPUT_FOLDER}/metric_views/resolved_metric_view_capabilities.yaml",
-  "metric_view_spec_sha256": "<sha256 of deterministically normalized metric_view_spec.yaml>",
+  "metric_view_spec_sha256": "<sha256 of exact persisted metric_view_spec.yaml bytes>",
   "deployed_readback_sha256": "<sha256 of normalized catalog/query readback>",
   "metric_views": [
     {
@@ -1524,6 +1525,7 @@ kpis:
         native_outcome: USED | DISALLOWED
         fallback_strategy: <strategy-or-null>
         fallback_outcome: APPLIED_AND_VALIDATED | NOT_APPLICABLE | REJECTED_CAPABILITY | REJECTED_DATA_OR_GRAIN
+      fallback_checks: {}  # when applied: exact contract required_checks keys mapped to PASS, backed by persisted probe evidence
     baseline_result: <value>
     metric_view_result: <value>
     difference: <value>
