@@ -252,38 +252,28 @@ The vision model call is expensive (3-7 minutes, ~20K tokens for reasoning model
 
 This works identically in **Genie Code** and **Databricks App** mode — both use the Databricks SDK (`WorkspaceClient`) for all file operations.
 
-**Cache algorithm (pseudocode):**
+**Cache algorithm (use the executable gate in `validation.md`):**
 
-```text
-0. Load and attest the exact current run_context.templates.erd_validation_utils tuple using
-   GATE 2.1b below; cache inspection never bypasses this validator
-1. Read ERD image bytes via SDK workspace export
-   erd_hash = hashlib.sha256(erd_bytes).hexdigest()
+1. Authenticate the frozen source path/content and current validator path/digest. Read
+   original image bytes through the approved transport and compute their SHA-256 before
+   any vision conversion, cropping or resizing. A changed frozen input is an authority
+   error; a prior cache created for different image bytes is merely a cache miss.
+2. Inspect authorized prior-version candidates newest first. Missing file or corrupt
+   YAML becomes a recorded miss. Call `assess_erd_cache(candidate, current_image_sha256)`
+   unchanged; inspect its returned status rather than asserting hash equality.
+3. For `MISS`, record the reason in current `parse_erd` findings and discard the candidate.
+   Continue to another candidate or fresh vision extraction. Do not return a failed
+   Python tool result for an ordinary miss. Never copy a rejected cache into this run.
+4. For `CANDIDATE`, execute current structural and digest-attested datatype validation.
+   A failed candidate is a miss, not a hit. Before accepting reuse, apply the existing
+   current-run assumptions/provenance gates; never copy prior run identity or checkpoints.
+5. If no candidate qualifies, invoke vision on the frozen image. Validate/recover the fresh
+   extraction under §2.5a and record `_erd_image_hash` from the original image bytes.
+6. Persist only accepted canonical outputs into the current output folder using the
+   attested WorkspaceStore, then read back and authenticate before completing `parse_erd`.
 
-2. List prior version folders under {OUTPUT_BASE}/ (newest first):
-   For each v{N} where N < CURRENT_VERSION:
-     - Try loading {OUTPUT_BASE}/v{N}/erd_parsed.yaml via SDK workspace export
-     - Parse YAML content and read "_erd_image_hash" field
-     - If _erd_image_hash == erd_hash AND tables array is non-empty:
-       → Treat this as a cache CANDIDATE, not yet a cache hit
-       → Run the exact current digest-attested validate_erd_output(candidate.tables)
-       → If and only if its report.status == PASS:
-         * CACHE HIT: use this validated content for the current version
-         * Log "✓ ERD cache HIT (vN) — current datatype validation PASS"
-         * Break
-       → If validation fails:
-         * Reject this cached candidate and record its exact validation errors
-         * Mark any current parse_erd record and all dependents STALE
-         * Continue as CACHE MISS and call the vision model; never copy the invalid cache
-     - If file missing, corrupt YAML, or hash mismatch: continue to next
-
-3. If no cache hit:
-   → CACHE MISS: call vision model (full parse)
-   → Inject "_erd_image_hash: {erd_hash}" as a top-level field in the output
-
-4. Save validated erd_parsed.yaml to CURRENT version's OUTPUT_FOLDER using the attested WorkspaceStore.write (shared agent_transport.md)
-   (always — even on cache hit, so the current version is self-contained)
-```
+A MISS must lead to fresh extraction when no usable cache remains. It must not complete
+`parse_erd`, deploy DDL, or trigger failure lifecycle handling on its own.
 
 **Environment compatibility:**
 
@@ -305,7 +295,8 @@ The cache algorithm is identical in both modes; the shared transport handles SDK
   require `status: PASS`. A candidate that fails current validation is a cache miss and MUST NOT be
   copied into the new version.
 - A new output/asset version does not make a prior ERD parse valid. Cache reuse is allowed only
-  after current validation passes; otherwise invalidate `parse_erd` and every dependent phase.
+  after current validation passes; otherwise discard the cache. Invalidate current checkpoints
+  only when their own resume authority checks fail.
 - Works identically in Genie Code and Databricks App — both use the same SDK calls
 
 ## Authoritative Input Rule

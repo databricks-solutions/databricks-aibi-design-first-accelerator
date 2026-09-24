@@ -373,3 +373,13 @@ When reporting a pre-write failure, retain the exact assertion, table/column, no
 run ID and failing stage. A per-table pre-write failure means that table was not written
 by that invocation; earlier tables may already have been appended. The master must
 reconcile existing rows before retrying; never blindly rerun the append notebook.
+
+### Optional ERD cache failures versus input authority failures
+
+Use `assess_erd_cache` from validation for optional prior artifacts. Different/missing
+cached image hashes are normal MISS outcomes: record findings and continue to fresh
+extraction if no candidate qualifies. Do not raise or assert on cache hash inequality.
+Never weaken frozen source/helper attestation or rewrite a cache hash to force a hit.
+Hash original image bytes consistently across hosts; vision conversion is not cache
+identity. A rejected old cache does not itself invalidate a valid current checkpoint.
+This branch is prompt-owned and identical in App and Genie Code.

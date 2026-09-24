@@ -4,6 +4,43 @@
 
 ## Gates
 
+### ERD cache admission: a miss is not a pipeline failure
+
+After authenticating the current frozen source and validator, execute this pure gate
+for each optional prior-run candidate. Hash the original image bytes, before vision
+encoding, conversion, resizing or cropping. Workspace export content must be decoded
+exactly once before hashing; native byte downloads must not be decoded again. The
+frozen source identity check remains outside this cache gate and cannot be downgraded.
+
+```python
+def assess_erd_cache(candidate, current_image_sha256):
+    import re
+    if not isinstance(current_image_sha256, str) or not re.fullmatch(r"[0-9a-f]{64}", current_image_sha256):
+        raise RuntimeError("ERD_INPUT_AUTHORITY_ERROR: invalid authenticated current image digest")
+    if not isinstance(candidate, dict):
+        return {"status": "MISS", "reason": "CACHE_DOCUMENT_MISSING_OR_INVALID"}
+    cached = candidate.get("_erd_image_hash")
+    if cached != current_image_sha256:
+        return {"status": "MISS", "reason": "CACHE_IMAGE_HASH_MISMATCH",
+                "cached_sha256": cached, "current_sha256": current_image_sha256}
+    tables = candidate.get("tables")
+    if not isinstance(tables, list) or not tables:
+        return {"status": "MISS", "reason": "CACHE_TABLES_MISSING_OR_INVALID"}
+    return {"status": "CANDIDATE", "reason": "SOURCE_HASH_MATCH"}
+```
+
+`MISS` is a successful cache lookup result, not an exception or tool failure. Record
+it in current parse findings, discard the candidate, and continue bounded candidate
+inspection or parse the frozen image. Never `raise RuntimeError("Cache image hash
+mismatch")`, assert digest equality for an optional candidate, retry the same rejected
+candidate, or modify its stored hash to make it match. Only `CANDIDATE` proceeds to
+current structural/datatype/provenance validation; it is not yet an accepted hit.
+Missing files and corrupt candidate YAML are misses. Permission denial, transport
+failure, a changed frozen source, and failed helper attestation remain real errors;
+do not catch every exception as a miss. Rejecting an optional old cache must not
+invalidate an independently authenticated VALID current-run checkpoint. The master
+invalidates current-run parse/dependents only if their own authority checks fail.
+
 ### GATE 2.1: Canonical ERD structure (mandatory before datatype resolution)
 
 Execute `validate_erd_structure` below on the fresh vision candidate, every cache/resume
@@ -104,8 +141,9 @@ for datatype-only inference.
 This gate applies equally to a fresh vision response, a prior-version ERD cache candidate, and a
 resume candidate. Matching ERD image hash, parseable YAML, non-empty tables, or an old phase status
 cannot pass this gate. Run the current digest-attested validator before accepting or writing the
-candidate. A cached candidate that fails becomes a cache miss; invalidate `parse_erd` and all
-dependents and perform a fresh parse. Cache/resume PASS additionally requires a current authenticated
+candidate. A cached candidate that fails becomes a cache miss; discard it and perform a fresh parse
+when no valid candidate remains. Invalidate current parse/dependents only if their own
+resume authority checks fail. Cache/resume PASS additionally requires a current authenticated
 `schema_assumptions.yaml`, even when its resolution count is zero.
 
 For a fresh parse, validate and resolve the vision response completely in memory, then create the
