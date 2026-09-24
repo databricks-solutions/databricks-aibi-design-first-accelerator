@@ -238,3 +238,25 @@ An App snapshot marked failed is observational state; it does not reopen a porta
 registry entry or clear its lock. Never rewrite portable lifecycle state merely to
 match UI status. These checks also apply after a Genie Code session or other agent
 host is interrupted and do not require Lakebase outside the App.
+
+### Model endpoint timeout
+
+A model-request timeout is not a notebook result or proof that previous tool work failed.
+The host may retry the unanswered inference request once with the same conversation and
+completed tool results, provided this request only produces a response and has no server-side
+tool execution. Never replay completed tool calls, submit a duplicate job, change the frozen
+model, or mark a phase complete to overcome a timeout. If the host executes tools server-side
+or request outcome is ambiguous, reconcile execution first; do not retry blindly.
+
+After retry exhaustion, preserve the endpoint error and the exact run identity, last acknowledged
+phase, notebook path and Jobs run ID when known. Resume through the master using the host
+interruption protocol above: inspect existing remote jobs and persisted artifacts, wait on active
+jobs, authenticate completed output before checkpoint reuse, and rerun only work proven necessary.
+An unavailable model cannot write its own terminal manifest; the host must report interrupted
+execution honestly rather than inventing a successful master commit. Use the existing lifecycle
+recovery protocol, including for a failed terminal run.
+
+Keep model turns bounded: use frozen templates, declarative specs, and targeted reads instead
+of asking the model to reproduce full notebook bodies or repeatedly loading all artifact content.
+Retain required instructions, guardrails, run identity and tool results; reducing context must not
+remove admission evidence. These rules apply to App and Genie Code without requiring Lakebase.

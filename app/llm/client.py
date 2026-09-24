@@ -242,6 +242,7 @@ class LLMClient:
         temp = temperature or self._temperature
         include_temp = (temp != 1.0) and (self._endpoint not in self._endpoints_no_temperature)
 
+        timeout_retries = 0
         for attempt in range(self.RATE_LIMIT_MAX_RETRIES):
             try:
                 req_body = {**body}
@@ -265,6 +266,23 @@ class LLMClient:
 
             except Exception as e:
                 error_str = str(e)
+                # Only the unanswered inference request is replayed. Tool execution
+                # happens in the caller after a complete response is returned.
+                is_timeout = (isinstance(e, TimeoutError)
+                              or "timed out" in error_str.lower()
+                              or "timeout" in type(e).__name__.lower())
+                if is_timeout:
+                    if timeout_retries < 1 and attempt + 1 < self.RATE_LIMIT_MAX_RETRIES:
+                        timeout_retries += 1
+                        logger.warning("Model request timed out: endpoint=%s; retrying unanswered inference once; no tools replayed",
+                                       self._endpoint)
+                        time.sleep(2)
+                        continue
+                    raise LLMTimeoutError(
+                        f"Tool-calling endpoint timed out: endpoint={self._endpoint}; "
+                        f"timeout_retries={timeout_retries}; no tools from this request executed. "
+                        f"Reconcile prior remote operations before master resume. Original error: {e}"
+                    ) from e
                 if "unsupported_value" in error_str and "temperature" in error_str:
                     logger.info(
                         f"Endpoint '{self._endpoint}' does not support temperature. "
