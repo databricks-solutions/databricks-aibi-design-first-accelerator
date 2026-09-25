@@ -62,6 +62,17 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 SPACE_TITLE='Analytics "quoted"',SPACE_DESCRIPTION='Description with \\ and newline\nnext',
                 GENERAL_INSTRUCTIONS='Use "approved" views.\nExplain results.',METRIC_VIEW_DESCRIPTIONS={'cat.sch.mv':'Measures'},
                 SAMPLE_QUESTIONS=['Total?'],EXAMPLE_SQLS=[{'sql':'SELECT 1','enabled':True}],BENCHMARK_QUESTIONS=['Total?'])
+            data_gates=prompt_functions(PROMPTS/'data_layer/validation.md')
+            table_bytes=runtime.encode({'tables':[{'name':'entity','columns':[{'name':'id','type':'BIGINT'}]}]})
+            spec_bytes=runtime.encode({'tables':[{'name':'entity','rows':10,'pk_columns':['id'],
+                                                'domain_columns':{},'fk_columns':{}}]})
+            store.write(selected['output_folder']+'/table_spec.yaml',table_bytes)
+            store.write(selected['output_folder']+'/synthetic_data_spec.yaml',spec_bytes)
+            admission=data_gates['admit_synthetic_inputs'](
+                Path(refs['dbldatagen_notebook']['path']).read_bytes(),refs['dbldatagen_notebook']['sha256'],
+                store.read(selected['output_folder']+'/synthetic_data_spec.yaml'),
+                store.read(selected['output_folder']+'/table_spec.yaml'),runtime.decode)
+            self.assertEqual(admission['synthetic_spec_sha256'],hashlib.sha256(spec_bytes).hexdigest())
             rendered_names=[]
             for name in ('ddl_notebook','dbldatagen_notebook','metric_view_notebook','dashboard_notebook','genie_notebook'):
                 text=Path(refs[name]['path']).read_text()

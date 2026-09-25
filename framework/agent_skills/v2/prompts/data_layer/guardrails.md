@@ -383,3 +383,12 @@ Never weaken frozen source/helper attestation or rewrite a cache hash to force a
 Hash original image bytes consistently across hosts; vision conversion is not cache
 identity. A rejected old cache does not itself invalidate a valid current checkpoint.
 This branch is prompt-owned and identical in App and Genie Code.
+
+### DL-G2 persisted-spec boundary
+
+Step 6 must invoke validation's `admit_synthetic_inputs` on persisted bytes before
+import and submission. A readable YAML mapping or successful template render is not
+synthetic input validation. Missing/null/empty/non-list `tables` belongs to the spec
+producer; repair only that artifact under the existing bounded budget. Preserve
+reconciliation and successful upstream checkpoints. Never deploy first to discover
+basic spec-shape errors, and never use a failed notebook as the pre-deployment gate.

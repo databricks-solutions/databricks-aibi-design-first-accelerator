@@ -1321,7 +1321,7 @@ volume_targets:
 
 - [ ] `reconcile_schema` is current `VALID`; authenticated `schema_reconciliation.yaml` is `PASS` with zero unresolved mismatches and fresh catalog name/type equality
 - [ ] every exact expected append-only target is empty before the notebook's first write; a non-empty target HALTS to prevent duplicate data
-- [ ] `synthetic_data_spec.yaml` exists with FK strategies for every relationship
+- [ ] exact persisted `synthetic_data_spec.yaml` bytes passed `admit_synthetic_inputs` in validation GATE 5.0; existence alone is insufficient
 - [ ] GATE 5.1 passed (domain values validated)
 - [ ] Generation order computed from dependency graph
 - [ ] `generate_table()` will be used for every table (domain-first pattern)
@@ -1332,15 +1332,23 @@ volume_targets:
 ### Process
 
 1. Produce `{OUTPUT_FOLDER}/synthetic_data_spec.yaml` — declarative specification of all tables, row counts, column domains, FK mappings, and PK columns. The LLM produces ONLY this spec.
-2. **Apply guardrails DL-G4 and shared G-16, then deploy dbldatagen notebook from template** — call `deploy_from_template` with:
+2. Read back the persisted spec and table spec through the shared Workspace transport.
+   Execute `admit_synthetic_inputs` from `validation.md` using the exact frozen dbldatagen
+   template bytes/digest and attested duplicate-key decoder. Require a nonempty top-level
+   `tables` list and the actual runtime validator's PASS before any deployment. Planning
+   documents, a mapping keyed by table name, nested `synthetic_data.tables`, and `tables: []`
+   are not executable inputs. On rejection, preserve findings and repair this spec only.
+3. **Apply guardrails DL-G4 and shared G-16, then deploy dbldatagen notebook from template** — call `deploy_from_template` with:
    - `template_path`: exact frozen `run_context.templates.dbldatagen_notebook.path`
    - `output_path`: `{OUTPUT_FOLDER}/notebooks/synthetic_data_{DOMAIN_NAME}.py`
    - `placeholders`: the complete map returned by executable GATE TEMPLATE-BINDING in `validation.md`, using this template’s authenticated bytes and the current context/handoff
    - Build the entire call with `build_data_deployment_request` from that gate and submit its returned request unchanged. For synthetic deployment, rebuild from the synthetic template: do not reuse the DDL request. Its `ASSET_SUFFIX` must be the authenticated persisted suffix.
      Use the exact handoff target catalog/schema and `asset_suffix`; generated greenfield tables are not addressed through current accelerator source coordinates.
    The template is a Deterministic Deployment Runtime: it reads `synthetic_data_spec.yaml`, iterates over all tables in dependency order, calls `generate_table()` for each, enforces varchar limits, validates row counts, and writes the manifest. The LLM MUST NOT add custom cells — everything is driven by the spec.
-3. Execute the notebook via `execute_notebook`
-4. Verify execution completed without errors
+4. Reread and rerun `admit_synthetic_inputs`; require the same admitted digests and
+   current authenticated reconciliation/empty-target prerequisites. Only then execute
+   the notebook via `execute_notebook`.
+5. Verify execution completed without errors
 
 ### Notebook Execution
 

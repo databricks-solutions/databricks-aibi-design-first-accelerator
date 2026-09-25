@@ -133,6 +133,54 @@ admission. The notebook repeats validation before any data write. Missing `paren
 or another malformed field returns to the spec-producing phase; never infer a missing
 key in the runtime. Persist/hash the validated spec using the existing phase contract.
 
+### Persisted synthetic input admission (Step 6, before import and again before execution)
+
+Execute this gate against exact bytes read from the current run's
+`synthetic_data_spec.yaml` and `table_spec.yaml`. Supply the already authenticated
+frozen dbldatagen template digest and the attested run-contract duplicate-key decoder.
+Do not validate an in-memory draft while deploying a different persisted file. This
+extracts only the template's pure validator; it never imports or executes notebook cells.
+
+```python
+def admit_synthetic_inputs(template_bytes, expected_template_sha256,
+                           spec_bytes, table_spec_bytes, decode):
+    import ast
+    import hashlib
+    if hashlib.sha256(template_bytes).hexdigest() != expected_template_sha256:
+        raise RuntimeError('HELPER_CONTRACT_ERROR: synthetic template digest mismatch')
+    source = template_bytes.decode('utf-8')
+    source = '\n'.join('# ' + line if line.lstrip().startswith('%') else line
+                       for line in source.splitlines())
+    tree = ast.parse(source)
+    functions = [node for node in tree.body if isinstance(node, ast.FunctionDef)
+                 and node.name == 'validate_synthetic_spec']
+    if len(functions) != 1:
+        raise RuntimeError('HELPER_CONTRACT_ERROR: expected one pure synthetic validator')
+    namespace = {}
+    exec(compile(ast.Module(body=functions, type_ignores=[]), '<attested-synthetic-validator>', 'exec'), namespace)
+    spec = decode(spec_bytes)
+    table_spec = decode(table_spec_bytes)
+    namespace['validate_synthetic_spec'](spec, table_spec['tables'])
+    if [t['name'] for t in spec['tables']] != [t['name'] for t in table_spec['tables']]:
+        raise RuntimeError('SYNTHETIC_SPEC_ERROR: ordered table inventory differs from table_spec')
+    return {'synthetic_spec_sha256': hashlib.sha256(spec_bytes).hexdigest(),
+            'table_spec_sha256': hashlib.sha256(table_spec_bytes).hexdigest(),
+            'template_sha256': expected_template_sha256}
+```
+
+Use the returned digests as admission evidence in existing phase findings/fingerprints,
+not as a new reusable phase or a fabricated completion record. Immediately before
+notebook submission, reread and rerun the gate; the bytes must still match the admission
+result. A changed spec requires revalidation, not blind execution of the old approval.
+
+On `SYNTHETIC_SPEC_ERROR`, record the exact current-run path, raw digest, parsed root
+keys, type of `tables`, and list length when applicable. Return to the synthetic-spec
+producer within the current phase; inspect the defect and regenerate only that spec
+from authenticated schema/semantic evidence. Do not wrap arbitrary YAML under `tables`,
+invent empty entries, reinterpret planning notes as runtime input, rerun DDL, or weaken
+the validator. Apply the existing bounded repair budget; no import or notebook submission
+until this gate passes. A mismatch in frozen inputs remains an authority failure.
+
 ### GATE 2.1b: Data Type Validation (MANDATORY post-parse)
 After parsing the ERD, verify every column has a Databricks-valid datatype. `DECIMAL`, `DECIMAL(p)`,
 and `DECIMAL(p,s)` are complete platform syntax and canonicalize using documented defaults `p=10`,
