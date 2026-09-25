@@ -646,44 +646,23 @@ async function resumeLastRun() {
     btn.disabled = true;
     btn.textContent = 'Resuming\u2026';
 
-    // If we have a run_id from Lakebase, try /rerun first
-    if (lastResumableRun.run_id && lastResumableRun.run_id.length > 8) {
-        try {
-            const res = await fetch(`/api/pipeline/rerun/${lastResumableRun.run_id}`, {method: 'POST'});
-            if (res.ok) {
-                const data = await res.json();
-                window.location.href = '/domains/' + selectedDomain + '/run/' + (data.run_id || lastResumableRun.run_id);
-                return;
-            }
-        } catch(e) {
-            console.warn('Rerun trigger failed, falling back to new run with retry mode:', e.message);
-        }
-    }
-
-    // Fallback: start a NEW run with version_mode='retry' (resolver will find
-    // the interrupted/failed version from the registry and resume it)
+    // Retry is bound to the selected run. Never turn a rejected/ambiguous
+    // rerun request into an unpinned /run request (which can select another version).
     try {
-        const payload = {
-            domain: selectedDomain,
-            run_mode: 'versioned',
-            version_mode: 'retry',
-        };
-        const resp = await fetch('/api/pipeline/run', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload),
-        });
-        const data = await resp.json();
-        if (resp.ok && data.run_id) {
-            localStorage.setItem(`last_run_${selectedDomain}`, data.run_id);
-            window.location.href = '/domains/' + selectedDomain + '/run/' + data.run_id;
-            return;
+        if (!lastResumableRun.run_id) {
+            throw new Error('No run identity is available for this version. Refresh its run status before retrying.');
         }
-        throw new Error(data.error?.message || 'Failed to start resume run');
+        const res = await fetch(`/api/pipeline/rerun/${lastResumableRun.run_id}`, {method: 'POST'});
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.error?.message || data.error || 'Retry was not accepted.');
+        }
+        window.location.href = '/domains/' + selectedDomain + '/run/' + (data.run_id || lastResumableRun.run_id);
     } catch(e) {
         console.warn('Resume failed:', e.message);
         btn.disabled = false;
-        btn.textContent = 'Resume failed — try Run Pipeline';
+        btn.textContent = 'Retry not started';
+        alert(e.message);
     }
 }
 

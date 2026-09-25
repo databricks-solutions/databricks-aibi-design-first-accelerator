@@ -562,10 +562,18 @@ RESUME_CONTEXT:
    prompt permits it.
 4. If and only if the complete Resume Skip Gate passes, **SKIP** that phase and call
    `report_progress` with `status: "completed"` immediately to replay the checkpoint.
-5. On a missing, malformed, incompatible, or mismatched checkpoint, mark the phase and all
-   transitive dependents `STALE`, persist the invalidation, and re-execute from the earliest stale
-   phase. If deployed readback conflicts, route to the owning stage; a downstream resume handler
-   does not repair it.
+5. On a missing, malformed, incompatible, or mismatched checkpoint, block dependent work
+   and distinguish a checkpoint-persistence defect from a failed producer. First apply the
+   checkpoint recovery rules above: reconcile any submitted remote execution and verify the
+   existing producer output under every phase-specific authority/readback gate. Only an eligible
+   missing-only checkpoint may be recovered: if those gates pass, commit only that checkpoint,
+   re-read it, and apply the Resume Skip Gate again. Existing malformed, STALE, duplicate or
+   conflicting records remain blocked under the recovery rules above. Missing
+   bookkeeping alone never authorizes replaying a successful producer. If recovery cannot
+   authenticate the outputs, record the exact failed gate, mark the affected phase and its
+   transitive dependents `STALE`, and route to the owning stage's recovery/append-safety policy
+   before re-execution. Frozen release drift is not repairable by replay. A downstream resume
+   handler does not repair conflicting deployed state.
 6. **NEVER** re-execute a phase whose fingerprint gate and complete phase-specific verification
    both pass.
 
