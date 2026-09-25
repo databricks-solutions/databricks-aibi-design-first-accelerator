@@ -233,6 +233,50 @@ that action as bounded `parse_erd` recovery: refresh the owning parse output fin
 checkpoint before `generate_ddl` may become `VALID`. A downstream phase never leaves a mutated
 parse artifact paired with its old fingerprint.
 
+### GATE 4.0a: Persisted DDL target envelope (mandatory before import and execution)
+
+Projection validation checks table structure; it does not prove the spec's root target
+coordinates. After context/handoff authentication, execute this gate against the exact
+persisted `table_spec.yaml` bytes using the frozen duplicate-key decoder. Do not validate
+only the in-memory draft. Both GATE 4.0 and this gate must pass before DDL import; re-read
+and repeat immediately before execution and require the admitted raw digest unchanged.
+
+```python
+def admit_ddl_target_envelope(spec_bytes, run_context, step_handoff, decode):
+    import hashlib
+    spec = decode(spec_bytes)
+    if not isinstance(spec, dict):
+        raise RuntimeError('DDL_INPUT_AUTHORITY_ERROR: table_spec must be a mapping')
+    expected = {
+        'catalog': run_context['target'].get('catalog'),
+        'schema': run_context['target'].get('schema'),
+        'asset_suffix': run_context['version'].get('asset_suffix'),
+    }
+    for field, value in expected.items():
+        if (not isinstance(value, str) or not value.strip()
+                or '{{' in value or '}}' in value):
+            raise RuntimeError(f'DDL_INPUT_AUTHORITY_ERROR: context.{field} is unresolved')
+        if step_handoff.get(field) != value:
+            raise RuntimeError(f'DDL_INPUT_AUTHORITY_ERROR: handoff.{field} mismatch')
+        if spec.get(field) != value:
+            raise RuntimeError(f'DDL_INPUT_AUTHORITY_ERROR: spec.{field}={spec.get(field)!r}, expected {value!r}')
+    for field in ('run_id', 'output_folder'):
+        if not run_context.get(field) or step_handoff.get(field) != run_context[field]:
+            raise RuntimeError(f'DDL_INPUT_AUTHORITY_ERROR: handoff.{field} mismatch')
+    if spec.get('version_suffix') is not None and spec['version_suffix'] != expected['asset_suffix']:
+        raise RuntimeError('DDL_INPUT_AUTHORITY_ERROR: conflicting legacy version_suffix')
+    return {'table_spec_sha256': hashlib.sha256(spec_bytes).hexdigest()}
+```
+
+If a draft lacks root coordinates, construct them from the authenticated context/handoff
+before writing; never infer them from ERD, defaults, current schema, or table names.
+For an existing run, a failed gate is not authorization to overwrite checkpointed spec
+bytes or rerun DDL. Apply shared checkpoint recovery and owned-artifact provenance first.
+A missing coordinate may be corrected in an uncheckpointed derived spec only after proving
+that no completed producer/dependent binds its old digest; preserve all table/column intent,
+record the correction, persist/re-read, and repeat both gates. Conflicting nonempty values
+require authority diagnosis, not silent replacement. Never change frozen context to fit a spec.
+
 ### GATE 4.1: Table Count Verification
 `SHOW TABLES IN {catalog}.{schema} LIKE '*{ASSET_SUFFIX}'` must return expected count, using the exact frozen `step_handoff.yaml.asset_suffix`. HALT if fewer.
 **CRITICAL:** `SHOW TABLES LIKE` uses **glob syntax** (`*` = wildcard), NOT SQL LIKE syntax (`%` = wildcard). See **G-15** in `{AGENT_SKILLS_DIR}/prompts/shared/global_guardrails.md`. Using `%` returns zero results.

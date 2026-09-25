@@ -798,7 +798,9 @@ Because inferred relationships are first-class in `semantic_model.yaml`:
 
 **Generation Plane (LLM):**
 1. Produce `{OUTPUT_FOLDER}/table_spec.yaml` — a declarative specification of all tables
-2. This spec is derived from `erd_parsed.yaml` and contains table names, columns, types, and comments
+2. Copy root `catalog`, `schema`, and `asset_suffix` verbatim from authenticated
+   context/handoff. These are required concrete values, not template placeholders or nested
+   `target` fields. Derive only tables, columns, types, and comments from `erd_parsed.yaml`.
 3. The LLM does NOT write CREATE TABLE SQL — the compiler does that deterministically
 
 Datatype fields are a deterministic projection, not a creative LLM output. The control/runtime
@@ -812,6 +814,9 @@ type is incomplete or differs, regenerate it from the resolved ERD and record th
 4. Run programmatic GATE 4.0 with the digest-attested
    `validate_table_spec_projection(erd_tables, table_spec)` function. A failure routes to the
    owning ERD-reparse or table-spec-regeneration action and MUST occur before notebook deployment.
+   Then execute `admit_ddl_target_envelope` from GATE 4.0a on the persisted spec bytes.
+   Structural projection PASS alone does not admit deployment. Preserve its raw digest and
+   re-read/revalidate immediately before execution; changed bytes require renewed admission.
 5. **Apply guardrails DL-G4 and shared G-16, then deploy DDL notebook from template** — call the `deploy_from_template` tool with:
    - `template_path`: exact frozen `run_context.templates.ddl_notebook.path`
    - `output_path`: `{OUTPUT_FOLDER}/notebooks/ddl_{DOMAIN_NAME}.py`

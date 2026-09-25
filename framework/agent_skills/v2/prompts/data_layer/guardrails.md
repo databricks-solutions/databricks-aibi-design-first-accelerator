@@ -402,3 +402,12 @@ it before a first attempt. On resume, distinguish a wrong locator from a missing
 actual producer output. Preserve the existing run and successful predecessors; inspect
 job result and current rows before deciding recovery. Missing output alone is never
 permission to append the generated data again.
+
+### DDL specification target binding
+
+Before importing or executing DDL, require validation.md GATE 4.0a against persisted
+`table_spec.yaml` as well as the structural projection gate. Root `catalog`, `schema`,
+and `asset_suffix` must exactly match authenticated context/handoff; a successful template
+binding does not bind the separate YAML file. No default target or automatic overwrite
+of checkpointed specs is allowed. On retry, distinguish missing draft metadata from
+successful deployed work with a missing checkpoint before replaying any DDL.
