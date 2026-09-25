@@ -1358,7 +1358,12 @@ append-safety rules when previous generation attempts may have written rows.
 4. Reread and rerun `admit_synthetic_inputs`; require the same admitted digests and
    current authenticated reconciliation/empty-target prerequisites. Only then execute
    the notebook via `execute_notebook`.
-5. Verify execution completed without errors
+5. Verify terminal notebook success and read exactly
+   `{OUTPUT_FOLDER}/synthetic_data_manifest.json`, the frozen runtime's output. Authenticate
+   its run/suffix, source spec hash, reconciliation path/hash, table inventory/count and
+   post-write schema hash against current evidence before checkpointing. Never request
+   `data_manifest.json`. Fingerprint the actual persisted manifest bytes only after they
+   are available; this output is not an input prerequisite for first execution.
 
 ### Notebook Execution
 
@@ -1845,6 +1850,7 @@ defects are self-corrected and do not trigger a terminal halt.
 | schema_reconciliation.yaml | `{OUTPUT_FOLDER}/` | Current-run GATE 4.2 evidence; policy `DEPLOYED_DATATYPE_REPAIR_V1`; `status: PASS`; exact expected/readback name-type fingerprints; zero unresolved mismatches |
 | semantic_model.yaml | `{OUTPUT_FOLDER}/` | Contains `generation_order:` |
 | synthetic_data_spec.yaml | `{OUTPUT_FOLDER}/` | Entry for every table, GATE 5.1 passed |
+| synthetic_data_manifest.json | `{OUTPUT_FOLDER}/` | Runtime-produced generation evidence; exact run/suffix/spec/reconciliation bindings and fresh schema/row readback |
 | DDL notebook | `{OUTPUT_FOLDER}/notebooks/ddl_{domain}.py` | All tables in catalog |
 | Synthetic data notebook | `{OUTPUT_FOLDER}/notebooks/synthetic_data_{domain}.py` | Executed, all tables populated |
 | data_layer_validation.yaml | `{OUTPUT_FOLDER}/` | `overall_status: PASS`; `schema_reconciliation.status: PASS`; zero unresolved schema mismatches; every semantic-model relationship has exactly one relationship-level `PASS` result |

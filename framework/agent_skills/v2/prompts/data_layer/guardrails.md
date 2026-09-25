@@ -392,3 +392,13 @@ synthetic input validation. Missing/null/empty/non-list `tables` belongs to the 
 producer; repair only that artifact under the existing bounded budget. Preserve
 reconciliation and successful upstream checkpoints. Never deploy first to discover
 basic spec-shape errors, and never use a failed notebook as the pre-deployment gate.
+
+### Synthetic manifest naming and missing-output recovery
+
+The sole generation manifest is `{OUTPUT_FOLDER}/synthetic_data_manifest.json`.
+Do not invent `data_manifest.json`, alias filenames, or empty manifests to satisfy
+checkpoint code. The runtime writes this output after generation, so never require
+it before a first attempt. On resume, distinguish a wrong locator from a missing
+actual producer output. Preserve the existing run and successful predecessors; inspect
+job result and current rows before deciding recovery. Missing output alone is never
+permission to append the generated data again.
