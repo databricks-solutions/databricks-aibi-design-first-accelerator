@@ -76,7 +76,7 @@ The following actions are STRICTLY FORBIDDEN. Violating any is a pipeline failur
 6. **DO NOT use `dbutils.fs`** for `/Workspace/` paths.
 7. **DO NOT use `.mode("overwrite").saveAsTable()`** — use `.mode("append")` (tables created empty by DDL).
 8. **DO NOT use Statement Execution API** for DDL/data gen — only for Metric View creation.
-9. **DO NOT reimplement template functions** — `generate_table()`, `enforce_varchar_limits()`, `verify_before_write()`, etc. are tested and bug-free. HALT on errors, never rewrite.
+9. **DO NOT reimplement template functions** — `generate_table()`, `enforce_varchar_limits()`, `verify_before_write()`, etc. are release-owned. On errors, classify and follow the owning recovery policy; never rewrite their implementation.
 10. **DO NOT skip FK replacement after `build()`** — generates identical placeholder values for ALL rows. Replace EVERY FK in EVERY child table with sampled parent keys. This is the #1 synthetic data bug.
 11. **DO NOT leave business keys with 1 distinct value** — parent business keys referenced by child FKs MUST have diverse values post-build(). Without this, ALL downstream joins break.
 12. **DO NOT generate categorical columns with generic values** — NEVER produce `val_1`, `val_2`, `A`, `B`, `C`, or random strings for status/type/code/category columns. Every categorical MUST have domain-meaningful values (see §5.3).
@@ -94,18 +94,15 @@ The following actions are STRICTLY FORBIDDEN. Violating any is a pipeline failur
 24. **DO NOT make an unrecorded datatype guess.** First obtain authoritative ERD evidence through up to two targeted reparses. If and only if the target is ERD-driven, `greenfield.enabled: true`, and `greenfield.synthetic_data: true`, unresolved datatype-only defects MUST use `GREENFIELD_SYNTHETIC_DATATYPE_RESOLUTION_V1` and be recorded in `schema_assumptions.yaml`. Source/live schemas, retained data, and structural defects never use this exception.
 25. **DO NOT build a synthetic-data spec or execute any synthetic write unless `reconcile_schema` is a current authenticated `VALID` phase and fresh catalog readback still matches its PASS evidence**.
 
-### Environment-Specific Rules
+### Portable execution and recovery
 
-| Rule | Genie Code | Databricks App |
-|------|-----------|----------------|
-| DML (DELETE/UPDATE) | BLOCKED — ensure correctness BEFORE write | ALLOWED — use DELETE FROM + re-append to fix (**TRUNCATE TABLE is NOT supported in Databricks SQL / UC — always use DELETE FROM**) |
-| Recovery from bad data | Report as `DATA_QUALITY_WARNING`, proceed | DELETE FROM and regenerate |
-| Safety guardrail trigger | HALT immediately, report block | N/A (no guardrails) |
-| `.mode("overwrite")` | BLOCKED | ALSO PROHIBITED (template uses append) |
-
-### HARD STOP RULE
-
-If the agent encounters a safety guardrail, tool limitation, or API timeout: STOP immediately, report the exact error, DO NOT attempt alternatives. The prescribed approach IS the approach.
+Apply the same frozen contracts and mutation policy in App and Genie Code. Host capability
+limits affect transport, not data-quality acceptance or ownership. Bad data is not permission
+to DELETE and regenerate in the App, or to continue with invalid relationships in Genie Code.
+Use the owned stage's authenticated partial-write/recovery policy; a blocked mutation is reported
+to the master. For timeouts, retain the submitted job/statement identity and observe that same
+execution under shared transport rules. Never treat an unresolved timeout as permission to
+resubmit a mutating operation. Genuine permission/authority failures stop dependent work.
 
 ---
 
@@ -124,8 +121,9 @@ stale reusable phase, authenticate the run and recompute only the producer/froze
 input/dependency hashes; the phase's own outputs do not exist yet and are never pre-write authority.
 For a skip/resume candidate, also recompute its output hashes and apply the phase-specific check below.
 Skip only a current `VALID` record when every check passes.
-Otherwise mark that phase and all graph dependents `STALE`, persist the invalidation, and return
-execution to the earliest stale phase. `load_config` is stateless: always re-read it and never add a
+Apply shared “Phase entry and read scope” first. An absent new phase is not stale; a prior
+producer attempt with missing bookkeeping follows checkpoint recovery before any replay.
+Only an invalid existing candidate enters the shared STALE invalidation procedure. `load_config` is stateless: always re-read it and never add a
 reusable `phases_completed` record.
 
 | Phase | Artifact | Additional phase-specific skip check after the fingerprint gate |
@@ -193,7 +191,9 @@ Then:
 
 Complete this input-authority preflight **before** invoking the vision model. The preflight concerns
 only externally supplied/frozen inputs and completed resume candidates; it MUST NOT require
-`erd_parsed.yaml`, `schema_assumptions.yaml`, or a `parse_erd` checkpoint on a fresh phase. Once this
+`erd_parsed.yaml`, `schema_assumptions.yaml`, or a `parse_erd` checkpoint on a fresh phase.
+Do not read or hash `table_spec.yaml`, `schema_reconciliation.yaml`, synthetic outputs, or
+Data Layer validation at ERD entry: these belong to later phases, not ERD input authority. Once this
 preflight passes and a fresh vision parse starts, the normal result is to validate/resolve in memory
 and create those artifacts. Do not halt after the vision call merely because those producer outputs
 did not exist beforehand. Any true missing frozen input must be detected and reported before the

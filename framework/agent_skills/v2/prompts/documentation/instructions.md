@@ -96,13 +96,14 @@ Do not present planned assets as successfully created assets.
 This step uses **artifact-as-state** checkpointing (see `{AGENT_SKILLS_DIR}/prompts/shared/state_contract.md`).
 The same rules apply in App mode and Genie Code — no backend infrastructure required.
 
-**Before executing each reusable phase**, require the complete fingerprint Resume Skip Gate plus the
-exact current-run/path/evidence-scope checks below. Existence and structural validity alone never
-authorize a skip. On mismatch, mark the phase and documentation dependents `STALE`, persist the
-invalidation, and execute from the earliest stale phase. `gather_artifacts` is stateless and always
-re-reads all authorities without a reusable phase record.
+**Before executing or considering reuse of a phase**, apply shared state_contract.md
+“Phase entry and read scope.” New phases authenticate only frozen inputs and verified
+predecessors; their own outputs are checked after production. The complete Resume Skip Gate
+and checks below apply only to existing checkpoint candidates. Missing-only checkpoint recovery
+follows the shared rules; do not replay a successful producer because bookkeeping is absent.
+Stateless load/gather phases are always re-read without reusable phase records.
 
-**Verification flow (run at the START of this step, after loading config):**
+**Candidate verification flow (after authenticated bootstrap; evaluate only existing candidates in dependency order):**
 
 1. List the output folder.
 2. Re-authenticate the exact tool-supplied `run_context_path` and canonical output-folder binding.
@@ -1207,22 +1208,15 @@ Do not duplicate the complete YAML.
 
 ## CRITICAL — EFFICIENCY (saves 10+ tool calls)
 
-Steps 6, 7, and 8 are ONE logical pass. Do NOT re-read any artifact files.
-You already loaded ALL artifacts in Steps 1-2 — they are in your context.
+Steps 6, 7, and 8 may reuse the authenticated evidence snapshot from Steps 1–2 for
+composition. This optimization never overrides freshness checks, output readback, or checkpoint
+persistence. Re-read whenever a consumed artifact may have changed or a gate requires it.
 
-Do NOT:
-- Re-read `erd_parsed.yaml`, `semantic_model.yaml`, `{OUTPUT_FOLDER}/metric_views/metric_view_design.yaml`, manifests, etc.
-- Re-read validation YAML files you already loaded
-- Call read_workspace_file for any artifact you already have in context
-- Validate assets one at a time with separate file reads
-
-DO:
-- Validate from context/memory (all artifact data is already loaded from Steps 1-2)
-- Check consistency + scan for placeholders + prepare `documentation/run_manifest_draft.json` in ONE logical pass
-- Write readme.md in ONE write_workspace_file call
-- Write `documentation/run_manifest_draft.json` in ONE write_workspace_file call
-- Report progress completed immediately after the two writes
-- Total tool calls for this entire step: 2-3 (write readme + write manifest + report_progress)
+- Check consistency and placeholders against the authenticated evidence scope.
+- Write `documentation/readme.md` and `documentation/run_manifest_draft.json`.
+- Re-read both persisted outputs and validate exact content, identities and scope.
+- Commit and re-read each owning phase checkpoint before reporting completed.
+- Do not impose a tool-call limit that omits mandatory validation or persistence.
 
 > **PROGRESS REPORT:** Call `report_progress` with:
 > - `phase_id`: "validate_documentation"

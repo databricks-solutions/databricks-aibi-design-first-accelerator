@@ -40,7 +40,8 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 domain=config['domain']['name'],output_root=folder+'/generated_outputs',
                 created_by='portable_test',run_id=str(uuid.uuid4()),store=store)
             context={k:v for k,v in selected.items() if k not in ('is_new','version_suffix')}
-            context.update(coordinates,templates=refs,checkpointing={},phases_completed=[])
+            context.update(coordinates,templates=refs,checkpointing={},phases_completed=[],
+                           version={"number": selected["version"], "asset_suffix": selected["version_suffix"]})
             transport['verify_release_executable_references'](context,refs)
             context['checkpointing']['frozen_run_contract_sha256']=runtime.frozen_context_sha256(context)
             store.write(selected['run_context_path'],runtime.encode(context))
@@ -63,11 +64,15 @@ class ReleaseWorkflowTests(unittest.TestCase):
                 GENERAL_INSTRUCTIONS='Use "approved" views.\nExplain results.',METRIC_VIEW_DESCRIPTIONS={'cat.sch.mv':'Measures'},
                 SAMPLE_QUESTIONS=['Total?'],EXAMPLE_SQLS=[{'sql':'SELECT 1','enabled':True}],BENCHMARK_QUESTIONS=['Total?'])
             data_gates=prompt_functions(PROMPTS/'data_layer/validation.md')
-            table_bytes=runtime.encode({'tables':[{'name':'entity','columns':[{'name':'id','type':'BIGINT'}]}]})
+            table_bytes=runtime.encode(dict(target,asset_suffix=selected['version_suffix'],
+                tables=[{'name':'entity','columns':[{'name':'id','type':'BIGINT'}]}]))
             spec_bytes=runtime.encode({'tables':[{'name':'entity','rows':10,'pk_columns':['id'],
                                                 'domain_columns':{},'fk_columns':{}}]})
             store.write(selected['output_folder']+'/table_spec.yaml',table_bytes)
             store.write(selected['output_folder']+'/synthetic_data_spec.yaml',spec_bytes)
+            ddl_admission=data_gates['admit_ddl_target_envelope'](
+                store.read(selected['output_folder']+'/table_spec.yaml'),authenticated,handoff,runtime.decode)
+            self.assertEqual(ddl_admission['table_spec_sha256'],hashlib.sha256(table_bytes).hexdigest())
             admission=data_gates['admit_synthetic_inputs'](
                 Path(refs['dbldatagen_notebook']['path']).read_bytes(),refs['dbldatagen_notebook']['sha256'],
                 store.read(selected['output_folder']+'/synthetic_data_spec.yaml'),

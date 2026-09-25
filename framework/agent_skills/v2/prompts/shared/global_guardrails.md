@@ -396,7 +396,9 @@ Before any phase skip, require all of the following:
 3. exact mandatory input/output fingerprint ID sets and recomputed digest parity; and
 4. the owning stage's complete structural, semantic, catalog, or official API readback check.
 
-If any condition fails, atomically mark the phase and every transitive graph dependent `STALE`
+First apply shared “Phase entry and read scope”; this is a skip gate, never an output-existence
+prerequisite for a new phase. A missing-only checkpoint with prior execution evidence uses shared
+recovery before replay. If an existing candidate fails, atomically mark its record and every transitive graph dependent current record `STALE`
 before regeneration. Do not treat existence, a completion event, a manifest, or a matching output
 alone as freshness. Stateless load/gather phases are always re-read and never reusable.
 

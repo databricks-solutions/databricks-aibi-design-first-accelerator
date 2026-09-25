@@ -584,8 +584,11 @@ For every configurable stage:
 1. Read the frozen flag. If disabled, require no phase/output claims and record `SKIPPED`.
 2. Re-authenticate context, handoff, state contract, instruction bytes, validation/guardrail
    controls, producer bundle, frozen-run digest, fingerprints, and immediate upstream authorities.
-3. Apply the complete Resume Skip Gate phase by phase. File existence and manifests are never
-   sufficient. Mark a failed phase and all transitive dependents `STALE`.
+3. Execute shared `classify_phase_entry` for the current phase before generated-artifact reads.
+   On a new phase, verify only its inputs and completed predecessors, then execute it; no output
+   fingerprints exist yet. Apply the complete Resume Skip Gate only to existing candidates.
+   File existence and manifests are never sufficient. Use shared attempt/checkpoint recovery
+   before replay; invalidate only affected existing records and their transitive dependents.
 4. Load only the active instructions, validation contract, and guardrails. Do not load the runbook.
 5. Execute that prompt's exact gates, deterministic runtime, retries, readback, and output contract.
 6. Accept completion only after direct validation evidence authenticates and durable phase state is

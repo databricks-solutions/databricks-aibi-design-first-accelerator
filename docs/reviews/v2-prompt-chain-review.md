@@ -33,7 +33,7 @@ of live Databricks execution or comprehensive model compliance.
 
 ## Regression coverage
 
-Latest local result: 249 tests passed; `git diff --check` passed. No live run was performed.
+Latest local result: 269 tests passed; `git diff --check` passed. No live run was performed.
 
 Run the entire suite, not only the edited stage:
 
@@ -76,3 +76,38 @@ For an existing failed run, first establish whether its frozen executable bytes 
 still available. Syncing changed templates to the same paths can make the old run
 non-resumable; do not overwrite its hashes to hide that. A local passing suite and
 a fresh-run success must never be described as recovery of a different frozen run.
+
+## Fresh-run artifact ordering review
+
+The v8 traceback establishes a download of a missing `schema_reconciliation.yaml`.
+The user reports ERD was active. Without that execution's captured Python source and
+phase events, the exact generated-code decision and any UI attribution error remain
+unconfirmed. Reconciliation is produced by DDL, so it cannot be an ERD input.
+
+Confirmed prompt conflicts corrected in this pass:
+
+- Dashboard, Genie and Documentation required Resume Skip Gate before any execution,
+  including new phases that have no outputs. Shared phase-entry classification now
+  precedes generated-artifact I/O; only existing candidates verify their outputs.
+- Shared portable execution flow asked for dependency/output fingerprints indiscriminately.
+  It now distinguishes new work, checkpoint verification, attempted-work recovery and stale
+  recovery, and starts through the master rather than standalone stage resolution.
+- Data Layer and global invalidation wording bypassed missing-checkpoint recovery.
+  They now defer to the shared recovery policy and preserve verified predecessor work.
+- Whole-stage restart wording contradicted phase-level continuation; removed.
+- Host-specific bad-data deletion/continue instructions contradicted portable ownership
+  and quality rules; replaced with the shared owned recovery and unknown-execution policy.
+- Documentation's memory-only verification, immediate completion and tool-call cap
+  contradicted persisted-output/checkpoint readback; removed those exceptions.
+
+`test_phase_entry_scope.py` exercises entry routing across all reusable stage phases,
+missing-checkpoint attempt recovery, stale/duplicate/malformed records and sibling phase
+identity isolation. It does not prove that a model follows the function. The cross-stage
+release test now also admits the persisted DDL target envelope using actual configured
+coordinates. No live run, deployment or notebook re-execution was performed.
+
+Deployment: sync one coherent release before a fresh test. These prompt/control byte
+changes alter frozen producer/state digests. Do not update an old run's frozen hashes to
+force reuse; retry under its exact frozen release or start a fresh version with this release.
+For v8 attribution, inspect the failing execute_python source in that run's
+`diagnostics/python/` and its corresponding tool/phase events before claiming a precise cause.

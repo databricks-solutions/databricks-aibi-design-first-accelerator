@@ -326,7 +326,10 @@ No YAML may be generated until this chain is established.
 
 ## State & Checkpoint Contract
 
-Uses the fingerprinted checkpoint contract in `{AGENT_SKILLS_DIR}/prompts/shared/state_contract.md`. Recompute the current
+Uses the fingerprinted checkpoint contract in `{AGENT_SKILLS_DIR}/prompts/shared/state_contract.md`.
+Apply its “Phase entry and read scope” before constructing artifact reads: new phases require
+only frozen inputs and verified predecessors; output checks apply after production or to existing
+reuse candidates. Recompute the current
 producer bundle, frozen-run digest, complete mandatory dependencies (including KPI specification,
    schema/readback, capability contract, handoff, and applicable templates), and outputs before each
 skip. A capability tuple mismatch fails reuse with `CAPABILITY_CONTRACT_MISMATCH`, marks the owning

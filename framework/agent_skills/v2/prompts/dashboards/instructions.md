@@ -1197,13 +1197,14 @@ The single canonical manifest schema is defined in Step 20. Do not create an alt
 This step uses **artifact-as-state** checkpointing (see `{AGENT_SKILLS_DIR}/prompts/shared/state_contract.md`).
 The same rules apply in App mode and Genie Code — no backend infrastructure required.
 
-**Before executing each reusable phase**, require the complete fingerprint Resume Skip Gate and the
-phase-specific verification below. A locator or manifest never proves deployed state, and readback
-agreement alone does not prove upstream freshness. On a mismatch, mark the phase and its graph
-dependents `STALE`, persist the invalidation, and return execution to the earliest stale phase.
-`load_config` is stateless and always re-read without a reusable phase record.
+**Before executing or considering reuse of a phase**, apply shared state_contract.md
+“Phase entry and read scope.” New phases authenticate only frozen inputs and verified
+predecessors; their own outputs are checked after production. The complete Resume Skip Gate
+and checks below apply only to existing checkpoint candidates. Missing-only checkpoint recovery
+follows the shared rules; do not replay a successful producer because bookkeeping is absent.
+Stateless load/gather phases are always re-read without reusable phase records.
 
-**Verification flow (run at the START of this step, after loading config):**
+**Candidate verification flow (after authenticated bootstrap; evaluate only existing candidates in dependency order):**
 
 1. List the output folder.
 2. Manage `run_context.yaml` per `{AGENT_SKILLS_DIR}/prompts/shared/state_contract.md` Section 8.

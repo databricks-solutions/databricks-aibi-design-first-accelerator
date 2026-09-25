@@ -401,6 +401,61 @@ The strategy-specific `metric_view_plan.yaml.auto_handoff_producer_checkpoint` i
 identity/handoff attestation with its existing exact key set. Never add these generic fields to that
 object or use it instead of the phase record above.
 
+### Phase entry and read scope (before any generated-artifact download)
+
+Authenticate the run and frozen controls first. Then classify only the current `(step, phase)`
+using the function below before constructing file reads or fingerprints. It chooses a route,
+not a PASS verdict; every route still applies the owning stage's input, authority and safety gates.
+`prior_attempt` must come from this phase's authenticated execution history/diagnostics or observed
+owned deployment evidence, never just the run's version number or a failed stage label.
+
+```python
+def classify_phase_entry(records, step, phase, prior_attempt=False):
+    if not isinstance(records, list) or type(prior_attempt) is not bool:
+        raise RuntimeError('PHASE_ENTRY_ERROR: invalid checkpoint envelope or attempt flag')
+    if not isinstance(step, str) or not step or not isinstance(phase, str) or not phase:
+        raise RuntimeError('PHASE_ENTRY_ERROR: missing phase identity')
+    if any(not isinstance(record, dict) for record in records):
+        raise RuntimeError('PHASE_ENTRY_ERROR: malformed checkpoint entry')
+    candidates = [r for r in records if r.get('step') == step and r.get('phase') == phase]
+    if len(candidates) > 1:
+        raise RuntimeError('PHASE_ENTRY_ERROR: duplicate checkpoint records')
+    if candidates:
+        status = candidates[0].get('checkpoint_status')
+        if status == 'VALID':
+            return 'VERIFY_CHECKPOINT'
+        if status == 'STALE':
+            return 'RECOVER_STALE'
+        raise RuntimeError('PHASE_ENTRY_ERROR: invalid checkpoint status')
+    return 'RECOVER_ATTEMPT' if prior_attempt else 'EXECUTE_NEW'
+```
+
+- `EXECUTE_NEW`: authenticate only this phase's frozen external inputs and verified predecessors.
+  Do not read/hash its not-yet-produced outputs or any downstream output. Execute its producer,
+  then validate outputs and persist/re-read the completion checkpoint. On a fresh run an empty
+  `phases_completed` list is normal; never perform a whole-pipeline output hash sweep.
+- `VERIFY_CHECKPOINT`: only this candidate's inputs and outputs enter the complete Resume Skip
+  Gate. `VALID` in the envelope alone is not verification. Stop evaluation at the first unresolved
+  dependency; do not probe later-phase outputs speculatively.
+- `RECOVER_ATTEMPT`: reconcile this phase's actual remote submission, terminal result and owned
+  outputs under existing recovery rules. Unknown/partial mutations block replay. Missing-only
+  checkpoint recovery is permitted only after all its authentication/readback gates pass.
+- `RECOVER_STALE`: apply the recorded invalidation reason and owning stage's recovery rules;
+  never turn STALE into permission to overwrite data or to rewrite the frozen release.
+
+An output from another phase is a mandatory input only after its producer has passed its consumer
+barrier. A file's appearance in an artifact inventory, example fingerprint, enforcement header or
+terminal checklist does not make it a stage-entry dependency. Downstream artifact absence on a
+new run is expected; missing required upstream authority blocks the consumer. For a missing resume
+candidate, classify the missing evidence and recover under its owning phase; do not swallow permission,
+transport or identity errors as absence. Optional existence probes must handle only not-found.
+
+For Data Layer, `parse_erd` reads the frozen image and controls; its ERD/assumptions are outputs.
+`build_semantic_model` consumes the completed parse. `generate_ddl` builds and admits its table spec
+from those predecessors. The DDL runtime produces `schema_reconciliation.yaml`; the subsequent
+`reconcile_schema` phase authenticates it. Only then may `generate_synthetic_data` require it.
+Never download `schema_reconciliation.yaml` while preparing or fingerprinting `parse_erd`.
+
 ### Resume Skip Gate
 
 After lifecycle and resolver authentication, a phase may be skipped only when ALL conditions pass:
@@ -493,7 +548,7 @@ Step level:  step_started → step_completed   (coarse — 6 per run)
 Phase level: report_progress completed       (fine — 4-6 per step, ~30 per run)
 ```
 
-Phases are the **resume and invalidation unit**. Steps are the **restart unit**.
+Phases are the **execution, resume and invalidation unit**. Steps group phases for routing and display; entering a step never authorizes replay of all its phases.
 
 ---
 
@@ -942,7 +997,7 @@ findings:
 ### Genie Code Execution Flow
 
 ```text
-1. User pastes step prompt (e.g., {AGENT_SKILLS_DIR}/prompts/data_layer/instructions.md)
+1. User starts 00_master_prompt.md; only the master invokes active stage prompts
 2. LLM invokes the shared resolver once with the caller-supplied exact registry path;
    accelerator.yaml is request/drift evidence, not resume identity
 3. Resolver returns either:
@@ -950,8 +1005,8 @@ findings:
    b. RESUME: one exact same-environment registry entry and its exact run_context_path
 4. Require normalized parent(run_context_path) == run_context.output_folder, load
    step_handoff.yaml only as the exact sibling, and reconcile lifecycle identity
-5. Recompute the frozen run contract, producer bundle, required dependency/output fingerprints,
-   and each phase's complete authority/readback check
+5. Recompute the frozen run contract and producer bundle; classify each current phase before I/O.
+   New phases verify only required inputs/predecessors; existing candidates also verify outputs
 6. Skip only `VALID` phases that pass the full Resume Skip Gate; mark mismatches and transitive
    dependents `STALE`, then execute from the earliest stale or absent phase
 7. After each reusable phase: atomically update `run_context.yaml` with its exact current record
@@ -963,9 +1018,9 @@ findings:
 ### Genie Code Resume Flow (Same-Environment Only)
 
 ```text
-1. User re-opens same step prompt (same or new conversation)
+1. User re-opens the master prompt with the exact run/version retry request
 2. Shared resolver reads the exact caller-supplied registry path:
-   - Selects one entry with created_by=genie_code AND status=running → RESUME
+   - Applies master auto/retry selection for the same owner; failed runs require locked reopen
    - Returns that entry's exact run_context_path; do not construct a v{N} path
 3. LLM reads only that registry-selected run_context.yaml:
    - Gets run_id (for traceability)

@@ -411,3 +411,11 @@ and `asset_suffix` must exactly match authenticated context/handoff; a successfu
 binding does not bind the separate YAML file. No default target or automatic overwrite
 of checkpointed specs is allowed. On retry, distinguish missing draft metadata from
 successful deployed work with a missing checkpoint before replaying any DDL.
+
+### Generated-artifact read order
+
+Apply shared `classify_phase_entry` before building reads/fingerprints. `schema_reconciliation.yaml`
+is a DDL runtime output authenticated by `reconcile_schema`, never a `parse_erd` prerequisite.
+Do not hash a stage-wide artifact inventory at entry. Missing future outputs on a fresh run
+are expected; never fabricate them, suppress missing required predecessor evidence, or move
+reconciliation production into ERD parsing. Follow shared read scope in every host.
