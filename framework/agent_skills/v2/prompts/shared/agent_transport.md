@@ -24,6 +24,64 @@ copies are not runtime alternatives. A configured template must resolve to the r
 path or fail preflight; do not silently select an old template from accelerator.yaml.
 Record the release path/raw SHA and this transport path/raw SHA in run_context.inputs.
 
+### Required Step-0 executable reference inventory
+
+`release.helpers` and `release.templates` are packaging categories, not separate
+run-context namespaces. Merge both into `run_context.templates`. In particular,
+`release.helpers.erd_validation_utils` becomes `run_context.templates.erd_validation_utils`.
+Do not create only `run_context.helpers`, copy only the release `templates` section,
+or freeze the conceptual empty-map example. Use this executable construction before
+initial context freeze; `read_bytes` is the approved Workspace/native byte reader.
+
+```python
+def build_release_executable_references(release, repo_root, read_bytes):
+    import hashlib
+    import posixpath
+    if not isinstance(repo_root, str) or not repo_root.startswith('/'):
+        raise RuntimeError("MASTER_RESOLVER_ERROR: absolute repo root required")
+    root = posixpath.normpath(repo_root)
+    references = {}
+    for section in ('helpers', 'templates'):
+        entries = release.get(section)
+        if not isinstance(entries, dict) or not entries:
+            raise RuntimeError(f"MASTER_RESOLVER_ERROR: missing release {section}")
+        for key, relative in entries.items():
+            if key in references:
+                raise RuntimeError(f"MASTER_RESOLVER_ERROR: duplicate executable key {key}")
+            if not isinstance(relative, str) or not relative or relative.startswith('/'):
+                raise RuntimeError(f"MASTER_RESOLVER_ERROR: invalid release path for {key}")
+            path = posixpath.normpath(posixpath.join(root, relative))
+            if not path.startswith(root.rstrip('/') + '/'):
+                raise RuntimeError(f"MASTER_RESOLVER_ERROR: release path escapes root: {key}")
+            raw = read_bytes(path)
+            if not isinstance(raw, bytes) or not raw:
+                raise RuntimeError(f"MASTER_RESOLVER_ERROR: missing/empty executable {key}: {path}")
+            references[key] = {'path': path, 'sha256': hashlib.sha256(raw).hexdigest()}
+    return references
+
+
+def verify_release_executable_references(context, expected):
+    actual = context.get('templates')
+    if not isinstance(actual, dict):
+        raise RuntimeError("MASTER_RESOLVER_ERROR: run_context.templates must be a mapping")
+    invalid = sorted(key for key, value in expected.items() if actual.get(key) != value)
+    if invalid:
+        raise RuntimeError(f"MASTER_RESOLVER_ERROR: missing/conflicting frozen executable references: {invalid}")
+```
+
+For a fresh run, build this map from the selected release's verified bytes, assign it
+to `run_context.templates` before computing the frozen context/producer hashes, then
+verify the proposed context and exact persisted readback. Step-0 completion and Setup
+are blocked until the whole expected inventory matches. Do not recompute an expected
+hash from an untrusted download on resume: authenticate the existing frozen release
+and executable references first. These functions construct/check inventory; they do
+not replace release attestation, checkpoint validation or lifecycle locking.
+
+If an already frozen run lacks a required tuple, report the exact missing key and
+return to master recovery. Never insert it and rehash that run in-place. Preserve
+failed-run artifacts; use only the established lifecycle rules for subsequent execution.
+
+
 Normalize configuration BEFORE freezing it:
 - Invocation `requested_steps`, when supplied, narrows the configured enabled stages;
   validate dependencies before allocation. Never skip required producers based on a

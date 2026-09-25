@@ -294,7 +294,14 @@ No stage may search for a same-named executable replacement.
 
 ### 0.6 Build the Immutable Run Context
 
-Resolve all values before first serialization. The conceptual structure is:
+Resolve all values before first serialization. Execute
+`build_release_executable_references` from shared `agent_transport.md` and assign its
+complete returned map to `run_context.templates`. Both release sections are required;
+helpers are not stored in a separate namespace. Execute
+`verify_release_executable_references` before computing the frozen digest and again
+on persisted readback. Do not advance to Setup on a missing or mismatched entry.
+The conceptual structure below is not a ready-to-persist context:
+
 
 ```yaml
 lifecycle_contract_version: 1
@@ -343,7 +350,7 @@ inputs:
   orchestration_prompts: {}
   shared_runbooks: {}
 llm: {}
-templates: {}
+templates: <complete build_release_executable_references result: helpers AND templates>
 validation: {}
 quality_gates: {}
 source: {catalog: <name>, schema: <name>}
@@ -458,6 +465,7 @@ Before setup, require:
 - required inputs, instructions, validation contracts, guardrails, failure-only runbooks, shared
   controls, helpers, and templates have frozen identities; runbook authentication does not load
   their contents on a success path;
+- the executable inventory passes `verify_release_executable_references` against the complete selected release helpers/templates map;
 - state-contract and producer bundles recompute exactly;
 - a new run has no phases; each resumed phase passes the complete Resume Skip Gate;
 - disabled stages have no phases;
