@@ -1315,6 +1315,16 @@ volume_targets:
 
 ---
 
+# Retry entry for the Data Layer
+
+The master supplies continuation through authenticated phase records, not by restarting
+this document at Step 1. On retry, verify and replay completion for valid predecessor
+phases without executing their mutations. A failure in `generate_synthetic_data` leaves
+verified parse/semantic/DDL/reconciliation phases reusable; begin at Step 6's admission
+and repair only the rejected spec. If a predecessor cannot verify, report its exact
+failed gate to the master before moving the continuation point backward. Apply shared
+append-safety rules when previous generation attempts may have written rows.
+
 # Step 6: Generate Synthetic Data Notebook
 
 ### Pre-Flight

@@ -538,6 +538,30 @@ findings/stats, following shared G-19. Only then announce the first Data Layer p
 Do not report setup under `load_configuration` or `create_data_layer`. On resume,
 recheck setup readback before admitting Data Layer; the old UI status is not evidence.
 
+## Failed-phase continuation
+
+Explicit retry means continue the selected failed run at its earliest phase that needs
+work, not restart its stage from the first instruction. After locked lifecycle reopen,
+reconcile submitted remote executions and evaluate each existing phase under the shared
+Resume Skip Gate. Announce the continuation phase and verified predecessor phases in
+findings before any mutation. Read stage instructions to understand the contract, but
+execute only the failed/missing/stale phase and its dependents. Do not equate reloading
+a stage prompt with rerunning every phase in that stage.
+
+For a synthetic-spec preflight failure after valid Data Layer predecessors, revalidate
+`parse_erd`, `build_semantic_model`, `generate_ddl`, and `reconcile_schema`; preserve any
+that pass. Repair the synthetic spec in `generate_synthetic_data`, rerun its admission,
+and continue to `validate_data`. Do not call vision, rerun DDL, recreate reconciliation,
+or reset the whole Data Layer simply because the stage's aggregate status was FAIL.
+A failed-stage label is not evidence that all of its phase checkpoints are invalid.
+
+If an earlier phase fails its own authority/readback gate, report that exact reason
+and move the continuation point back only as far as necessary. Frozen release drift
+follows shared recovery; never silently replay upstream mutations to overcome it.
+Partially written synthetic data requires exact inventory/readback reconciliation and
+existing append-safety policy, not a blind rerun. A prior pre-write rejection alone
+is not proof that all earlier attempts left every target empty.
+
 ## Active-Stage Router
 
 | Order | Flag / stage | Active prompt | Required upstream gate |

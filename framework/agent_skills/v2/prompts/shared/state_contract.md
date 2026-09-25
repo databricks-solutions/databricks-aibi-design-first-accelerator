@@ -421,6 +421,15 @@ Only then replay `report_progress(status="completed")` without recreating the ou
 structural validity, a manifest locator, a prior `completed` status, or a matching output hash alone
 is insufficient.
 
+### Retry granularity
+
+Retry operates on `(step, phase)` records. A stage's aggregate FAIL never invalidates
+all its phases. Locked failed-run reopen preserves existing phase records and artifact
+bytes; the master then revalidates them under the Resume Skip Gate. Skip verified
+predecessors, execute the first failed/missing/stale phase, and continue through its
+actual dependents. Re-reading instructions, rechecking Setup, or replaying completed
+progress events is not authorization to re-execute successful notebooks.
+
 ### `STALE` Invalidation and Regeneration
 
 If a reusable record is missing, malformed, incompatible, or fails any digest/dependency/output
