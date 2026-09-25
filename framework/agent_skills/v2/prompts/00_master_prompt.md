@@ -480,6 +480,14 @@ and Step-0 admission result. Do not call `report_step_complete`.
 
 ## Step 1 — Environment Setup
 
+A SQL polling timeout is unresolved execution, not a confirmed CREATE/verification
+failure. Follow shared `agent_transport.md` SQL timeout recovery. Preserve statement
+IDs in setup findings before further work. Check the existing statement to terminal
+status and then verify the target schema through catalog readback. Do not resubmit
+CREATE merely because waiting timed out. Setup remains incomplete and all dependent
+stages remain blocked until terminal success and readback are established.
+
+
 Before the first setup operation, emit shared G-19 progress with
 `step_name=environment_setup`, `phase_id=environment_setup`, `status=started`.
 Config Step-0 admission must already have passed; run selection alone is insufficient.

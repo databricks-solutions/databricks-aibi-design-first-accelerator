@@ -136,6 +136,10 @@ def classify_error(error_str: str) -> str:
     Returns one of: LLM_REPAIRABLE, DETERMINISTIC_FAIL, RETRY, DEPLOYMENT_POLICY, UNKNOWN
     """
     error_upper = error_str.upper()
+    if "SQL_SUBMISSION_OUTCOME_UNKNOWN" in error_upper:
+        return "DETERMINISTIC_FAIL"  # No execution identity: never auto-replay SQL.
+    if "SQL_EXECUTION_UNRESOLVED" in error_upper:
+        return "LLM_REPAIRABLE"  # Observe existing ID, not an automatic tool retry.
     if "RECONCILIATION_PRODUCER_VIOLATION" in error_upper:
         return "DETERMINISTIC_FAIL"
     for category, patterns in ERROR_CLASSIFICATION.items():
@@ -297,7 +301,7 @@ class AgentLoop:
             })
 
             # Execute each tool call
-            for tc in tool_calls:
+            for tool_index, tc in enumerate(tool_calls):
                 tool_name = tc["function"]["name"]
                 try:
                     tool_args = json.loads(tc["function"]["arguments"])
@@ -487,6 +491,13 @@ class AgentLoop:
                     "tool_call_id": tc["id"],
                     "content": result_str,
                 })
+
+                if 'SQL_EXECUTION_UNRESOLVED' in result_str:
+                    # Do not run queued consumers before the model observes the timeout.
+                    for pending in tool_calls[tool_index + 1:]:
+                        messages.append({'role': 'tool', 'tool_call_id': pending['id'],
+                                         'content': 'NOT_EXECUTED: prior SQL outcome unresolved; inspect its statement ID before further work.'})
+                    break
 
                 # Check if step_complete was signaled
                 if tool_name == "report_step_complete":

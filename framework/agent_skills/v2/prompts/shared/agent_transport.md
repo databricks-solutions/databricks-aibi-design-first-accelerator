@@ -318,3 +318,27 @@ Keep model turns bounded: use frozen templates, declarative specs, and targeted 
 of asking the model to reproduce full notebook bodies or repeatedly loading all artifact content.
 Retain required instructions, guardrails, run identity and tool results; reducing context must not
 remove admission evidence. These rules apply to App and Genie Code without requiring Lakebase.
+
+### SQL timeout recovery (including environment setup)
+
+For `SQL_EXECUTION_UNRESOLVED`, use the returned statement ID to read
+`WorkspaceClient().statement_execution.get_statement(statement_id)` on the same
+workspace, through native tools or the approved Python execution surface. This is
+observation only: never call execute_statement to poll. Persist the ID, exact target,
+last observed state and original timeout in current findings. Poll with bounded waits
+within the host's existing execution budget; do not create an unbounded recovery loop.
+
+- PENDING/RUNNING: continue observing the same ID while budget remains; do not submit
+  another statement, cancel implicitly, or release dependent stages.
+- SUCCEEDED: retain terminal evidence, then perform the phase's catalog readback and
+  normal checkpoint validation before completion. For Setup verify the exact target
+  schema and required access; schema existence alone is not a substitute for all checks.
+- FAILED/CANCELED/CLOSED: preserve the terminal error and return to the owning master
+  recovery policy. Never turn a terminal failure into PASS based on intended SQL.
+- Missing ID, unreadable status, or exhausted observation budget: report unresolved
+  execution and block consumers. Preserve diagnostic evidence for later reconciliation;
+  do not claim the remote statement failed or was canceled. If lifecycle is committed
+  failed for the host attempt, explain that remote SQL outcome remains unverified.
+
+Do not reclassify permission denial or a frozen identity conflict as a transient timeout.
+This protocol requires no Lakebase and applies equally to Genie Code and App execution.

@@ -206,7 +206,16 @@ class ToolExecutor:
         try:
             result = self._sql.execute_and_wait(statement)
         except Exception as e:
-            return f"SQL ERROR: {str(e)}"
+            statement_id = getattr(e, 'statement_id', '')
+            self._diagnostic_details['sql_statement_id'] = statement_id or None
+            if isinstance(e, TimeoutError) or 'timeout' in str(e).lower() or 'timed out' in str(e).lower():
+                code = 'SQL_EXECUTION_UNRESOLVED' if statement_id else 'SQL_SUBMISSION_OUTCOME_UNKNOWN'
+                return (f"SQL ERROR: {code}: statement_id={statement_id or 'unavailable'}; {e}. "
+                        "A timeout is not terminal SQL failure. Do not resubmit or cancel implicitly. "
+                        "Inspect this statement via statement_execution.get_statement using the same workspace; "
+                        "reconcile terminal status and target catalog readback before proceeding. "
+                        "If no ID is available, return to master for execution reconciliation.")
+            return f"SQL ERROR: statement_id={statement_id or 'unavailable'}; {e}"
 
         if result.status == "SUCCEEDED":
             columns = [c.name for c in result.columns] if result.columns else []
