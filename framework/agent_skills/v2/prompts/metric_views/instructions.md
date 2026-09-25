@@ -1380,12 +1380,12 @@ planned views before notebook submission. Return a missing input to its producer
 Call `deploy_from_template` with:
 - `template_path`: exact frozen `run_context.templates.metric_view_notebook.path` (verify its paired SHA-256)
 - `output_path`: `{OUTPUT_FOLDER}/metric_views/metric_view_deployment.ipynb`
-- `placeholders`: `{"DOMAIN_NAME": "<run_context.domain.name>", "OUTPUT_FOLDER": "<handoff.output_folder>", "WAREHOUSE_ID": "<handoff.warehouse_id>", "CATALOG": "<handoff target catalog>", "SCHEMA": "<handoff target schema>", "VERSION_SUFFIX": "<handoff.version_suffix>", "ASSET_SUFFIX": "<handoff.asset_suffix>", "DEPLOY_ROOT": "<handoff.deploy_root>"}`
+- `placeholders`: `{"DOMAIN_NAME": "<run_context.domain.name>", "OUTPUT_FOLDER": "<handoff.output_folder>", "WAREHOUSE_ID": "<handoff.warehouse_id>", "CATALOG": "<handoff target catalog>", "SCHEMA": "<handoff target schema>", "VERSION_SUFFIX": "<handoff.version_suffix>", "DEPLOY_ROOT": "<handoff.deploy_root>"}`
 
 Then execute the notebook via `execute_notebook`.
 
 **DO NOT:**
-- Read the template yourself and do string manipulation — the tool handles everything
+- Rewrite template logic or hand-build a substitute; authenticated template reads and shared render preflight are required — the tool handles everything
 - Use `import_notebook` for template-based notebooks
 - Rewrite, summarize, or "improve" any cell
 - Remove docstrings, comments, or validation code

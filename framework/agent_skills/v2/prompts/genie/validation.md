@@ -4,7 +4,7 @@
 
 ## Enforcement Architecture
 
-Genie space deployment uses the **template notebook pattern** (`genie_space_notebook.py.template`).
+Genie space deployment uses the **template notebook pattern** (`v2_genie_space_notebook.py.template`).
 The LLM populates configuration cells (title, instructions, questions, SQL, benchmarks).
 The template cells (8-10) handle API calls, validation, and post-deploy readback.
 
@@ -28,6 +28,15 @@ Authority is field-scoped:
 Plans, designs, inventories, request payloads, POST/PATCH responses, and manifests are intent or evidence. A manifest may locate an asset and record a prior attempt, but it never overrides current API readback.
 
 ---
+
+## Shared deployment boundary
+
+Before importing any deployment notebook, apply `prepare_template_bindings` from the
+frozen shared `agent_transport.md` to the exact template and complete logical values.
+First apply this stage's authority/binding gates. Pass the resulting substitution strings
+unchanged to the host deployment operation, and inspect its acknowledgement before
+execution. Examples using lists/dicts require this conversion; do not send raw containers
+or JSON booleans into Python slots. No code-cell rewriting is allowed.
 
 ## Gates
 

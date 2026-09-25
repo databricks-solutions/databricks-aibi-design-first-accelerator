@@ -4,7 +4,7 @@
 
 ## Enforcement Architecture
 
-Dashboard deployment uses the **template notebook pattern** (`dashboard_notebook.py.template`).
+Dashboard deployment uses the **template notebook pattern** (`v2_dashboard_notebook.py.template`).
 The LLM's job is to produce `dashboard_design.yaml` (a structured spec). The template notebook
 compiles the spec into deployed dashboards with all guardrails in the code path.
 
@@ -39,6 +39,15 @@ Planning and design files describe desired state; they never override live deplo
 `step_handoff.yaml` is validation-only input in this stage. If it is missing, malformed, or inconsistent with `metric_view_plan.yaml` or `metric_view_validation.yaml`, HALT with `DASHBOARD_INPUT_AUTHORITY_ERROR`. Do not normalize, reconstruct, or overwrite it from `run_context.yaml`, `accelerator.yaml`, directory names, or model memory.
 
 ---
+
+## Shared deployment boundary
+
+Before importing any deployment notebook, apply `prepare_template_bindings` from the
+frozen shared `agent_transport.md` to the exact template and complete logical values.
+First apply this stage's authority/binding gates. Pass the resulting substitution strings
+unchanged to the host deployment operation, and inspect its acknowledgement before
+execution. Examples using lists/dicts require this conversion; do not send raw containers
+or JSON booleans into Python slots. No code-cell rewriting is allowed.
 
 ## Gates
 

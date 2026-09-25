@@ -757,7 +757,7 @@ When deploying via a template notebook (`ddl_notebook.py.template`, `metric_view
 
 **DO NOT:**
 - Use `import_notebook` for template-based notebooks — it will reject paths containing template stems (ddl\_, dbldatagen\_, metric\_view\_, dashboard\_, genie\_space\_)
-- Read the template via `read_workspace_file` and do string manipulation yourself — the tool handles everything
+- Rewrite template logic or import a hand-built replacement. Reading authenticated template bytes for interface inspection and render preflight is required; shared portable transport may perform exact substitution when the host has no deployment tool.
 - Rewrite, summarize, simplify, or "improve" any cell
 - Remove docstrings, comments, or validation code (especially gate checks)
 - Drop any gate (Gate 1, 2, 2b, 3, 4) or verification step
@@ -842,3 +842,43 @@ failed attempt and successful verification. Never add a fabricated source column
 change an ERD, or mark the stage complete solely because the error is repairable.
 If no authoritative equivalent exists, return to the semantic/KPI owner and halt the
 consumer. This procedure is domain-independent and applies on every agent host.
+
+### Setup target admission and error ownership
+
+The authenticated `run_context.target.catalog/schema` and `step_handoff.catalog/schema`
+are the only Setup execution coordinates. They must match before SQL. Use the executable
+Setup builder/admission gate in `agent_transport.md`; submit its returned request unchanged.
+Neither an agent host's default catalog nor a domain name supplies missing coordinates.
+Missing or conflicting values stop admission; never guess `main`, `default`, or any other
+namespace. This rule is generic: no member-claims-specific target is embedded in prompts.
+
+A successful config read does not prove subsequent SQL used that config. Compare the
+actual CREATE/verification target with the handoff before submission and in completion
+evidence. Never report Setup completed using a schema found in a different namespace.
+
+For permission errors, establish target parity before assigning ownership. If submitted
+SQL differs, record `SETUP_TARGET_BINDING_ERROR` under `environment_setup`, preserving
+expected target, actual SQL, original permission error, and statement ID. Do not request
+additional privileges for the unintended namespace. If target parity holds, preserve the
+platform permission failure and route it to the operator. Do not rewrite frozen context
+or current config to legitimize the wrong SQL. Existing lifecycle/recovery rules still apply.
+
+### Instruction scope and stable recovery boundary
+
+The selected v2 release and frozen runtime references govern executable selection.
+Legacy filenames in API reference documents, examples and failure histories are not
+alternative templates. Read those documents for platform payload semantics, not to
+replace v2 orchestration, lifecycle ownership, or release-selected executable paths.
+Frozen input references are `{path, sha256}` records: read `.path`, verify `.sha256`;
+never pass the mapping itself to a Workspace file tool.
+
+Master owns stage admission, Setup and lifecycle commit; each stage's guardrails and
+validation own its implementation gates. Examples are illustrative and must pass the
+actual selected template interface. Shared transport handles encoding and host tools;
+it does not change target identities or policies. If authoritative contracts disagree,
+report the exact competing requirements and owner instead of choosing a convenient one.
+
+A downstream failure does not invalidate predecessors whose full checkpoint and current
+readback verification still pass. Missing completion telemetry is not grounds to repeat
+successful writes. Apply shared state recovery for release drift and unknown execution;
+do not broaden frozen-hash exclusions or invent PASS evidence to continue.

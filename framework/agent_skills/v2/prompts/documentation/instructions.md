@@ -156,8 +156,8 @@ Read:
 accelerator.yaml
 <exact tool-supplied run_context_path>
 {OUTPUT_FOLDER}/step_handoff.yaml
-{run_context.inputs.kpi_spec}
-{run_context.inputs.genie_quality_contract}
+{run_context.inputs.kpi_spec.path}
+{run_context.inputs.genie_quality_contract.path}
 ```
 
 Treat `accelerator.yaml` as requested configuration, `run_context.yaml` as the resolved configuration for this run, and `step_handoff.yaml` as the exact resolved identity/path contract. Resolve the KPI specification only from the frozen `run_context.inputs.kpi_spec` value; do not fall back to an example-directory default. Do not rewrite the requested file with resolved values or infer resolved identities from it.

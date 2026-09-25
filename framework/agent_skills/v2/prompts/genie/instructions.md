@@ -9,7 +9,7 @@
 > **Additional authenticated input:** exact frozen `run_context.inputs.genie_quality_contract`
 > (versioned threshold and outcome contract).
 >
-> Genie space deployment uses `genie_space_notebook.py.template` (the Deterministic Deployment Runtime).
+> Genie space deployment uses `v2_genie_space_notebook.py.template` (the Deterministic Deployment Runtime).
 > The LLM produces and validates `llm_genie_design.yaml`, then passes its exact approved fields as placeholders to the frozen template. The template handles serialization and deployment.
 > Four-gate validation runs inside the template before API calls.
 
@@ -210,7 +210,7 @@ Do not create or modify `step_handoff.yaml` in this stage.
 5. Resolve and validate the exact frozen `run_context.templates.gate_checks.path` plus lowercase 64-hex `.sha256`; do not derive or discover a helper
 6. Authenticate the exact frozen `run_context.inputs.genie_quality_contract` bytes and the complete
    `run_context.validation` effective-policy hash; do not proceed with local defaults
-7. Read the exact frozen `{run_context.inputs.genie_space_configuration}` path → understand the template workflow
+7. Read the exact frozen `{run_context.inputs.genie_space_configuration.path}` path → understand the template workflow
 8. Read the exact frozen `run_context.templates.genie_notebook` → understand the notebook structure (cells 1-10)
 
 If ANY of these reads fail, HALT. Do NOT proceed to generate content without these inputs.
@@ -396,7 +396,7 @@ A title-only or minimally configured Genie Space is invalid.
 The following actions are STRICTLY FORBIDDEN:
 
 1. **DO NOT create a blank or title-only Genie Space** — the space MUST have instructions, sample questions, AND example SQL
-2. **DO NOT bypass the notebook template** — use `deploy_from_template` to create the Genie notebook from `genie_space_notebook.py.template`. DO NOT read the template and copy cells manually — the LLM rewrites helper functions introducing bugs (AP-GN-4: `"tables"` vs `"metric_views"` key). DO NOT use `write_workspace_file` or `import_notebook` for genie_space_ paths — they are blocked by G-16 enforcement.
+2. **DO NOT bypass the notebook template** — use `deploy_from_template` to create the Genie notebook from `v2_genie_space_notebook.py.template`. DO NOT read the template and copy cells manually — the LLM rewrites helper functions introducing bugs (AP-GN-4: `"tables"` vs `"metric_views"` key). DO NOT use `write_workspace_file` or `import_notebook` for genie_space_ paths — they are blocked by G-16 enforcement.
 3. **DO NOT hardcode domain-specific instructions** in the template — instructions are generated from the validated KPI/metric inventory
 4. **DO NOT skip benchmark validation** — sample questions must be tested against the Genie space to verify it answers correctly
 5. **DO NOT create sample questions that cannot be answered** by the metric view — every sample question must map to available measures/dimensions from IMPLEMENTED metric views. Exclude only KPIs whose exact current-run terminal status in `metric_view_validation.yaml` is `NOT_IMPLEMENTED` or a `SKIPPED_*` status. Never infer exclusion from a feature name such as HAVING, LAG, or window semantics; the resolved capability decision and current-run validation status control eligibility.
@@ -746,7 +746,7 @@ Load the **Genie Space configuration contract** (`genie_space_configuration.md`)
 1. **Check first:** A system section labeled `--- BEGIN inputs/genie_space_configuration.md ---` may substitute for a file read only when its injection metadata binds it to the exact frozen `run_context.inputs.genie_space_configuration` reference. A label without matching provenance is not authoritative; read the frozen path instead. A conflicting provenance value is `GENIE_API_CONTRACT_AUTHORITY_ERROR`; HALT.
 2. **Otherwise read it** from:
    ```text
-   {run_context.inputs.genie_space_configuration}
+   {run_context.inputs.genie_space_configuration.path}
    ```
 
 This file is mandatory.
@@ -1620,7 +1620,7 @@ If a SQL pattern references a column that does not appear in `genie_semantic_inv
 
 ### Determinism Gate: `validate_genie_config()` (MANDATORY)
 
-The Genie notebook template (`genie_space_notebook.py.template`) includes a **validation cell** that runs BEFORE the Create/Update API call. This cell:
+The Genie notebook template (`v2_genie_space_notebook.py.template`) includes a **validation cell** that runs BEFORE the Create/Update API call. This cell:
 
 1. Verifies all `TABLE_IDENTIFIERS` are accessible
 2. **Executes every example SQL query** with `LIMIT 1` to confirm it runs without error
@@ -2810,7 +2810,7 @@ fqn_format_check:
 
 template_usage_check:
   method: "{template notebook execution OR build_serialized_space()}"
-  # Expected: "genie_space_notebook.py.template executed" or "build_serialized_space() called"
+  # Expected: "v2_genie_space_notebook.py.template executed" or "build_serialized_space() called"
   # FAIL if: "hand-constructed JSON" or "createAsset(assetType=genie)"
   valid: true/false
 

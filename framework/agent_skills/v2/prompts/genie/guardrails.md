@@ -4,7 +4,7 @@
 
 ## Prohibited Actions
 
-1. DO NOT bypass the notebook template — ALWAYS use `genie_space_notebook.py.template`
+1. DO NOT bypass the notebook template — ALWAYS use `v2_genie_space_notebook.py.template`
 2. DO NOT use `createAsset(assetType="genie")` — it creates blank title-only spaces
 3. DO NOT use raw SUM/COUNT/AVG in example SQL — ALWAYS use MEASURE() syntax
 4. DO NOT skip SQL validation for example queries

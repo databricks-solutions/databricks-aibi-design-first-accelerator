@@ -342,3 +342,124 @@ within the host's existing execution budget; do not create an unbounded recovery
 
 Do not reclassify permission denial or a frozen identity conflict as a transient timeout.
 This protocol requires no Lakebase and applies equally to Genie Code and App execution.
+
+### Catalog coordinate binding and Setup SQL
+
+These pure functions implement the master's configuration mapping and Setup binding.
+They do not replace frozen-context authentication. Apply them on the available Python
+surface in App or Genie Code; no Lakebase or host-specific configuration defaults.
+
+```python
+def resolve_catalog_coordinates(config):
+    coordinates = {}
+    catalogs = config.get('catalog', {})
+    for role in ('source', 'target'):
+        entry = catalogs.get(role) if isinstance(catalogs, dict) else None
+        if not isinstance(entry, dict):
+            raise RuntimeError(f'CONFIGURATION_ERROR: catalog.{role} missing')
+        values = {}
+        for field in ('catalog', 'schema'):
+            value = entry.get(field)
+            if not isinstance(value, str) or not value.strip() or value != value.strip():
+                raise RuntimeError(f'CONFIGURATION_ERROR: catalog.{role}.{field} must be explicit')
+            values[field] = value
+        coordinates[role] = values
+    return coordinates
+
+
+def build_setup_schema_sql(context, handoff):
+    target = context.get('target', {})
+    values = []
+    for field in ('catalog', 'schema'):
+        value = target.get(field)
+        if not isinstance(value, str) or not value.strip() or value != handoff.get(field):
+            raise RuntimeError(f'HANDOFF_AUTHORITY_ERROR: setup target {field} missing or conflicting')
+        values.append('`' + value.replace('`', '``') + '`')
+    return 'CREATE SCHEMA IF NOT EXISTS ' + '.'.join(values)
+
+
+def admit_setup_schema_request(context, handoff, candidate_statement):
+    expected = build_setup_schema_sql(context, handoff)
+    if candidate_statement != expected:
+        raise RuntimeError(
+            'SETUP_TARGET_BINDING_ERROR: generated Setup SQL differs from authenticated '
+            'context/handoff; no SQL admitted. Use the builder result unchanged.')
+    return {'statement': expected}
+```
+
+A statement targeting a different catalog/schema must not be submitted. Preserve the
+original permission error and statement ID; do not request grants for an unintended
+catalog. Diagnose whether the frozen context/handoff already differs from the accepted
+config, or only the emitted SQL differs. The former is master resolution failure and
+cannot be repaired by rehashing frozen context; the latter is a Setup request-generation
+error, recoverable only through existing master policy and execution readback.
+
+For Setup schema creation, execute both functions on the host Python surface after
+reading/authenticating the exact persisted context and handoff. Obtain the complete
+`{"statement": ...}` request from `admit_setup_schema_request`; pass that returned
+object unchanged to `execute_sql` or the equivalent native/SDK execution call. Do not
+retype identifiers between the gate and submission. A rejected candidate is not SQL
+execution: record the mismatch, rebuild from the same authenticated handoff, and rerun
+admission before any submission. Never change the handoff to fit rejected SQL.
+
+Bind subsequent schema verification to the same separately quoted target segments.
+Do not use `current_catalog()`, session defaults, domain names, remembered examples,
+or a successful lookup in another namespace as target evidence. Before marking Setup
+complete, compare the executed target and readback target with context/handoff again.
+Record intended target, exact submitted statement, statement ID when available, and
+readback result in existing Setup findings. Findings must describe actual operations,
+not the operation the agent intended to execute.
+
+### Cross-stage template request serialization
+
+Every deployment stage must enumerate the exact frozen template interface. Examples
+show logical values, not a ready-to-submit tool dictionary. The tool requires string
+substitutions, whereas unquoted Python template slots need Python literals. Use this
+shared preflight for DDL, synthetic, Metric View, Dashboard and Genie requests; do not
+reuse a different stage's map. Read/attest template bytes before calling it. This gate
+only validates rendering; it neither imports a notebook nor authorizes execution.
+
+```python
+def prepare_template_bindings(template_text, values):
+    import ast
+    import json
+    import re
+    required = set(re.findall(r"\{\{([A-Z_][A-Z0-9_]*)\}\}", template_text))
+    if set(values) != required:
+        raise RuntimeError(f"TEMPLATE_BINDING_ERROR: missing={sorted(required-set(values))}; unexpected={sorted(set(values)-required)}")
+    bindings = {}
+    for key in sorted(required):
+        value = values[key]
+        token = '{{' + key + '}}'
+        if value is None or (isinstance(value, str) and not value.strip()):
+            raise RuntimeError('TEMPLATE_BINDING_ERROR: empty ' + key)
+        if '"' + token + '"' in template_text:
+            if not isinstance(value, str):
+                raise RuntimeError('TEMPLATE_BINDING_ERROR: text slot requires string: ' + key)
+            bindings[key] = json.dumps(value, ensure_ascii=False)[1:-1]
+        else:
+            # repr preserves Python True/False/None; JSON text is not Python code.
+            bindings[key] = repr(value)
+    rendered = template_text
+    for key, value in bindings.items():
+        rendered = rendered.replace('{{' + key + '}}', value)
+    if re.search(r"\{\{[A-Z_][A-Z0-9_]*\}\}", rendered):
+        raise RuntimeError('TEMPLATE_BINDING_ERROR: unresolved placeholders after rendering')
+    # Databricks source notebooks use comment cell separators; pip cells are magic.
+    for index, cell in enumerate(rendered.split('# COMMAND ----------'), 1):
+        code = [line for line in cell.splitlines() if line.strip() and not line.lstrip().startswith('#')]
+        if code and code[0].lstrip().startswith('%'):
+            continue
+        try:
+            ast.parse(cell)
+        except SyntaxError as exc:
+            raise RuntimeError(f'TEMPLATE_BINDING_ERROR: rendered cell {index}: {exc.msg}') from exc
+    return bindings
+```
+
+Use the returned strings unchanged in `deploy_from_template.placeholders`. For native
+Genie Code transport, substitute those same strings into the same authenticated bytes
+and import using the explicit notebook format. Preserve raw logical values separately
+for run identity comparisons; escaping is transport encoding, never a configuration
+change. This gate complements stage-specific authority/binding gates and the deployed
+runtime checks; it never manufactures missing values or changes frozen templates.

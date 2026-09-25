@@ -104,7 +104,9 @@ CROSS_VALIDATION_SWEEP
 
 A mandatory failure stops dependent creation. Documentation may run once in authenticated
 failure-reporting mode when its gates pass; it may not create assets or convert missing evidence
-into success. The master still completes the all-store failed terminal transaction before halting.
+into success. The master attempts the failed terminal transaction only while lifecycle identity remains
+authenticated. If authority failure prevents a valid commit, report interrupted/uncommitted
+state with evidence; never claim terminal parity or modify frozen identity to force a commit.
 
 ## Step 0 — Resolve and Freeze One Run
 
@@ -114,8 +116,9 @@ Resolve one absolute normalized `EXAMPLE_DIR`. Read only its `accelerator.yaml` 
 Require the domain, data-source mode, source/target coordinates, pipeline flags, asset requests,
 input paths, and runtime settings required by enabled stages.
 
-Do not scan prior outputs for semantic inputs. Existing artifacts may be read only after the shared
-resolver selects an authenticated same-run resume.
+Do not scan prior outputs for semantic inputs. Existing artifacts may be read after resolver selection for authenticated same-run resume,
+or solely as optional ERD cache candidates under the active Data Layer cache gate. Cache
+inspection never selects run identity or authorizes reuse of other prior-version artifacts.
 
 ### 0.2 Select the Version Through the Shared Resolver
 
@@ -194,6 +197,17 @@ warehouse, workspace host, deploy root, and version-scoped parent paths
 KPI, best-practice, workspace-I/O, live-discovery, API, and policy contracts
 stage prompts, orchestration prompts, templates, models, and validation policy
 ```
+
+For a NEW run, resolve source/target only from the loaded domain accelerator's
+`catalog.source.catalog`, `catalog.source.schema`, `catalog.target.catalog`, and
+`catalog.target.schema` (after any explicitly authorized request overrides are applied).
+Execute `resolve_catalog_coordinates` from shared `agent_transport.md`; copy its target
+unchanged to `run_context.target` and handoff `catalog`/`schema`, and its source to
+`run_context.source`. Missing values are configuration errors, never defaults to `main`,
+`default`, the domain name, the warehouse's session namespace, or another example.
+Record the actual config locator and resolved coordinates in Config findings and verify
+config → proposed context → handoff parity before freezing. On resume, authenticated
+frozen coordinates remain authority; current config differences are drift, not overrides.
 
 Names and three-part identifiers are formatted once. Stages consume the handoff verbatim and halt
 rather than repair it.
@@ -494,6 +508,19 @@ Config Step-0 admission must already have passed; run selection alone is insuffi
 
 Create only the exact version-scoped output structure needed by enabled stages. Ensure the target
 schema exists through the approved path and verify it by current catalog readback.
+Before SQL, authenticate the persisted context/handoff, then execute
+`build_setup_schema_sql` and `admit_setup_schema_request` from shared
+`agent_transport.md`. Submit the admitted request object unchanged; do not reconstruct
+catalog/schema from memory or domain names. Apply shared Setup target-admission guardrails
+before creation, verification, and completion. Record intended target and actual SQL in
+Setup findings. Never switch catalogs automatically after a permission failure.
+
+If permission denial occurs, compare the actual submitted target to the authenticated
+handoff FIRST. A different target is `SETUP_TARGET_BINDING_ERROR`, owned by `MASTER_RESOLVER` with phase `environment_setup`. Preserve the underlying platform error and
+statement ID, but do not label it solely `PLATFORM_OPERATOR`, request grants to the wrong
+catalog, or alter configuration. Only a denial on the verified intended target may route
+to operator permission remediation. An already-submitted wrong-target operation requires
+execution readback before recovery; never assume it made no changes or silently clean it up.
 
 For brownfield/live-source data, never `DROP`, `TRUNCATE`, `ALTER`, overwrite, or rewrite source
 objects to satisfy generation.
@@ -521,6 +548,12 @@ recheck setup readback before admitting Data Layer; the old UI status is not evi
 | 5 | `create_genie_space` | `{AGENT_SKILLS_DIR}/prompts/genie/instructions.md` | authenticated Metric View plan/validation/handoff/readback |
 | 6 | terminal sweep | `{AGENT_SKILLS_DIR}/prompts/cross_validation/instructions.md` | all enabled creation branches terminal |
 | 7 | `generate_documentation` | `{AGENT_SKILLS_DIR}/prompts/documentation/instructions.md` | sweep result or failure-reporting eligibility |
+
+Do not batch a producer's mutation/execution together with a dependent phase or stage
+in the same tool-calling response. Observe the producer's terminal result, persist and
+verify its checkpoint, then decide the next call. Parallel independent reads are allowed;
+parallel dependent deployment, checkpoint completion and downstream execution are not.
+A later phase's success must never retroactively supply a missing predecessor event.
 
 For every configurable stage:
 
