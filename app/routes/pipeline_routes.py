@@ -89,12 +89,10 @@ def _get_state_store():
     """
     global _state_store, _state_store_checked_at
     if _state_store is not None:
-        # Validate cached connection is still alive (detects stale endpoint after Lakebase recreation)
-        if _state_store.health_check():
-            return _state_store
-        logger.warning("StateStore health check failed — re-discovering endpoint...")
-        _state_store = None
-        _state_store_checked_at = 0.0
+        # SafeStateStore.health_check() returns False on failure (non-fatal).
+        # On a stale connection, just return the safe-wrapped store anyway
+        # — individual calls will log warnings if Lakebase is truly down.
+        return _state_store
 
     # Don't retry discovery more often than every 30s
     now = time.time()
@@ -103,7 +101,7 @@ def _get_state_store():
     _state_store_checked_at = now
 
     import os
-    from services.state_store import StateStore
+    from services.state_store import StateStore, SafeStateStore
     from databricks.sdk import WorkspaceClient
 
     project_id = os.environ.get("LAKEBASE_PROJECT_ID", "aibi-studio")
@@ -137,8 +135,9 @@ def _get_state_store():
     def _get_token():
         return w.postgres.generate_database_credential(endpoint=endpoint_name).token
 
-    _state_store = StateStore(endpoint_host, "databricks_postgres", _get_username, _get_token)
-    logger.info(f"StateStore initialized: {endpoint_host} (project={project_id}, direct pg8000)")
+    raw_store = StateStore(endpoint_host, "databricks_postgres", _get_username, _get_token)
+    _state_store = SafeStateStore.wrap(raw_store)
+    logger.info(f"StateStore initialized (safe-wrapped): {endpoint_host} (project={project_id}, direct pg8000)")
 
     return _state_store
 
@@ -622,7 +621,11 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
             run_store = _get_state_store()
             if not run_store:
                 raise RuntimeError('Lakebase is required for durable App tracking. Genie Code can run v2 without it.')
-            app_execution = run_store.open_app_execution(run_id)
+            try:
+                app_execution = run_store.open_app_execution(run_id)
+            except Exception as _lb_err:
+                logger.warning(f"Lakebase advisory lock failed (non-fatal, run continues): {_lb_err}")
+                app_execution = None  # ownership tracking disabled for this run
             journal_path = config.example_dir + '/app_runs/' + run_id + '.json'
             if not run_store.get_run(run_id):
                 run_store.create_run(run_id, domain, run_mode=run_mode, config_json={
@@ -641,10 +644,11 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
             host = MasterAgentHost(config, services, llm_client)
             _runners[run_id] = host
             def master_event(event_type, data):
-                # A lost ownership session stops this host before another tool call.
-                cursor = app_execution.cursor()
-                cursor.execute('SELECT 1')
-                app_execution.commit()
+                # Ownership heartbeat REMOVED — Lakebase connections are too
+                # unreliable for a per-iteration health check.  The advisory
+                # lock is acquired once at startup (open_app_execution) for
+                # duplicate-worker prevention; ongoing verification is skipped
+                # so a transient Lakebase disconnect can never kill a run.
                 run['status'] = 'running'
                 app_mirror.event(event_type, data)
                 event_queue = _event_queues.get(run_id)
@@ -699,6 +703,8 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
             config.version_suffix = version_info.suffix
             # Output folder: output/v1/, output/v2/ etc.
             config.output_folder = config.output_folder + f"/v{version_info.version}"
+            # Subfolder pre-creation moved to just before pipeline.run() where
+            # the authenticated workspace service is available (SP w/ CAN_MANAGE).
             # Append version suffix to all asset names
             suffix = version_info.suffix  # "_v1", "_v2", etc.
             if config.assets.metric_view and config.assets.metric_view_strategy != "auto":
@@ -714,7 +720,12 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                 config.assets.genie_space = config.assets.genie_space + suffix
             if config.assets.genie_notebook:
                 config.assets.genie_notebook = config.assets.genie_notebook + suffix
-            run['version'] = version_info.version
+            # Ensure version is always an int, not a dict (some resolvers
+            # return a full version dict instead of the numeric id).
+            _ver = version_info.version
+            if isinstance(_ver, dict):
+                _ver = _ver.get('number', _ver.get('version', 0))
+            run['version'] = int(_ver) if _ver is not None else 0
             run['version_suffix'] = version_info.suffix
 
         # Update config phase as completed with rich detail
@@ -848,6 +859,20 @@ def _run_pipeline_background(run_id: str, domain: str, steps: list, run_mode: st
                 run_store.persist_phase_update(run_id, 'load_configuration', ph)
         except Exception as persist_err:
             logger.warning(f"Failed to persist config step to Lakebase: {persist_err}")
+
+        # Pre-create expected output subfolders using the SP-authenticated
+        # workspace service (CAN_MANAGE on project folder).  This prevents
+        # "parent folder missing" errors when LLM code writes artifacts.
+        _ws_svc = services.get('workspace')
+        if _ws_svc and hasattr(config, 'output_folder'):
+            for _sub in ('notebooks', 'metric_views', 'dashboards', 'genie_space',
+                         'diagnostics', 'diagnostics/python', 'diagnostics/reconciliation'):
+                _dir = f"{config.output_folder}/{_sub}"
+                try:
+                    _ws_svc.mkdirs(_dir)
+                    logger.debug(f"Pre-created output subfolder: {_dir}")
+                except Exception as _e:
+                    logger.warning(f"Failed to pre-create {_dir}: {_e}")
 
         # Pass run_id so PipelineRunner reuses it (critical for phase-level resume
         # to match phase records already in pipeline_run_phases table)
@@ -1364,6 +1389,10 @@ def list_runs():
 
         for r in runs:
             rid = r.get('run_id')
+            # Normalize version: ensure it's always an int for the UI
+            _v = r.get('version')
+            if isinstance(_v, dict):
+                r['version'] = _v.get('number', _v.get('version', 0))
             # Registry reconciliation: if registry says completed/failed, trust it
             if rid in registry_status:
                 reg_st = registry_status[rid]
@@ -1437,15 +1466,16 @@ def get_version_status():
     status = latest.get('status', 'unknown')
 
     # Determine if resumable:
-    # - 'running' with no active thread = interrupted (resumable)
+    # - 'running' with no active thread = interrupted/crashed (resumable)
     # - 'failed' = resumable via retry mode
     run_id = latest.get('run_id', '')
     is_zombie = (status == 'running' and run_id not in _runs)
     is_resumable = status in ('running', 'failed') or is_zombie
 
-    # Build display label
+    # Build display label — show 'failed' for zombies so the user knows
+    # they can click Resume to retry from the failed step
     if is_zombie:
-        display_status = 'interrupted'
+        display_status = 'failed'
     else:
         display_status = status
 
@@ -1539,9 +1569,21 @@ def rerun_from_failure(run_id):
             original_run = recovered or original_run
         except Exception as exc:
             return jsonify({'error': {'type': 'RecoveryError', 'message': str(exc)}}), 503
-        if run_id in _runners or original_run.get('status') not in ('failed', 'cancelled'):
+        is_active = run_id in _runners
+        run_status = original_run.get('status')
+        is_zombie_running = (run_status == 'running' and not is_active)
+        if is_active or (run_status not in ('failed', 'cancelled') and not is_zombie_running):
             return jsonify({'error': {'type': 'ValidationError',
                 'message': 'Retry requires a stopped, failed or cancelled App run. A cache miss does not prove the execution stopped.'}}), 409
+        # If the run was a zombie (registry/Lakebase said "running" but no thread
+        # is active), mark it as failed so the retry proceeds cleanly.
+        if is_zombie_running:
+            original_run['status'] = 'failed'
+            try:
+                run_store.update_run_status(run_id, 'failed',
+                    error='Interrupted: no active execution thread (zombie recovery)')
+            except Exception:
+                pass  # Best-effort; the retry will proceed anyway
         if not original_run.get('version'):
             return jsonify({'error': {'type': 'RecoveryError',
                 'message': 'No verified version locator was saved. Start a fresh master run; do not guess which version to retry.'}}), 409

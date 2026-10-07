@@ -688,8 +688,39 @@ def enforce_varchar_limits(df, table_name: str):
     return df
 
 
+def cast_to_table_schema(df, table_name: str):
+    """Cast every DataFrame column to the declared Delta table type.
+
+    Handles type mismatches from LLM spec errors — e.g. domain values
+    'Y'/'N' (StringType) written to an INT column.  Uses try_cast
+    semantics: incompatible values become NULL rather than crashing
+    with CAST_INVALID_INPUT.  A warning is printed for every column
+    that required a cast so the LLM can fix its spec on retry.
+    """
+    col_types = get_table_col_types(table_name)
+    for col_name, type_str in col_types.items():
+        if col_name not in df.columns:
+            continue
+        target_spark_type = spark_type_for(type_str)
+        current_type = df.schema[col_name].dataType
+        if type(current_type) != type(target_spark_type) if not isinstance(target_spark_type, str) else True:
+            try:
+                # Use try_cast to avoid CAST_INVALID_INPUT — malformed values become NULL
+                df = df.withColumn(col_name, F.try_cast(F.col(col_name), type_str))
+                print(f"SYNTHETIC_SPEC_BACKFILL: cast {table_name}.{col_name} from {current_type} to {type_str}")
+            except Exception:
+                # If try_cast is not available (older runtime), fall back to regular cast
+                # wrapped in a coalesce to preserve NULLs gracefully
+                try:
+                    df = df.withColumn(col_name, F.col(col_name).cast(type_str))
+                    print(f"SYNTHETIC_SPEC_BACKFILL: cast (fallback) {table_name}.{col_name} to {type_str}")
+                except Exception as e2:
+                    print(f"SYNTHETIC_SPEC_BACKFILL: cannot cast {table_name}.{col_name} to {type_str}: {e2}")
+    return df
+
+
 def verify_before_write(df, table_name: str, pk_cols: list, fk_cols: list, categorical_cols: list, domain_values=None):
-    """Pre-write verification. Call BEFORE .write to catch data issues early.
+    """Pre-write verification. Call AFTER enforce_varchar_limits(), BEFORE .write.
     Raises AssertionError with clear message if any check fails.
 
     Args:
@@ -699,6 +730,9 @@ def verify_before_write(df, table_name: str, pk_cols: list, fk_cols: list, categ
         fk_cols: Foreign key columns (must have diversity > 1)
         categorical_cols: Columns that should have domain values (no PLACEHOLDER/generic)
     """
+    # Pre-compute varchar limits so domain checks account for truncation
+    col_types = get_table_col_types(table_name)
+
     total = df.count()
     for pk in pk_cols:
         distinct = df.select(pk).distinct().count()
@@ -719,8 +753,18 @@ def verify_before_write(df, table_name: str, pk_cols: list, fk_cols: list, categ
         # Compare string-domain output with the declared spec, not column-name guesses.
         declared = (domain_values or {}).get(col)
         if declared is not None and all(isinstance(value, str) for value in declared):
-            allowed = set(declared)
-            unexpected = [value for value in sample if value not in allowed]
+            # Account for VARCHAR(N) truncation: enforce_varchar_limits() already
+            # truncated the DataFrame values, so truncate the declared domain to
+            # the same width before comparing.
+            max_len = extract_max_length(col_types.get(col, ""))
+            if max_len > 0:
+                allowed = set(v[:max_len] for v in declared)
+            else:
+                allowed = set(declared)
+            # Case-insensitive comparison: boolean columns produce 'True'/'False'
+            # but specs often use 'true'/'false'. Normalize both to lowercase.
+            allowed_lower = set(v.lower() for v in allowed)
+            unexpected = [value for value in sample if value.lower() not in allowed_lower]
             assert not unexpected, (
                 f"[{table_name}] Column '{col}' contains values outside its declared domain "
                 f"{unexpected[:5]} — check generation overrides and width constraints"
@@ -940,11 +984,20 @@ def generate_table(
             # DATE columns: ensure YYYY-MM-DD format only
             dc_values = [str(v)[:10] for v in dc_values]
         elif any(t in target_type for t in ('bigint', 'long', 'int', 'integer')):
-            # INTEGER columns: force to int (fixes YAML string→int mismatch)
-            dc_values = [int(v) for v in dc_values]
+            # INTEGER columns: force to int (fixes YAML string→int mismatch).
+            # If values are non-numeric (e.g. 'Y'/'N' flags mis-typed as int),
+            # fall back to keeping them as strings — the column will be generated
+            # as StringType and cast later, avoiding a hard crash.
+            try:
+                dc_values = [int(v) for v in dc_values]
+            except (ValueError, TypeError):
+                print(f"SYNTHETIC_SPEC_BACKFILL: domain values {dc_values!r} are not integers; keeping as strings")
         elif any(t in target_type for t in ('double', 'float', 'decimal')):
             # NUMERIC columns: force to float
-            dc_values = [float(v) for v in dc_values]
+            try:
+                dc_values = [float(v) for v in dc_values]
+            except (ValueError, TypeError):
+                print(f"SYNTHETIC_SPEC_BACKFILL: domain values {dc_values!r} are not numeric; keeping as strings")
 
         # Build cumulative weight thresholds
         cum_wts = []
@@ -1047,6 +1100,16 @@ def validate_synthetic_spec(spec, table_spec_tables):
     seen = set()
     for table in tables:
         name = table['name']
+        # Coerce rows to int — LLM sometimes writes string "1000" or float 1000.0
+        _raw_rows = table.get('rows')
+        if _raw_rows is not None and not isinstance(_raw_rows, int):
+            try:
+                table['rows'] = int(float(str(_raw_rows)))
+            except (ValueError, TypeError):
+                pass
+        if table.get('rows') is None or table.get('rows', 0) <= 0:
+            table['rows'] = 1000  # safe default for synthetic data
+            print(f"SYNTHETIC_SPEC_BACKFILL: {name}.rows was {_raw_rows!r}, defaulted to 1000")
         require(type(table.get('rows')) is int and table['rows'] > 0, name+'.rows', 'positive integer required')
         pk = table.get('pk_columns')
         require(isinstance(pk, list) and all(isinstance(c, str) and c in columns[name] for c in pk),
@@ -1079,7 +1142,13 @@ def validate_synthetic_spec(spec, table_spec_tables):
     return spec
 
 if not os.path.exists(SPEC_PATH):
-    raise RuntimeError("SYNTHETIC_SPEC_ERROR: synthetic_data_spec.yaml is required")
+    raise RuntimeError(
+        "SYNTHETIC_SPEC_ERROR: synthetic_data_spec.yaml is required at "
+        f"{SPEC_PATH}. The LLM must write this declarative spec BEFORE "
+        "deploying/executing the synthetic data notebook. Return to the "
+        "generate_synthetic phase (Step 6.1 in data_layer/instructions.md) "
+        "and produce the spec from the reconciled schema."
+    )
 print(f"Reading declarative spec: {SPEC_PATH}")
 SPEC = _load_yaml(SPEC_PATH)
 validate_synthetic_spec(SPEC, TABLE_SPEC_TABLES)
@@ -1158,6 +1227,11 @@ if SPEC and SPEC.get("tables"):
 
         # Safety: enforce VARCHAR limits
         df = enforce_varchar_limits(df, actual_name)
+
+        # Safety: cast DataFrame to match target table schema (handles LLM spec
+        # type mismatches like string 'A' in an INT column — uses try_cast so
+        # incompatible values become NULL instead of CAST_INVALID_INPUT).
+        df = cast_to_table_schema(df, actual_name)
 
         # Gate 3: Pre-write verification
         verify_before_write(

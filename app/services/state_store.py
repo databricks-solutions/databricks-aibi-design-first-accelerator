@@ -8,6 +8,7 @@ Auth via generate_database_credential() JWT token.
 import json
 import logging
 import ssl
+import threading
 from datetime import datetime, timezone
 from typing import Any, Optional, Callable
 
@@ -33,6 +34,8 @@ class StateStore:
         self._ssl_context = ssl.create_default_context()
         self._ssl_context.check_hostname = False
         self._ssl_context.verify_mode = ssl.CERT_NONE
+        self._conn = None          # persistent connection
+        self._lock = threading.Lock()  # thread-safe access
 
     @classmethod
     def from_config(cls, config: dict, user_fn: Callable[[], str], token_fn: Callable[[], str]) -> "StateStore":
@@ -42,9 +45,37 @@ class StateStore:
 
     # --- Connection Helper ---
 
+    def _get_conn(self):
+        """Return the persistent connection, creating or reconnecting as needed."""
+        if self._conn is not None:
+            try:
+                # Lightweight health check
+                cur = self._conn.cursor()
+                cur.execute('SELECT 1')
+                self._conn.commit()
+                return self._conn
+            except Exception:
+                logger.info('Persistent Lakebase connection stale, reconnecting')
+                try:
+                    self._conn.close()
+                except Exception:
+                    pass
+                self._conn = None
+        self._conn = self._connect()
+        return self._conn
+
+    def _drop_conn(self):
+        """Close the persistent connection (called on unrecoverable error)."""
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+
     def _connect(self):
         """Create a fresh pg8000 connection (tokens expire after 1h)."""
-        return pg8000.connect(
+        conn = pg8000.connect(
             host=self._host,
             port=5432,
             database=self._database,
@@ -52,11 +83,31 @@ class StateStore:
             password=self._token_fn(),
             ssl_context=self._ssl_context,
         )
+        # Enable TCP keepalive to prevent idle connection drops on
+        # Lakebase Autoscaling endpoints during long-running steps
+        # (e.g., 3-7 min vision model ERD parse).
+        import socket
+        sock = conn._usock
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+        try:
+            # Linux-specific: probe after 30s idle, every 10s, 3 retries
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, 30)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, 10)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, 3)
+        except (AttributeError, OSError):
+            pass  # macOS/Windows lack these; SO_KEEPALIVE alone still helps
+        return conn
 
     # --- SQL Helpers ---
 
     def open_app_execution(self, run_id):
-        """Hold a session lock so other UI workers can distinguish live from stopped."""
+        """Hold a session lock so other UI workers can distinguish live from stopped.
+
+        Starts a background keepalive thread that pings the connection every
+        30 seconds to prevent Lakebase Autoscaling idle disconnects during
+        long-running pipeline steps (e.g., 3-7 min vision model ERD parse).
+        Call conn.close() to release the lock AND stop the keepalive thread.
+        """
         conn = self._connect()
         try:
             cur = conn.cursor()
@@ -65,6 +116,28 @@ class StateStore:
             conn.commit()
             if not acquired:
                 raise RuntimeError('This App run already has an active execution owner')
+            # Start background keepalive thread with connection lock
+            stop_event = threading.Event()
+            conn_lock = threading.Lock()
+            conn._lock = conn_lock  # expose lock for master_event callback
+            def _keepalive():
+                while not stop_event.wait(timeout=15):  # 15s to stay ahead of Lakebase idle timeout
+                    try:
+                        with conn_lock:
+                            c = conn.cursor()
+                            c.execute('SELECT 1')
+                            conn.commit()
+                    except Exception:
+                        break  # connection dead; let the main thread detect it
+            t = threading.Thread(target=_keepalive, daemon=True, name=f'lb-keepalive-{run_id[:8]}')
+            t.start()
+            # Attach stop_event to conn so close() can stop the thread
+            conn._keepalive_stop = stop_event
+            _original_close = conn.close
+            def _close_with_keepalive():
+                stop_event.set()
+                _original_close()
+            conn.close = _close_with_keepalive
             return conn
         except Exception:
             conn.close()
@@ -82,24 +155,62 @@ class StateStore:
             # Closing releases a successful probe lock, never another owner's lock.
             conn.close()
 
-    def _execute(self, sql: str, params: tuple = ()) -> list:
-        """Execute SQL and return all rows as list of dicts."""
-        conn = self._connect()
-        try:
-            cur = conn.cursor()
-            cur.execute(sql, params)
-            if cur.description:
-                cols = [d[0] for d in cur.description]
-                rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-            else:
-                rows = []
-            conn.commit()
-            return rows
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
+    _RETRIABLE_CODES = {
+        '34000',  # portal does not exist
+        '08000',  # connection exception
+        '08003',  # connection does not exist
+        '08006',  # connection failure
+        '57P01',  # admin shutdown
+        '57P02',  # crash shutdown
+        '57P03',  # cannot connect now
+    }
+
+    def _execute(self, sql: str, params: tuple = (), _retries: int = 2) -> list:
+        """Execute SQL on the persistent connection.
+
+        Reuses the same connection across calls.  On transient errors
+        (portal lost, connection reset) drops the connection and retries
+        with a fresh one — up to _retries times.
+        """
+        import time
+        for attempt in range(_retries + 1):
+            with self._lock:
+                conn = self._get_conn()
+            try:
+                cur = conn.cursor()
+                cur.execute(sql, params)
+                if cur.description:
+                    cols = [d[0] for d in cur.description]
+                    rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+                else:
+                    rows = []
+                conn.commit()
+                return rows
+            except Exception as e:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                # Check if retriable
+                err_code = getattr(e, 'code', None) or ''
+                err_str = str(e)
+                retriable = (
+                    err_code in self._RETRIABLE_CODES
+                    or 'portal' in err_str.lower()
+                    or 'connection' in err_str.lower()
+                    or 'server closed' in err_str.lower()
+                )
+                if retriable and attempt < _retries:
+                    wait = 1.0 * (attempt + 1)
+                    logger.warning(
+                        'Lakebase retriable error (attempt %d/%d, wait %.1fs): %s',
+                        attempt + 1, _retries + 1, wait, e,
+                    )
+                    self._drop_conn()  # force fresh connection on next attempt
+                    time.sleep(wait)
+                    continue
+                self._drop_conn()
+                raise
 
     def _execute_one(self, sql: str, params: tuple = ()) -> Optional[dict]:
         """Execute SQL and return first row or None."""
@@ -737,4 +848,67 @@ class StateStore:
 
         logger.info(f"Purged all {count} run records from Lakebase")
         return count
-        return count
+
+
+class SafeStateStore:
+    """Non-blocking proxy around StateStore.
+
+    Every method call is forwarded to the underlying StateStore inside a
+    try/except.  On ANY Lakebase failure the error is logged and a safe
+    default is returned (None for queries, no-op for writes).  This
+    ensures the pipeline NEVER dies because of a Lakebase issue.
+
+    The workspace-file state (app_runs journal, run_context.yaml) is the
+    source of truth.  Lakebase is an optional observability mirror.
+    """
+
+    # Methods that return a value the caller depends on for control flow.
+    # Map method name → safe default when Lakebase is unreachable.
+    _SAFE_DEFAULTS = {
+        'get_run': None,
+        'get_active_runs': [],
+        'list_runs': [],
+        'get_resume_point': None,
+        'get_resume_steps': [],
+        'get_phases_for_step': [],
+        'get_step_phases': [],
+        'get_phase_config': [],
+        'get_events_since': [],
+        'get_step_log': '',
+        'load_run_full': None,
+        'health_check': False,
+        'app_execution_active': True,   # assume alive — never kill a run
+        'open_app_execution': None,
+        'delete_runs_for_version': 0,
+        'purge_all_runs': 0,
+    }
+
+    def __init__(self, real_store: StateStore):
+        self._real = real_store
+
+    def __getattr__(self, name):
+        attr = getattr(self._real, name)
+        if not callable(attr):
+            return attr
+
+        def _safe_call(*args, **kwargs):
+            try:
+                return attr(*args, **kwargs)
+            except Exception as exc:
+                default = self._SAFE_DEFAULTS.get(name)
+                logger.warning(
+                    "Lakebase %s() failed (non-fatal, returning %r): %s",
+                    name, default, exc,
+                )
+                return default
+
+        return _safe_call
+
+    @classmethod
+    def wrap(cls, store):
+        """Wrap a StateStore (or None) in a SafeStateStore."""
+        if store is None:
+            return None
+        if isinstance(store, cls):
+            return store  # already wrapped
+        return cls(store)

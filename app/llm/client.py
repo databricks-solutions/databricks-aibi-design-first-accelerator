@@ -272,11 +272,12 @@ class LLMClient:
                               or "timed out" in error_str.lower()
                               or "timeout" in type(e).__name__.lower())
                 if is_timeout:
-                    if timeout_retries < 1 and attempt + 1 < self.RATE_LIMIT_MAX_RETRIES:
+                    if timeout_retries < 2 and attempt + 1 < self.RATE_LIMIT_MAX_RETRIES:
                         timeout_retries += 1
-                        logger.warning("Model request timed out: endpoint=%s; retrying unanswered inference once; no tools replayed",
-                                       self._endpoint)
-                        time.sleep(2)
+                        backoff = 10 * timeout_retries  # 10s, 20s
+                        logger.warning("Model request timed out: endpoint=%s; retry %d/2; backoff=%ds; no tools replayed",
+                                       self._endpoint, timeout_retries, backoff)
+                        time.sleep(backoff)
                         continue
                     raise LLMTimeoutError(
                         f"Tool-calling endpoint timed out: endpoint={self._endpoint}; "

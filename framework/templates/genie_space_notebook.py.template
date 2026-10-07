@@ -194,7 +194,8 @@ def validate_genie_config(
         issues.append(f"Instructions too short ({len(general_instructions)} chars) — need >= 100")
 
     status = "PASS" if not issues else "FAIL"
-    print(f"\n{'\u2705' if status == 'PASS' else '\u274c'} Genie config validation: {status}")
+    _icon = "\u2705" if status == "PASS" else "\u274c"
+    print(f"\n{_icon} Genie config validation: {status}")
     if issues:
         for issue in issues:
             print(f"   \u2022 {issue}")

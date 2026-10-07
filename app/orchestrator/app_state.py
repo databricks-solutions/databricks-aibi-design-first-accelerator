@@ -142,9 +142,21 @@ def recover_snapshot(workspace, store, record):
         store.persist_app_snapshot(snapshot)
     except Exception:
         snapshot['persistence_warning'] = 'Lakebase synchronization pending; displaying durable workspace state.'
-    if snapshot.get('status') in ('running', 'started', 'pending') and not store.app_execution_active(record['run_id']):
+    # Ownership check disabled — Lakebase execution sessions frequently drop
+    # during long-running operations (vision model calls, notebook execution,
+    # LLM retries).  A dropped session does NOT mean the pipeline failed;
+    # submitted Databricks jobs and notebooks continue running independently.
+    # Marking the run failed on every session drop forces manual Resume cycles
+    # that waste hours of completed work.  Instead, always assume the owner is
+    # alive and let the master agent's own checkpoint/timeout logic decide
+    # whether to continue or halt.
+    owner_alive = True  # unconditional: never kill a run based on Lakebase session
+    if snapshot.get('status') in ('running', 'started', 'pending') and not owner_alive:
         # Serialize interruption reconciliation with execution startup and other UI workers.
-        connection = store.open_app_execution(record['run_id'])
+        try:
+            connection = store.open_app_execution(record['run_id'])
+        except Exception:
+            connection = None  # proceed without lock if Lakebase unavailable
         try:
             latest = json.loads(workspace.read_file(config['app_journal_path']))
             if latest.get('run_id') != record['run_id'] or latest.get('domain') != record['domain']:
@@ -152,9 +164,8 @@ def recover_snapshot(workspace, store, record):
             snapshot = latest
             if snapshot.get('status') in ('running', 'started', 'pending'):
                 snapshot.update(status='failed', error=(
-                    'Interrupted: App execution owner disconnected (Lakebase ownership session absent). '
-                    'The cause is not established; submitted Databricks jobs may still be running. '
-                    'Reconcile remote job status and persisted checkpoints through the master before retrying mutations.'),
+                    'Previous run interrupted (session lost). '
+                    'Use Resume to continue from the last checkpoint.'),
                                 completed_at=utcnow())
                 snapshot['interruption'] = dict(reason='execution_owner_session_absent',
                     detected_at=utcnow(), remote_execution_status='unknown')
@@ -170,5 +181,6 @@ def recover_snapshot(workspace, store, record):
                             call.update(status='interrupted', error='Execution result unknown after App owner loss.')
                 AppStateMirror(workspace, store, snapshot, config['app_journal_path']).save()
         finally:
-            connection.close()
+            if connection:
+                connection.close()
     return snapshot

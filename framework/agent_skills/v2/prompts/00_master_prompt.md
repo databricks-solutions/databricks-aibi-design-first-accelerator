@@ -209,6 +209,13 @@ Record the actual config locator and resolved coordinates in Config findings and
 config → proposed context → handoff parity before freezing. On resume, authenticated
 frozen coordinates remain authority; current config differences are drift, not overrides.
 
+**Resolve ALL relative input paths against EXAMPLE_DIR before freezing.** `accelerator.yaml`
+stores paths like `inputs/erd.png` relative to its own location (`EXAMPLE_DIR`). The frozen
+`run_context` must contain absolute workspace paths — e.g.,
+`{EXAMPLE_DIR}/inputs/erd.png` → `/Workspace/.../kpi_domains/member_claims/inputs/erd.png`.
+This applies to `data_source.erd.image` and any other input path. A relative path in the
+frozen context is `DATA_LAYER_INPUT_AUTHORITY_ERROR`; downstream stages cannot resolve it.
+
 Names and three-part identifiers are formatted once. Stages consume the handoff verbatim and halt
 rather than repair it.
 
@@ -395,6 +402,41 @@ correction limit, and exact benchmark outcome map in `run_context.validation`. T
 is canonical JSON over exactly `{policy_id, thresholds, benchmark_outcomes}`. Downstream stages may
 not apply defaults or reinterpret outcomes.
 
+**CRITICAL — flat key layout**: Every threshold and outcome key MUST be stored as a **flat,
+top-level key** inside `run_context.validation`. Do NOT nest them under wrapper keys like
+`genie_quality_thresholds` or `genie_quality_benchmark_outcomes`. The correct layout:
+
+```yaml
+validation:
+  genie_quality_contract_name: genie_quality
+  genie_quality_contract_version: "2026.09.1"
+  genie_quality_contract_sha256: <sha256>
+  genie_quality_policy_id: GENIE_QUALITY_V1
+  genie_quality_effective_policy_sha256: <sha256>
+  # Thresholds — flat, NOT nested under a wrapper key:
+  min_instruction_chars: 500
+  min_sample_questions: 15
+  min_sample_query_file_queries: 10
+  min_example_sqls: 10
+  min_benchmark_questions: 15
+  min_analytical_patterns: 5
+  min_kpi_question_references: 2
+  min_dimension_question_references: 1
+  benchmark_pass_rate: 0.80
+  benchmark_warn_rate: 0.60
+  max_genie_correction_cycles: 3
+  # Outcome map — stored as `benchmark_outcomes`, NOT `genie_quality_benchmark_outcomes`:
+  benchmark_outcomes:
+    PASS: {predicate: GTE, ...}
+    WARN: {predicate: GTE, ...}
+    FAIL: {predicate: LT, ...}
+    evaluation_order: [FAIL, WARN, PASS]
+  require_all_kpis: true
+```
+
+Downstream gate_checks and Genie template code access these as `validation['benchmark_pass_rate']`,
+`validation['benchmark_outcomes']`, etc. Nested wrappers cause KeyError and pipeline halt.
+
 Freeze this Dashboard policy exactly; its numeric defaults exist only here:
 
 ```yaml
@@ -539,6 +581,27 @@ Do not report setup under `load_configuration` or `create_data_layer`. On resume
 recheck setup readback before admitting Data Layer; the old UI status is not evidence.
 
 ## Failed-phase continuation
+
+### App-provided resume_hint (fast path)
+
+When the context contains `resume_hint`, the App has already scanned output artifacts
+and determined the exact resume point. This is authoritative:
+
+1. **Trust `resume_hint.completed_steps`** — these steps produced verified artifacts.
+   Do not re-execute them. Do not re-validate their phases. Do not re-read their
+   stage instructions. Skip directly past them.
+2. **Resume at `resume_hint.resume_at_step`** — this is the first step that needs work.
+   Start the resolver to authenticate the existing version, then jump directly to
+   this step's first incomplete phase.
+3. **`resume_hint.prior_error`** describes what failed last time. Fix or work around
+   that specific issue. Do not replay the entire pipeline.
+4. **`resume_hint.completed_phases`** lists every phase checkpoint. Use them for the
+   Resume Skip Gate without re-running each phase's validation.
+
+This fast path eliminates the need for the full lifecycle ceremony on retry. The App
+has already verified the version exists and the run_context is recoverable.
+
+### Standard retry (no resume_hint)
 
 Explicit retry means continue the selected failed run at its earliest phase that needs
 work, not restart its stage from the first instruction. After locked lifecycle reopen,

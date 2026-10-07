@@ -118,6 +118,65 @@ class MasterAgentHost:
     def cancel(self):
         self.cancelled=True
 
+    def _build_resume_hint(self,example_dir,version_override):
+        """Scan filesystem to build a structured resume hint for the LLM.
+
+        Returns a dict summarizing completed phases and the exact failure point
+        so the LLM can skip lifecycle ceremony and jump to the failed phase.
+        """
+        try:
+            ws=self.services['workspace']
+            output_folder=example_dir+'/generated_outputs/v'+str(version_override)
+            rc_raw=ws.read_file(output_folder+'/run_context.yaml')
+            rc=yaml.safe_load(rc_raw)
+            phases=rc.get('phases_completed',[])
+            completed_phases=[]
+            for p in phases:
+                if isinstance(p,dict):
+                    completed_phases.append(f"{p.get('step','?')}/{p.get('phase','?')}")
+            # Determine which artifacts exist to identify completed steps
+            step_markers=[
+                ('create_data_layer','data_layer_validation.yaml'),
+                ('create_metric_views','metric_views/metric_view_spec.yaml'),
+                ('create_dashboards','dashboards/dashboard_validation.yaml'),
+                ('create_genie_space','genie/genie_semantic_inventory.yaml'),
+                ('generate_documentation','readme.md'),
+            ]
+            completed_steps=[]
+            first_incomplete=None
+            for step_name,marker in step_markers:
+                try:
+                    content=ws.read_file(output_folder+'/'+marker)
+                    if content and len(str(content).strip())>0:
+                        completed_steps.append(step_name)
+                    else:
+                        if not first_incomplete:
+                            first_incomplete=step_name
+                except Exception:
+                    if not first_incomplete:
+                        first_incomplete=step_name
+            return {
+                'version': version_override,
+                'output_folder': output_folder,
+                'run_id': rc.get('run_id',''),
+                'prior_status': rc.get('status','unknown'),
+                'prior_error': str(rc.get('error',''))[:500] if rc.get('error') else None,
+                'prior_step': rc.get('current_step',''),
+                'completed_phases': completed_phases,
+                'completed_steps': completed_steps,
+                'resume_at_step': first_incomplete or 'unknown',
+                'instruction': (
+                    f"This is a RETRY of version {version_override}. "
+                    f"Steps already completed: {completed_steps}. "
+                    f"Resume from step '{first_incomplete or 'next incomplete'}'. "
+                    f"Do NOT re-execute completed steps or their phases. "
+                    f"The prior run failed at step '{rc.get('current_step','')}'. "
+                    f"Skip lifecycle ceremony for completed phases — they are already persisted."
+                ),
+            }
+        except Exception:
+            return None
+
     def run(self,*,domain,run_id,version_mode='auto',version_override=None,steps=None,run_mode='versioned',callback=None):
         config=self.config
         example_dir=config.example_dir
@@ -127,6 +186,13 @@ class MasterAgentHost:
             requested_version=version_override,sql_warehouse_id=config.sql_warehouse_id,
             workspace_host=self.services['workspace']._client.config.host,
             requested_steps=steps,requested_run_mode=run_mode)
+        # For retry/resume: scan output artifacts to tell the LLM exactly which
+        # phases are already completed so it can skip ahead instead of re-reading
+        # the error and getting stuck in lifecycle ceremony.
+        if version_mode=='retry' and version_override:
+            resume_hint=self._build_resume_hint(example_dir,version_override)
+            if resume_hint:
+                context['resume_hint']=resume_hint
         def event(name,data):
             if self.cancelled:
                 raise RuntimeError('Master execution interrupted; resume through the master checkpoint gates')
@@ -134,7 +200,7 @@ class MasterAgentHost:
                 callback(name,data)
         start=time.monotonic()
         result=self.agent.run(self.loader.load_step_prompt('master'),context,
-            system_supplement=self.loader.load_supplements('master'),callback=event,max_iterations=400)
+            system_supplement=self.loader.load_supplements('master'),callback=event,max_iterations=800)
         if result.error and not result.artifacts:
             raise RuntimeError('Master interrupted before terminal commit: ' + result.error)
         # Even a textual success cannot override the persisted master lifecycle outcome.

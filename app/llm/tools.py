@@ -185,11 +185,14 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "execute_python",
             "description": (
-                "Execute a short Python snippet in a local subprocess (NO Spark, NO SDK). "
-                "Use ONLY for: JSON/YAML manipulation, string formatting, UUID generation, "
-                "simple math/logic. "
-                "Do NOT use for: PySpark/DataFrames, dbldatagen, Databricks SDK calls "
-                "(w.lakeview.*, w.api_client.*), /Workspace file I/O, or API calls. "
+                "Execute a Python snippet in a local subprocess (NO Spark). "
+                "The subprocess inherits DATABRICKS_HOST and DATABRICKS_TOKEN, so "
+                "the Databricks SDK (WorkspaceClient) IS available for lifecycle "
+                "operations: load_lifecycle_runtime, resolve_version, WorkspaceStore, "
+                "load_attested, commit_terminal, and SDK-backed file I/O. "
+                "Use for: JSON/YAML manipulation, string formatting, UUID generation, "
+                "simple math/logic, AND lifecycle resolver bootstrap (run_contract.py). "
+                "Do NOT use for: PySpark/DataFrames, dbldatagen, or Spark SQL. "
                 "For PySpark/dbldatgen: use import_notebook + execute_notebook. "
                 "For dashboards: use create_dashboard/publish_dashboard tools. "
                 "For files: use read_workspace_file/write_workspace_file tools."

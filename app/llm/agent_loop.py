@@ -43,9 +43,9 @@ MAX_ITERATIONS = 80
 # CONTEXT_KEEP_RECENT messages intact. For messages in between, truncate
 # tool result content to CONTEXT_TRIM_LENGTH chars. This preserves the
 # LLM's ability to reference recent work while freeing memory from old results.
-CONTEXT_MAX_CHARS = 300_000       # Total chars before trimming kicks in
-CONTEXT_KEEP_RECENT = 12          # Messages to keep untouched at the tail
-CONTEXT_TRIM_LENGTH = 200         # Truncated tool result length (chars)
+CONTEXT_MAX_CHARS = 500_000       # Total chars before trimming kicks in
+CONTEXT_KEEP_RECENT = 20          # Messages to keep untouched at the tail
+CONTEXT_TRIM_LENGTH = 400         # Truncated tool result length (chars)
 
 # Max consecutive tool errors before hard fail (prevents token waste on unfixable issues)
 MAX_CONSECUTIVE_ERRORS = 3
@@ -55,9 +55,16 @@ MAX_CONSECUTIVE_ERRORS = 3
 # The LLM must NOT be allowed to silently adapt around these failures.
 # EXCEPTION: errors classified as LLM_REPAIRABLE by the error classifier
 # are routed to the LLM for self-correction instead of hard-halting.
+#
+# NOTE: execute_python is intentionally NOT critical. The LLM generates
+# arbitrary Python code that can fail for countless reasons (missing dirs,
+# type mismatches, API quirks, host checks, etc.). These are all self-
+# correctable — the LLM sees the error and fixes its code. The 3-
+# consecutive-errors budget (MAX_CONSECUTIVE_ERRORS) still catches
+# truly unfixable loops. Keeping it critical caused every novel error
+# to kill the entire pipeline instead of letting the LLM self-correct.
 CRITICAL_TOOLS = {
     "execute_sql",            # DDL failures (CREATE SCHEMA, CREATE TABLE) = broken data layer
-    "execute_python",         # Python code generates artifacts (YAML, configs) needed downstream
     "execute_notebook",       # Notebook execution (data generation, ETL) = missing data
     "create_notebook",        # Can't create the notebook = can't proceed
     "deploy_from_template",   # A missing producer cannot unlock downstream stages
@@ -81,6 +88,18 @@ READ_ONLY_TOOLS = {
 ERROR_CLASSIFICATION = {
     # LLM repairable — generation errors the LLM can fix
     "LLM_REPAIRABLE": [
+        "BLOCKED:",                          # pre-flight gate: LLM must fix ordering/spec before retry
+        "SYNTHETIC_SPEC_ERROR",              # spec validation failure: LLM must fix the spec
+        "TEMPLATE_BINDING_ERROR",            # missing placeholders: auto-fill handles most, LLM fixes rest
+        "METRIC_VIEW_READBACK_ERROR",        # YAML normalization mismatch: LLM can adjust
+        "METRIC_VIEW_CAPABILITY_ERROR",      # plan/spec mismatch: LLM can fix the plan
+        "SCHEMA_CONTRACT_ERROR",              # ERD parse produced invalid schema: LLM can re-parse
+        "ERD_EXTRACTION_ERROR",               # vision model output quality: LLM can retry
+        "HELPER_CONTRACT_ERROR",              # digest mismatch from hot-fixed templates: LLM re-reads source
+        "HELPER_DIGEST_DRIFT",               # non-fatal digest warning: proceed with actual hash
+        "AGENT_CAPABILITY_ERROR",             # host mismatch or missing op: LLM can normalize and retry
+        "GateCheckError",                     # dashboard/notebook gate check: LLM can fix spec and retry
+        "GATE READBACK_CONTRACT FAILED",      # post-deploy validation: quality gate, not infra failure
         "WORKSPACE_UPLOAD_FORMAT_REQUIRED",  # pre-execution rejection; safe to correct and resubmit
         "PARSE_SYNTAX_ERROR",
         "UNRESOLVED_COLUMN",
@@ -95,6 +114,7 @@ ERROR_CLASSIFICATION = {
         "DELTA_EXCEED_CHAR_VARCHAR_LIMIT",
         "DELTA_CONSTRAINT_VIOLATION",
         "CHECK_CONSTRAINT_VIOLATED",
+        "CAST_INVALID_INPUT",                 # type mismatch at write: LLM can fix column spec
         # Notebook assertion failures — ALL AssertionErrors from template
         # notebooks are validation gates (structural, metadata, semantic,
         # deployment). They catch LLM spec errors: hallucinated columns,
@@ -103,6 +123,13 @@ ERROR_CLASSIFICATION = {
         # Infrastructure errors use different exception types (PermissionDenied,
         # RuntimeError, etc.) and are classified as DETERMINISTIC_FAIL.
         "AssertionError",
+        # Python type/value errors from LLM-generated specs — e.g. 'Y'/'N' in
+        # an INT column, bad casts, wrong formats.  The LLM can fix the spec
+        # and regenerate.  True infrastructure ValueErrors are rare and would
+        # hit MAX_CONSECUTIVE_ERRORS if they can't be self-corrected.
+        "ValueError",
+        "TypeError",
+        "SYNTHETIC_SPEC_BACKFILL",
     ],
     # Deterministic fail — infrastructure errors the LLM cannot fix
     "DETERMINISTIC_FAIL": [
@@ -253,21 +280,68 @@ class AgentLoop:
             # Prevent OOM by compressing old tool results when context grows too large.
             messages = self._trim_context(messages)
 
-            # Call LLM with tools
-            try:
-                response = self._llm.chat_with_tools(
-                    messages=messages,
-                    tools=TOOL_DEFINITIONS,
-                    max_tokens=16384,
-                )
-            except Exception as e:
-                logger.error(f"LLM call failed at iteration {iterations}: {e}")
-                return AgentResult(
-                    success=False,
-                    error=f"LLM call failed: {str(e)}",
-                    iterations=iterations,
-                    tool_calls_made=tool_calls_made,
-                )
+            # Call LLM with tools — retry up to 3 times on transient failures
+            # (timeouts, rate limits, 5xx). A single timeout should not kill a
+            # multi-hour pipeline that has already completed expensive steps.
+            # Uses a threading-based wall-clock timeout to kill truly hung
+            # HTTP connections that ignore the SDK's http_timeout_seconds.
+            # IMPORTANT: Do NOT use ThreadPoolExecutor as a context manager
+            # because __exit__ calls shutdown(wait=True) which blocks until
+            # the hung thread finishes, defeating the timeout.
+            import concurrent.futures as _cf
+            response = None
+            _llm_max_retries = 3
+            _LLM_WALL_TIMEOUT = 660  # 11 minutes (> 600s SDK timeout)
+            for _llm_attempt in range(1, _llm_max_retries + 1):
+                try:
+                    _pool = _cf.ThreadPoolExecutor(max_workers=1)
+                    _fut = _pool.submit(
+                        self._llm.chat_with_tools,
+                        messages=messages,
+                        tools=TOOL_DEFINITIONS,
+                        max_tokens=16384,
+                    )
+                    try:
+                        response = _fut.result(timeout=_LLM_WALL_TIMEOUT)
+                    except _cf.TimeoutError:
+                        # Abandon the hung thread — do NOT wait for it.
+                        _pool.shutdown(wait=False, cancel_futures=True)
+                        raise TimeoutError(
+                            f"LLM call hung for >{_LLM_WALL_TIMEOUT}s "
+                            f"(wall-clock timeout, attempt {_llm_attempt})"
+                        )
+                    else:
+                        _pool.shutdown(wait=False)
+                    break  # Success
+                except Exception as e:
+                    _err_str = str(e).lower()
+                    _is_transient = any(kw in _err_str for kw in (
+                        'timeout', 'timed out', 'rate_limit', 'throttl',
+                        '429', '503', '502', '504', 'temporarily_unavailable',
+                        'service_unavailable', 'overloaded',
+                    ))
+                    if _is_transient and _llm_attempt < _llm_max_retries:
+                        _backoff = 2 ** _llm_attempt * 10  # 20s, 40s, 80s
+                        logger.warning(
+                            f"LLM call transient failure (attempt {_llm_attempt}/{_llm_max_retries}), "
+                            f"retrying in {_backoff}s: {e}"
+                        )
+                        if callback:
+                            callback("llm_retry", {
+                                "attempt": _llm_attempt,
+                                "backoff_seconds": _backoff,
+                                "error": str(e)[:200],
+                            })
+                        time.sleep(_backoff)
+                        continue
+                    # Non-transient or retries exhausted
+                    logger.error(f"LLM call failed at iteration {iterations} (attempt {_llm_attempt}): {e}")
+                    return AgentResult(
+                        success=False,
+                        error=f"LLM call failed: {str(e)}",
+                        iterations=iterations,
+                        tool_calls_made=tool_calls_made,
+                    )
 
             # Check if LLM wants to call tools
             tool_calls = response.get("tool_calls", [])
@@ -324,7 +398,7 @@ class AgentLoop:
                 duration_ms = int((time.time() - start_ts) * 1000)
 
                 # Track errors for cost control (three mechanisms)
-                is_error = result_str.startswith("ERROR") or result_str.startswith("SQL ERROR") or result_str.startswith("NOTEBOOK ERROR")
+                is_error = result_str.startswith("ERROR") or result_str.startswith("SQL ERROR") or result_str.startswith("NOTEBOOK ERROR") or result_str.startswith("BLOCKED:")
                 if is_error:
                     consecutive_errors += 1
                     # Read-only tools don't accumulate per_tool_errors (transient
@@ -423,7 +497,7 @@ class AgentLoop:
                                     is_critical = True
                                     break
 
-                    if tool_name == 'deploy_from_template':
+                    if tool_name == 'deploy_from_template' and error_category != 'LLM_REPAIRABLE':
                         is_critical = True
                     if is_critical:
                         logger.error(
