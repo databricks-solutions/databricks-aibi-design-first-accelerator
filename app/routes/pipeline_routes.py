@@ -1347,7 +1347,8 @@ def get_run_status(run_id):
 
 @pipeline_bp.route('/runs')
 def list_runs():
-    """List all pipeline runs from Lakebase (for dashboard).
+    """List all pipeline runs — journal files are the source of truth,
+    enriched by Lakebase when available.
 
     Query params:
         domain (str, optional): Filter by domain name.
@@ -1356,36 +1357,58 @@ def list_runs():
     Returns:
         [{run_id, domain, status, version, started_at, duration_s, error}, ...]
     """
-    run_store = _get_state_store()
-    if not run_store:
-        return jsonify([])  # No state store yet — return empty list
-
     domain = request.args.get('domain')
     limit = int(request.args.get('limit', 50))
+    runs = []  # accumulator
+    seen_run_ids = set()
 
+    # ── 1. Try Lakebase first (fast, structured) ──
+    run_store = _get_state_store()
+    if run_store:
+        try:
+            lakebase_runs = run_store.list_runs(limit=limit, domain=domain)
+            for r in lakebase_runs:
+                rid = r.get('run_id')
+                if rid:
+                    seen_run_ids.add(rid)
+                runs.append(r)
+        except Exception as e:
+            logger.warning(f"Lakebase list_runs failed (falling back to journals): {e}")
+
+    # ── 2. Journal-file fallback — always runs ──
+    # Reads app_runs/*.json from workspace.  Picks up runs that Lakebase
+    # is missing (SafeStateStore swallowed errors, runs predate Lakebase,
+    # or Lakebase is entirely unavailable).
     try:
-        runs = run_store.list_runs(limit=limit, domain=domain)
+        from config import get_config
+        app_config = get_config()
+        from databricks.sdk import WorkspaceClient as _WC2
+        _w2 = _WC2()
 
-        # ── Journal-file fallback ──
-        # Lakebase may be missing runs (SafeStateStore swallowed create_run
-        # errors, or runs predate Lakebase integration).  Merge any journal
-        # entries that Lakebase doesn't know about.
-        lakebase_run_ids = {r.get('run_id') for r in runs}
         if domain:
+            scan_domains = [domain]
+        else:
+            # No domain filter — scan all domain directories
+            scan_domains = []
             try:
-                from config import get_config
-                app_config = get_config()
-                journal_dir = f"{app_config.WORKSPACE_ROOT}/kpi_domains/{domain}/app_runs"
-                from databricks.sdk import WorkspaceClient as _WC2
-                _w2 = _WC2()
+                kpi_root = f"{app_config.WORKSPACE_ROOT}/kpi_domains"
+                for d_item in _w2.workspace.list(kpi_root):
+                    if d_item.object_type and d_item.object_type.value == 'DIRECTORY':
+                        dname = d_item.path.rsplit('/', 1)[-1]
+                        scan_domains.append(dname)
+            except Exception:
+                pass
+
+        for scan_domain in scan_domains:
+            try:
+                journal_dir = f"{app_config.WORKSPACE_ROOT}/kpi_domains/{scan_domain}/app_runs"
                 for item in _w2.workspace.list(journal_dir):
-                    if not item.path.endswith('.json'):
+                    if not item.path or not item.path.endswith('.json'):
                         continue
                     fname = item.path.rsplit('/', 1)[-1]
                     rid = fname.replace('.json', '')
-                    if rid in lakebase_run_ids:
+                    if rid in seen_run_ids:
                         continue
-                    # Read journal and build a minimal run record
                     try:
                         import json as _json2
                         with _w2.workspace.download(item.path) as _reader:
@@ -1395,7 +1418,7 @@ def list_runs():
                             _ver = _ver.get('number', 0)
                         runs.append({
                             'run_id': rid,
-                            'domain': _jdata.get('domain', domain),
+                            'domain': _jdata.get('domain', scan_domain),
                             'status': _jdata.get('status', 'unknown'),
                             'version': _ver,
                             'current_step': _jdata.get('current_step'),
@@ -1404,54 +1427,56 @@ def list_runs():
                             'error': str(_jdata.get('error', ''))[:200] if _jdata.get('error') else None,
                             'source': 'journal',
                         })
+                        seen_run_ids.add(rid)
                     except Exception:
                         pass  # Skip unreadable journals
-            except Exception as _je:
-                logger.debug(f"Journal fallback skipped: {_je}")
-
-        # Reconcile Lakebase status with version_registry.yaml (source of truth).
-        # The registry is updated atomically at pipeline completion, while Lakebase
-        # may have stale 'running' status if the app restarted before the final write.
-        registry_status = {}  # run_id -> status from registry
-        if domain:
-            try:
-                import yaml as _yaml
-                from config import get_config
-                app_config = get_config()
-                reg_path = f"{app_config.WORKSPACE_ROOT}/kpi_domains/{domain}/version_registry.yaml"
-                from databricks.sdk import WorkspaceClient
-                _w = WorkspaceClient()
-                with _w.workspace.download(reg_path) as reader:
-                    reg = _yaml.safe_load(reader.read().decode('utf-8'))
-                for v in (reg or {}).get('versions', []):
-                    rid = v.get('run_id')
-                    if rid:
-                        registry_status[rid] = v.get('status', 'unknown')
             except Exception:
-                pass  # Registry not available — fall through to zombie detection
+                pass  # Domain has no app_runs dir — skip
+    except Exception as _je:
+        logger.debug(f"Journal fallback skipped: {_je}")
 
-        for r in runs:
-            rid = r.get('run_id')
-            # Normalize version: ensure it's always an int for the UI
-            _v = r.get('version')
-            if isinstance(_v, dict):
-                r['version'] = _v.get('number', _v.get('version', 0))
-            # Registry reconciliation: if registry says completed/failed, trust it
-            if rid in registry_status:
-                reg_st = registry_status[rid]
-                if reg_st in ('completed', 'failed') and r.get('status') != reg_st:
-                    r['status'] = reg_st
-                    if reg_st == 'completed':
-                        r.pop('error', None)  # Clear stale error message
-                    continue
-            # Zombie detection: runs in Lakebase as 'running' but no active thread
-            if r.get('status') == 'running' and rid not in _runs:
-                r['status'] = 'failed'
-                r['error'] = r.get('error') or 'Interrupted: app restarted during execution'
-        return jsonify(runs)
-    except Exception as e:
-        logger.warning(f"list_runs failed: {e}")
-        return jsonify([])  # Return empty list on DB error (table may not exist yet)
+    # ── 3. Reconcile statuses ──
+    # Reconcile with version_registry.yaml (source of truth for final status).
+    registry_status = {}  # run_id -> status from registry
+    if domain:
+        try:
+            import yaml as _yaml
+            from config import get_config
+            app_config = get_config()
+            reg_path = f"{app_config.WORKSPACE_ROOT}/kpi_domains/{domain}/version_registry.yaml"
+            from databricks.sdk import WorkspaceClient
+            _w = WorkspaceClient()
+            with _w.workspace.download(reg_path) as reader:
+                reg = _yaml.safe_load(reader.read().decode('utf-8'))
+            for v in (reg or {}).get('versions', []):
+                rid = v.get('run_id')
+                if rid:
+                    registry_status[rid] = v.get('status', 'unknown')
+        except Exception:
+            pass  # Registry not available — fall through to zombie detection
+
+    for r in runs:
+        rid = r.get('run_id')
+        # Normalize version: ensure it's always an int for the UI
+        _v = r.get('version')
+        if isinstance(_v, dict):
+            r['version'] = _v.get('number', _v.get('version', 0))
+        # Registry reconciliation: if registry says completed/failed, trust it
+        if rid in registry_status:
+            reg_st = registry_status[rid]
+            if reg_st in ('completed', 'failed') and r.get('status') != reg_st:
+                r['status'] = reg_st
+                if reg_st == 'completed':
+                    r.pop('error', None)  # Clear stale error message
+                continue
+        # Zombie detection: runs in Lakebase as 'running' but no active thread
+        if r.get('status') == 'running' and rid not in _runs:
+            r['status'] = 'failed'
+            r['error'] = r.get('error') or 'Interrupted: app restarted during execution'
+
+    # Sort by started_at descending, apply limit
+    runs.sort(key=lambda r: r.get('started_at') or '', reverse=True)
+    return jsonify(runs[:limit])
 
 
 @pipeline_bp.route('/version-status')
