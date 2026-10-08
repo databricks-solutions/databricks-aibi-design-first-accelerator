@@ -1366,6 +1366,49 @@ def list_runs():
     try:
         runs = run_store.list_runs(limit=limit, domain=domain)
 
+        # ── Journal-file fallback ──
+        # Lakebase may be missing runs (SafeStateStore swallowed create_run
+        # errors, or runs predate Lakebase integration).  Merge any journal
+        # entries that Lakebase doesn't know about.
+        lakebase_run_ids = {r.get('run_id') for r in runs}
+        if domain:
+            try:
+                from config import get_config
+                app_config = get_config()
+                journal_dir = f"{app_config.WORKSPACE_ROOT}/kpi_domains/{domain}/app_runs"
+                from databricks.sdk import WorkspaceClient as _WC2
+                _w2 = _WC2()
+                for item in _w2.workspace.list(journal_dir):
+                    if not item.path.endswith('.json'):
+                        continue
+                    fname = item.path.rsplit('/', 1)[-1]
+                    rid = fname.replace('.json', '')
+                    if rid in lakebase_run_ids:
+                        continue
+                    # Read journal and build a minimal run record
+                    try:
+                        import json as _json2
+                        with _w2.workspace.download(item.path) as _reader:
+                            _jdata = _json2.loads(_reader.read().decode('utf-8'))
+                        _ver = _jdata.get('version')
+                        if isinstance(_ver, dict):
+                            _ver = _ver.get('number', 0)
+                        runs.append({
+                            'run_id': rid,
+                            'domain': _jdata.get('domain', domain),
+                            'status': _jdata.get('status', 'unknown'),
+                            'version': _ver,
+                            'current_step': _jdata.get('current_step'),
+                            'started_at': _jdata.get('started_at'),
+                            'duration_s': _jdata.get('duration_s'),
+                            'error': str(_jdata.get('error', ''))[:200] if _jdata.get('error') else None,
+                            'source': 'journal',
+                        })
+                    except Exception:
+                        pass  # Skip unreadable journals
+            except Exception as _je:
+                logger.debug(f"Journal fallback skipped: {_je}")
+
         # Reconcile Lakebase status with version_registry.yaml (source of truth).
         # The registry is updated atomically at pipeline completion, while Lakebase
         # may have stale 'running' status if the app restarted before the final write.
